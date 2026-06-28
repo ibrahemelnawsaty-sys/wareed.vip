@@ -1,0 +1,24 @@
+# ============================================================
+#  وريد — توجيه جذر الموقع إلى مجلد public + حماية الملفات الحساسة
+#  يُرفع إلى: public_html/.htaccess
+#  (مناسب عندما يكون مشروع Laravel كاملاً داخل public_html)
+# ============================================================
+
+Options -Indexes
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # امنع الوصول المباشر للملفات والمجلدات الحسّاسة
+    RewriteRule ^(\.env($|\..*)|\.git|composer\.(json|lock)|package(-lock)?\.json|artisan|server\.php|phpunit\.xml.*|README\.md|\.htaccess) - [F,L,NC]
+    RewriteRule ^(app|bootstrap|config|database|resources|routes|storage|tests|vendor|node_modules)(/|$) - [F,L,NC]
+
+    # وجّه كل الطلبات إلى مجلد public دون تكرار
+    RewriteCond %{REQUEST_URI} !^/public/
+    RewriteRule ^(.*)$ public/$1 [L]
+</IfModule>
+
+# حماية إضافية لملف البيئة
+<Files .env>
+    Require all denied
+</Files>
