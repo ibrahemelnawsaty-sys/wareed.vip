@@ -2,9 +2,12 @@
 
 namespace App\Models;
 
+use App\Observers\ServiceRequestObserver;
+use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
+#[ObservedBy([ServiceRequestObserver::class])]
 class ServiceRequest extends Model
 {
     protected $fillable = [

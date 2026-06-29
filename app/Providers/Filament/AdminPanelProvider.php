@@ -28,10 +28,12 @@ class AdminPanelProvider extends PanelProvider
             ->id('admin')
             ->path('admin')
             ->login()
+            ->passwordReset()
             ->brandName('وريد — لوحة التحكم')
             ->colors([
-                'primary' => Color::Amber,
+                'primary' => Color::Blue,
                 'success' => Color::Emerald,
+                'info' => Color::Violet,
                 'danger' => Color::Rose,
             ])
             ->navigationGroups([

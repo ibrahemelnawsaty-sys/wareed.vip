@@ -3,8 +3,11 @@
 namespace App\Models;
 
 use App\Models\Concerns\BelongsToStore;
+use App\Observers\StoreOrderObserver;
+use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Model;
 
+#[ObservedBy([StoreOrderObserver::class])]
 class StoreOrder extends Model
 {
     use BelongsToStore;
