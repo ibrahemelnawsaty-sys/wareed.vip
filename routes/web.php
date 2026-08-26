@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\PageController;
+use App\Http\Controllers\QuoteController;
 use App\Http\Controllers\ServiceController;
 use App\Http\Controllers\SitemapController;
 use App\Http\Controllers\StoreController;
@@ -26,6 +27,16 @@ Route::scopeBindings()->group(function () {
     Route::post('/store/{store:slug}/product/{product:slug}/order', [StoreController::class, 'order'])
         ->middleware('throttle:15,1')->name('store.order');
 });
+
+// نموذج عرض السعر التفاعلي للمتاجر الإلكترونية + روابط مخصّصة لكل عميل
+Route::get('/quote', [QuoteController::class, 'show'])->name('quote');
+Route::post('/quote', [QuoteController::class, 'submit'])
+    ->middleware('throttle:10,1')->name('quote.submit');
+Route::get('/quote/{invite}', [QuoteController::class, 'show'])->name('quote.invite');
+Route::post('/quote/{invite}', [QuoteController::class, 'submit'])
+    ->middleware('throttle:10,1')->name('quote.invite.submit');
+// اختصار شخصي يُشارك مع العميلة مباشرة
+Route::redirect('/hajar-salama', '/quote/hajar-salama');
 
 // SEO التقني
 Route::get('/sitemap.xml', [SitemapController::class, 'index'])->name('sitemap');
