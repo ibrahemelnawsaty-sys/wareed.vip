@@ -147,7 +147,7 @@ class QuoteController extends Controller
     {
         $questions = [
             [
-                'key' => 'name', 'generic_only' => true, 'type' => 'text',
+                'key' => 'name', 'short' => 'الاسم', 'generic_only' => true, 'type' => 'text',
                 'title' => 'ما الاسم الكريم؟',
                 'hint' => 'يشرّفنا التعرف عليك قبل كل شيء',
                 'placeholder' => 'الاسم الكامل',
@@ -155,7 +155,7 @@ class QuoteController extends Controller
                 'maxlength' => 120,
             ],
             [
-                'key' => 'phone', 'type' => 'tel',
+                'key' => 'phone', 'short' => 'رقم الجوال', 'type' => 'tel',
                 'title' => 'ما رقم الجوال المناسب للتواصل؟',
                 'hint' => 'يفضَّل رقم واتساب — عليه سنتواصل بخصوص عرض السعر',
                 'placeholder' => '01xxxxxxxxx',
@@ -163,7 +163,7 @@ class QuoteController extends Controller
                 'maxlength' => 30,
             ],
             [
-                'key' => 'email', 'generic_only' => true, 'type' => 'email',
+                'key' => 'email', 'short' => 'البريد الإلكتروني', 'generic_only' => true, 'type' => 'email',
                 'title' => 'ما البريد الإلكتروني؟',
                 'hint' => 'لتصلك نسخة من عرض السعر وتأكيد استلام الطلب',
                 'placeholder' => 'name@example.com',
@@ -171,14 +171,14 @@ class QuoteController extends Controller
                 'maxlength' => 190,
             ],
             [
-                'key' => 'store_name', 'generic_only' => true, 'type' => 'text', 'optional' => true,
+                'key' => 'store_name', 'short' => 'اسم المتجر', 'generic_only' => true, 'type' => 'text', 'optional' => true,
                 'title' => 'ما اسم المتجر أو المشروع؟',
                 'hint' => 'إن لم يكن الاسم جاهزاً بعد فلا مشكلة — تكفي فكرة المشروع، أو تخطّي السؤال',
                 'placeholder' => 'مثال: متجر لمسة، مشروع عطور…',
                 'maxlength' => 190,
             ],
             [
-                'key' => 'store_status', 'type' => 'choice',
+                'key' => 'store_status', 'short' => 'وضع المتجر', 'type' => 'choice',
                 'title' => 'ما وضع المتجر حالياً؟',
                 'hint' => 'يساعدنا هذا على تحديد نقطة البداية الصحيحة',
                 'options' => [
@@ -188,7 +188,7 @@ class QuoteController extends Controller
                 ],
             ],
             [
-                'key' => 'store_field', 'type' => 'choice', 'has_other' => true, 'grid' => true,
+                'key' => 'store_field', 'short' => 'مجال المتجر', 'type' => 'choice', 'has_other' => true, 'grid' => true,
                 'title' => 'ما مجال المتجر؟',
                 'hint' => 'الأقرب إلى نشاط المتجر',
                 'options' => [
@@ -203,7 +203,7 @@ class QuoteController extends Controller
                 ],
             ],
             [
-                'key' => 'products_count', 'type' => 'choice',
+                'key' => 'products_count', 'short' => 'عدد المنتجات', 'type' => 'choice',
                 'title' => 'كم عدد المنتجات المتوقع تقريباً؟',
                 'hint' => 'تقدير مبدئي يكفي تماماً',
                 'options' => [
@@ -214,7 +214,7 @@ class QuoteController extends Controller
                 ],
             ],
             [
-                'key' => 'branding', 'type' => 'choice',
+                'key' => 'branding', 'short' => 'الهوية البصرية', 'type' => 'choice',
                 'title' => 'هل توجد هوية بصرية للمتجر؟',
                 'hint' => 'الشعار والألوان والخطوط الخاصة بالعلامة التجارية',
                 'options' => [
@@ -224,7 +224,7 @@ class QuoteController extends Controller
                 ],
             ],
             [
-                'key' => 'features', 'type' => 'multi',
+                'key' => 'features', 'short' => 'الخدمات المطلوبة', 'type' => 'multi',
                 'title' => 'ما الخدمات المطلوبة مع المتجر؟',
                 'hint' => 'يمكنك اختيار أكثر من خيار',
                 'options' => [
@@ -239,7 +239,7 @@ class QuoteController extends Controller
                 ],
             ],
             [
-                'key' => 'budget', 'type' => 'choice',
+                'key' => 'budget', 'short' => 'الميزانية', 'type' => 'choice',
                 'title' => 'ما الميزانية التقريبية المخصّصة للمشروع؟',
                 'hint' => 'تساعدنا على اقتراح الحل الأنسب — وليست التزاماً نهائياً',
                 'options' => [
@@ -251,7 +251,7 @@ class QuoteController extends Controller
                 ],
             ],
             [
-                'key' => 'launch_time', 'type' => 'choice',
+                'key' => 'launch_time', 'short' => 'موعد الإطلاق', 'type' => 'choice',
                 'title' => 'ما الموعد المستهدف لإطلاق المتجر؟',
                 'hint' => '',
                 'options' => [
@@ -262,7 +262,7 @@ class QuoteController extends Controller
                 ],
             ],
             [
-                'key' => 'notes', 'type' => 'textarea', 'optional' => true,
+                'key' => 'notes', 'short' => 'ملاحظات إضافية', 'type' => 'textarea', 'optional' => true,
                 'title' => 'هل من تفاصيل إضافية عن المتجر؟',
                 'hint' => 'منتجات مميزة، متاجر ملهمة، ميزات خاصة — كل تفصيلة تساعدنا على فهم الرؤية بدقة',
                 'placeholder' => 'اكتب هنا… (اختياري)',

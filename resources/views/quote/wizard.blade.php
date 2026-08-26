@@ -11,6 +11,8 @@
         'postUrl' => $inviteSlug ? route('quote.invite.submit', $inviteSlug) : route('quote.submit'),
         'csrf' => csrf_token(),
         'personalized' => $client !== null,
+        'clientName' => $client['name'] ?? null,
+        'whatsapp' => $whatsapp,
         'storageKey' => 'wareed-quote:'.($inviteSlug ?? 'general'),
     ], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT);
 @endphp
@@ -215,6 +217,22 @@
 
         .q-err { display: flex; align-items: center; gap: 7px; color: var(--err); font-size: .88rem; font-weight: 600; margin-top: 12px; }
         .q-err[hidden] { display: none; }
+
+        /* ===== شاشة المراجعة ===== */
+        .review { display: flex; flex-direction: column; gap: 9px; margin-top: 24px; }
+        .rv-row {
+            display: flex; align-items: center; gap: 13px; width: 100%; text-align: start;
+            background: #fbfcff; border: 1.6px solid var(--line); border-radius: 15px;
+            padding: 12px 17px; cursor: pointer;
+            transition: border-color .2s, background .2s, transform .2s;
+        }
+        .rv-row:hover { border-color: #93b4fd; background: #f6f9ff; transform: translateY(-1px); }
+        .rv-q { flex: 0 0 auto; min-width: 108px; font-size: .8rem; font-weight: 600; color: var(--muted); }
+        .rv-a { flex: 1; font-size: .93rem; font-weight: 600; color: var(--ink); overflow-wrap: anywhere; line-height: 1.65; }
+        .rv-edit { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 4px; font-size: .78rem; font-weight: 700; color: var(--blue-deep); opacity: .55; transition: opacity .2s; }
+        .rv-edit svg { width: 12px; height: 12px; }
+        .rv-row:hover .rv-edit { opacity: 1; }
+        @media (max-width: 560px) { .rv-q { min-width: 88px; } .rv-edit svg { display: none; } }
 
         /* ===== الأزرار ===== */
         .q-nav { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin-top: 28px; }
@@ -445,6 +463,37 @@
             </section>
         @endforeach
 
+        {{-- شاشة المراجعة قبل الإرسال --}}
+        <section class="screen" data-review>
+            <div class="card">
+                <div class="q-top">
+                    <span class="q-chip">لحظة مراجعة أخيرة</span>
+                </div>
+                <h2 class="q-title">كل شيء جاهز تقريباً ✨</h2>
+                <p class="q-hint">تأكيد سريع للإجابات قبل الإرسال — يمكن تعديل أي إجابة بالضغط عليها</p>
+                <div class="review">
+                    @foreach($questions as $i => $q)
+                        <button type="button" class="rv-row" data-goto="{{ $i }}">
+                            <span class="rv-q">{{ $q['short'] }}</span>
+                            <span class="rv-a" data-rv="{{ $q['key'] }}">—</span>
+                            <span class="rv-edit">
+                                تعديل
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+                            </span>
+                        </button>
+                    @endforeach
+                </div>
+                <p class="q-err" data-err hidden role="alert"></p>
+                <div class="q-nav">
+                    <button type="button" class="btn btn-primary btn-lg" data-submit>
+                        <span class="spinner" aria-hidden="true"></span>
+                        <span class="btn-label">إرسال الطلب 🚀</span>
+                    </button>
+                    <span class="key-hint">اضغط <b>Enter ↵</b></span>
+                </div>
+            </div>
+        </section>
+
         {{-- شاشة الشكر --}}
         <section class="screen" data-thanks>
             <div class="card thanks">
@@ -460,7 +509,7 @@
                 <p class="t-lead">وصلنا الطلب بنجاح، وبدأ فريق وريد دراسة الإجابات بعناية لتجهيز أفضل عرض ممكن.</p>
                 <div class="promise">📩 سيصلك <b>عرض السعر المخصّص</b> خلال <b>24 ساعة</b> بإذن الله.</div>
                 <div class="t-actions">
-                    <a class="btn btn-wa" href="https://wa.me/{{ $whatsapp }}" target="_blank" rel="noopener">
+                    <a class="btn btn-wa" data-wa href="https://wa.me/{{ $whatsapp }}" target="_blank" rel="noopener">
                         <svg viewBox="0 0 24 24" fill="currentColor"><path d="M.057 24l1.687-6.163a11.867 11.867 0 01-1.587-5.946C.16 5.335 5.495 0 12.05 0a11.82 11.82 0 018.413 3.488 11.82 11.82 0 013.48 8.414c-.003 6.557-5.338 11.892-11.893 11.892a11.9 11.9 0 01-5.688-1.448L.057 24zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884a9.86 9.86 0 001.51 5.26l-.999 3.648 3.737-.97a9.86 9.86 0 00.241.263z"/></svg>
                         التواصل المباشر عبر واتساب
                     </a>
@@ -484,6 +533,7 @@
 
             var screens = Array.prototype.slice.call(document.querySelectorAll('[data-q]'));
             var welcome = document.querySelector('[data-welcome]');
+            var review = document.querySelector('[data-review]');
             var thanks = document.querySelector('[data-thanks]');
             var rail = document.querySelector('[data-rail]');
             var pmStep = document.querySelector('[data-pm-step]');
@@ -492,9 +542,10 @@
             var toast = document.querySelector('[data-toast]');
             var hp = document.querySelector('[data-hp]');
             var total = screens.length;
-            var current = -1; // -1 ترحيب · 0..n-1 أسئلة · n شكر
+            var current = -1; // -1 ترحيب · 0..n-1 أسئلة · n مراجعة · n+1 شكر
             var answers = {};
             var submitting = false;
+            var reviewReturn = false; // عند التعديل من شاشة المراجعة نعود إليها مباشرة
 
             function remainLabel(n) {
                 if (n === 0) return 'آخر سؤال 🎉';
@@ -519,21 +570,21 @@
 
             function activeScreen() {
                 if (current < 0) return welcome;
-                if (current >= total) return thanks;
+                if (current === total) return review;
+                if (current > total) return thanks;
                 return screens[current];
             }
 
             function show(i) {
                 current = i;
-                [welcome, thanks].concat(screens).forEach(function (s) { s.classList.remove('is-active'); });
+                [welcome, review, thanks].concat(screens).forEach(function (s) { s.classList.remove('is-active'); });
+                if (current === total) fillReview();
                 var sc = activeScreen();
                 sc.classList.add('is-active');
                 setProgress();
                 window.scrollTo({ top: 0, behavior: 'smooth' });
 
                 if (current >= 0 && current < total) {
-                    var next = sc.querySelector('[data-next] .btn-label');
-                    if (next) next.textContent = current === total - 1 ? 'إرسال الطلب ✨' : 'التالي';
                     var back = sc.querySelector('[data-back]');
                     if (back) back.style.visibility = current === 0 ? 'hidden' : 'visible';
                     var field = sc.querySelector('input.field, textarea.field');
@@ -541,6 +592,26 @@
                         setTimeout(function () { field.focus({ preventScroll: true }); }, 380);
                     }
                 }
+            }
+
+            // يملأ صفوف شاشة المراجعة من الإجابات الحالية
+            function fillReview() {
+                screens.forEach(function (sc) {
+                    var key = sc.dataset.key;
+                    var cell = review.querySelector('[data-rv="' + key + '"]');
+                    if (!cell) return;
+                    var v = answers[key];
+                    if (v === undefined || v === null || v === '' || (Array.isArray(v) && !v.length)) {
+                        cell.textContent = '—';
+                        return;
+                    }
+                    if (Array.isArray(v)) { cell.textContent = v.join('، '); return; }
+                    if (key === 'store_field' && v === 'أخرى' && answers.store_field_other) {
+                        cell.textContent = 'أخرى: ' + answers.store_field_other;
+                        return;
+                    }
+                    cell.textContent = v;
+                });
             }
 
             function showErr(sc, msg) {
@@ -683,8 +754,10 @@
                 clearErr(sc);
                 if (!collect(sc, skipValidation)) return;
                 if (sc.dataset.key === 'name') personalize();
-                if (current === total - 1) { submitForm(); return; }
-                show(current + 1);
+                // بعد آخر سؤال — أو بعد تعديل قادم من المراجعة — ننتقل لشاشة المراجعة
+                var target = (reviewReturn || current === total - 1) ? total : current + 1;
+                reviewReturn = false;
+                show(target);
                 saveDraft();
             }
 
@@ -719,14 +792,23 @@
                     chip.hidden = false;
                     chip.querySelector('[data-req-num]').textContent = '#' + payload.id;
                 }
-                show(total);
+                // رسالة واتساب جاهزة باسم العميل ورقم الطلب لمتابعة فورية سلسة
+                var wa = document.querySelector('[data-wa]');
+                if (wa) {
+                    var who = CFG.personalized ? CFG.clientName : (answers.name || '');
+                    var txt = 'مرحباً فريق وريد 👋' + (who ? ' أنا ' + who + '،' : '') +
+                        ' أرسلت للتو طلب عرض سعر لمتجري الإلكتروني' +
+                        (payload && payload.id ? ' (رقم الطلب #' + payload.id + ')' : '') + '.';
+                    wa.href = 'https://wa.me/' + CFG.whatsapp + '?text=' + encodeURIComponent(txt);
+                }
+                show(total + 1);
             }
 
             function submitForm() {
                 if (submitting) return;
                 submitting = true;
-                var sc = screens[total - 1];
-                var btn = sc.querySelector('[data-next]');
+                var sc = review;
+                var btn = review.querySelector('[data-submit]');
                 btn.disabled = true;
                 btn.classList.add('is-loading');
 
@@ -753,6 +835,7 @@
                             var first = keys.length ? keys[0].split('.')[0] : null;
                             var idx = screens.findIndex(function (s) { return s.dataset.key === first || first === s.dataset.key + '_other'; });
                             if (idx > -1) {
+                                reviewReturn = true; // بعد تصحيح الإجابة يعود مباشرة لشاشة المراجعة
                                 show(idx);
                                 showErr(screens[idx], j.errors[keys[0]][0]);
                             } else {
@@ -774,6 +857,13 @@
 
             // ربط الأحداث
             document.querySelector('[data-start]').addEventListener('click', function () { show(0); saveDraft(); });
+            review.querySelector('[data-submit]').addEventListener('click', submitForm);
+            review.querySelectorAll('[data-goto]').forEach(function (row) {
+                row.addEventListener('click', function () {
+                    reviewReturn = true;
+                    show(parseInt(row.dataset.goto, 10));
+                });
+            });
 
             screens.forEach(function (sc) {
                 sc.querySelector('[data-next]').addEventListener('click', function () { advance(false); });
@@ -803,11 +893,12 @@
 
             document.addEventListener('keydown', function (e) {
                 if (e.key !== 'Enter' || e.isComposing) return;
+                if (e.target && e.target.closest('a, button')) return;
                 if (current === -1 && welcome.classList.contains('is-active')) { e.preventDefault(); show(0); return; }
-                if (current < 0 || current >= total) return;
+                if (current === total) { e.preventDefault(); submitForm(); return; } // من المراجعة: Enter يرسل
+                if (current < 0 || current > total) return;
                 var sc = screens[current];
                 if (sc.dataset.type === 'textarea' && !(e.ctrlKey || e.metaKey)) return; // داخل الملاحظات: Enter سطر جديد
-                if (e.target && e.target.closest('a, button')) return;
                 e.preventDefault();
                 advance(false);
             });
