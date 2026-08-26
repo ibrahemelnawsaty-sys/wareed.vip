@@ -102,7 +102,7 @@ class QuoteController extends Controller
             ? 'أخرى: '.$data['store_field_other']
             : $data['store_field'];
 
-        ServiceRequest::create([
+        $serviceRequest = ServiceRequest::create([
             'service_id' => Service::query()->where('key', 'ecommerce')->value('id'),
             'service_type' => 'ecommerce',
             'name' => $personalized ? $client['name'] : trim($data['name']),
@@ -126,7 +126,8 @@ class QuoteController extends Controller
             'user_agent' => substr((string) $request->userAgent(), 0, 255),
         ]);
 
-        return response()->json(['ok' => true]);
+        // رقم مرجعي يظهر للعميل في شاشة الشكر
+        return response()->json(['ok' => true, 'id' => $serviceRequest->id]);
     }
 
     private function resolveInvite(?string $invite): ?array

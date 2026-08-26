@@ -57,7 +57,8 @@ it('stores a personalized submission with the invited client name and no email',
 
     $this->postJson('/quote/hajar-salama', validQuoteAnswers())
         ->assertOk()
-        ->assertJson(['ok' => true]);
+        ->assertJson(['ok' => true])
+        ->assertJsonStructure(['ok', 'id']);
 
     $sr = ServiceRequest::sole();
     expect($sr->name)->toBe('أ. هاجر سلامة')
