@@ -198,24 +198,33 @@
         }
         .opt:hover { border-color: #93b4fd; background: #f6f9ff; transform: translateY(-2px); box-shadow: 0 12px 26px -18px rgba(37, 99, 235, .35); }
         .opt input { position: absolute; opacity: 0; pointer-events: none; }
-        .opt-ic { font-size: 1.35rem; flex: 0 0 auto; line-height: 1; }
+        .ic { width: 20px; height: 20px; flex: 0 0 auto; display: inline-block; vertical-align: -.22em; }
+        .opt-ic {
+            flex: 0 0 38px; width: 38px; height: 38px; border-radius: 11px;
+            display: flex; align-items: center; justify-content: center;
+            background: #eef3fd; border: 1px solid var(--line); color: var(--blue-deep);
+            transition: background .2s, border-color .2s, color .2s;
+        }
+        .opt-ic .ic { width: 21px; height: 21px; }
+        .opt:hover .opt-ic { background: #e4edfd; border-color: #b9cef8; }
         .opt-tx { font-size: .98rem; font-weight: 600; flex: 1; }
         .opt-check {
             flex: 0 0 22px; width: 22px; height: 22px; border-radius: 50%;
             border: 1.8px solid var(--line-strong); display: flex; align-items: center; justify-content: center;
             transition: border-color .2s, background .2s; color: transparent;
         }
-        .opt-check svg { width: 12px; height: 12px; }
+        .opt-check .ic { width: 12px; height: 12px; }
         .opt:has(input:checked) {
             border-color: transparent; box-shadow: 0 12px 28px -16px rgba(99, 102, 241, .45);
             background: linear-gradient(#f6f9ff, #f6f9ff) padding-box, var(--grad) border-box;
         }
         .opt:has(input:checked) .opt-check { border-color: transparent; background: var(--grad); color: #fff; animation: check-pop .28s cubic-bezier(.22, 1.4, .36, 1); }
+        .opt:has(input:checked) .opt-ic { background: var(--grad); border-color: transparent; color: #fff; }
         @keyframes check-pop { 0% { transform: scale(.55); } 70% { transform: scale(1.12); } 100% { transform: scale(1); } }
         .opt:has(input:focus-visible) { outline: 3px solid rgba(59, 130, 246, .35); outline-offset: 2px; }
         .other-wrap { margin-top: 12px; }
 
-        .q-err { display: flex; align-items: center; gap: 7px; color: var(--err); font-size: .88rem; font-weight: 600; margin-top: 12px; }
+        .q-err { display: flex; align-items: center; gap: 8px; color: var(--err); font-size: .88rem; font-weight: 600; margin-top: 12px; }
         .q-err[hidden] { display: none; }
 
         /* ===== شاشة المراجعة ===== */
@@ -230,9 +239,9 @@
         .rv-q { flex: 0 0 auto; min-width: 108px; font-size: .8rem; font-weight: 600; color: var(--muted); }
         .rv-a { flex: 1; font-size: .93rem; font-weight: 600; color: var(--ink); overflow-wrap: anywhere; line-height: 1.65; }
         .rv-edit { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 4px; font-size: .78rem; font-weight: 700; color: var(--blue-deep); opacity: .55; transition: opacity .2s; }
-        .rv-edit svg { width: 12px; height: 12px; }
+        .rv-edit .ic { width: 12px; height: 12px; }
         .rv-row:hover .rv-edit { opacity: 1; }
-        @media (max-width: 560px) { .rv-q { min-width: 88px; } .rv-edit svg { display: none; } }
+        @media (max-width: 560px) { .rv-q { min-width: 88px; } .rv-edit .ic { display: none; } }
 
         /* ===== الأزرار ===== */
         .q-nav { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin-top: 28px; }
@@ -250,7 +259,7 @@
         .btn-skip:hover { border-color: var(--blue); color: var(--blue-deep); }
         .btn-back { margin-inline-start: auto; display: inline-flex; align-items: center; gap: 6px; background: none; border: none; color: var(--muted); font-size: .9rem; font-weight: 600; cursor: pointer; padding: 8px 4px; transition: color .2s; }
         .btn-back:hover { color: var(--blue-deep); }
-        .btn-back svg { width: 15px; height: 15px; }
+        .btn-back .ic { width: 15px; height: 15px; }
         .key-hint { font-size: .78rem; color: var(--faint); font-weight: 500; }
         .key-hint b { color: var(--muted); }
         @media (hover: none) { .key-hint { display: none; } }
@@ -278,25 +287,32 @@
         @keyframes pop { from { transform: scale(.4); opacity: 0; } to { transform: scale(1); opacity: 1; } }
         @keyframes draw { to { stroke-dashoffset: 0; } }
         .thanks h2 { font-size: clamp(1.55rem, 4.8vw, 2.1rem); margin-bottom: 10px; letter-spacing: -.02em; }
-        .req-chip {
-            display: inline-flex; align-items: center; gap: 7px; margin-bottom: 16px;
-            font-size: .84rem; font-weight: 700; color: var(--blue-deep);
-            font-variant-numeric: tabular-nums;
-            background: rgba(59, 130, 246, .07); border: 1px dashed rgba(59, 130, 246, .38);
-            border-radius: 999px; padding: 5px 16px;
+        .ref-box {
+            display: flex; flex-direction: column; align-items: center; gap: 3px;
+            margin: 0 auto 22px; padding: 15px 26px; max-width: 380px;
+            background: #f7f9fe; border: 1.5px dashed rgba(59, 130, 246, .4); border-radius: 16px;
         }
-        .req-chip[hidden] { display: none; }
+        .ref-box[hidden] { display: none; }
+        .ref-label { font-size: .76rem; font-weight: 600; color: var(--muted); letter-spacing: .04em; }
+        .ref-num {
+            font-size: 1.2rem; font-weight: 700; letter-spacing: .06em; direction: ltr;
+            font-variant-numeric: tabular-nums;
+            background: var(--grad); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+        }
+        .ref-note { font-size: .74rem; color: var(--faint); }
         .t-lead { color: var(--muted); max-width: 46ch; margin: 0 auto 22px; }
         .promise {
+            display: flex; align-items: center; justify-content: center; gap: 10px;
             background: linear-gradient(150deg, rgba(59, 130, 246, .08), rgba(45, 212, 191, .07));
             border: 1px solid rgba(59, 130, 246, .24); border-radius: 18px;
-            padding: 16px 22px; font-size: 1rem; margin-bottom: 28px;
+            padding: 16px 22px; font-size: 1rem; margin-bottom: 28px; text-align: start;
         }
+        .promise .ic { color: var(--blue-deep); }
         .promise b { color: var(--blue-deep); }
         .t-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; }
         .btn-wa { background: linear-gradient(135deg, #25d366, #128c7e); color: #fff; box-shadow: 0 14px 30px -12px rgba(37, 211, 102, .55); }
         .btn-wa:hover { transform: translateY(-2px); }
-        .btn-wa svg { width: 19px; height: 19px; }
+        .btn-wa .ic { width: 19px; height: 19px; }
 
         .send-err {
             margin-top: 16px; padding: 13px 16px; border-radius: 14px; font-size: .92rem; font-weight: 600;
@@ -331,6 +347,7 @@
     </style>
 </head>
 <body>
+@include('quote._icons')
 
     {{-- الشريط العلوي: الشعار + وسم النموذج --}}
     <header class="topbar">
@@ -348,7 +365,7 @@
             </svg>
             <span class="grad-text">وريد</span>
         </a>
-        <span class="top-tag"><i>✦</i> نموذج عرض السعر · المتاجر الإلكترونية</span>
+        <span class="top-tag"><svg class="ic" style="width:15px;height:15px"><use href="#i-document"/></svg> طلب متجر إلكتروني · عرض سعر</span>
     </header>
     <div class="rail"><div class="rail-fill" data-rail></div></div>
     <div class="pm" aria-live="polite">
@@ -379,19 +396,21 @@
                 </div>
                 @if($client)
                     <span class="w-chip"><span class="pulse"></span> نموذج مخصّص {{ $f ? 'لكِ' : 'لك' }}</span>
-                    <h1>أهلاً {{ $f ? 'بكِ' : 'بك' }} <span class="grad-text">{{ $client['name'] }}</span> <span class="wave">👋</span></h1>
+                    <h1>أهلاً {{ $f ? 'بكِ' : 'بك' }} <span class="grad-text">{{ $client['name'] }}</span></h1>
                     <p class="w-lead">يسعدنا اهتمامك بإطلاق متجرك الإلكتروني مع وريد. أعددنا هذا النموذج خصيصاً {{ $f ? 'لكِ' : 'لك' }} — {{ $qCount }} {{ $qWord }} سريعة، وبناءً على إجاباتك سنجهّز عرض سعر دقيقاً يناسب المتجر تماماً.</p>
                 @else
                     <span class="w-chip"><span class="pulse"></span> طلبات المتاجر الإلكترونية</span>
-                    <h1>أهلاً بك في <span class="grad-text">وريد</span> <span class="wave">👋</span></h1>
+                    <h1>أهلاً بك في <span class="grad-text">وريد</span></h1>
                     <p class="w-lead">دقائق قليلة تفصلنا عن فهم متجرك: {{ $qCount }} {{ $qWord }} سريعة، وبناءً على إجاباتك يصلك عرض سعر مخصّص خلال 24 ساعة.</p>
                 @endif
                 <div class="w-meta">
-                    <span>⏱️ أقل من 3 دقائق</span>
-                    <span>📝 {{ $qCount }} {{ $qWord }}</span>
-                    <span>🔒 بياناتك سرّية بالكامل</span>
+                    <span><svg class="ic"><use href="#i-clock"/></svg> أقل من 3 دقائق</span>
+                    <span><svg class="ic"><use href="#i-list"/></svg> {{ $qCount }} {{ $qWord }}</span>
+                    <span><svg class="ic"><use href="#i-shield"/></svg> بياناتك سرّية بالكامل</span>
                 </div>
-                <button type="button" class="btn btn-primary btn-lg" data-start>لنبدأ 🚀</button>
+                <button type="button" class="btn btn-primary btn-lg" data-start>
+                    ابدأ الطلب <svg class="ic"><use href="#i-arrow-left"/></svg>
+                </button>
             </div>
         </section>
 
@@ -403,7 +422,7 @@
                 <div class="card">
                     <div class="q-top">
                         <span class="q-chip">سؤال {{ $loop->iteration }} / {{ $qCount }}</span>
-                        @if(! $client && $q['key'] === 'phone')
+                        @if(! $client && $q['key'] === 'email')
                             <span class="q-hello" data-hello hidden></span>
                         @endif
                     </div>
@@ -427,11 +446,11 @@
                                 <label class="opt">
                                     <input type="{{ $q['type'] === 'multi' ? 'checkbox' : 'radio' }}"
                                            name="{{ $q['key'] }}" value="{{ $opt['label'] }}">
-                                    @if(! empty($opt['icon']))<span class="opt-ic">{{ $opt['icon'] }}</span>@endif
+                                    @if(! empty($opt['icon']))
+                                        <span class="opt-ic"><svg class="ic" aria-hidden="true"><use href="#i-{{ $opt['icon'] }}"/></svg></span>
+                                    @endif
                                     <span class="opt-tx">{{ $opt['label'] }}</span>
-                                    <span class="opt-check" aria-hidden="true">
-                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
-                                    </span>
+                                    <span class="opt-check" aria-hidden="true"><svg class="ic"><use href="#i-check"/></svg></span>
                                 </label>
                             @endforeach
                         </div>
@@ -443,7 +462,9 @@
                         @endif
                     @endif
 
-                    <p class="q-err" data-err hidden role="alert"></p>
+                    <p class="q-err" data-err hidden role="alert">
+                        <svg class="ic"><use href="#i-alert"/></svg><span data-err-text></span>
+                    </p>
 
                     <div class="q-nav">
                         <button type="button" class="btn btn-primary" data-next>
@@ -455,7 +476,7 @@
                         @endif
                         <span class="key-hint">اضغط <b>{{ $q['type'] === 'textarea' ? 'Ctrl + Enter' : 'Enter ↵' }}</b></span>
                         <button type="button" class="btn-back" data-back>
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+                            <svg class="ic"><use href="#i-arrow-up"/></svg>
                             السؤال السابق
                         </button>
                     </div>
@@ -469,25 +490,25 @@
                 <div class="q-top">
                     <span class="q-chip">لحظة مراجعة أخيرة</span>
                 </div>
-                <h2 class="q-title">كل شيء جاهز تقريباً ✨</h2>
+                <h2 class="q-title">مراجعة أخيرة قبل الإرسال</h2>
                 <p class="q-hint">تأكيد سريع للإجابات قبل الإرسال — يمكن تعديل أي إجابة بالضغط عليها</p>
                 <div class="review">
                     @foreach($questions as $i => $q)
                         <button type="button" class="rv-row" data-goto="{{ $i }}">
                             <span class="rv-q">{{ $q['short'] }}</span>
                             <span class="rv-a" data-rv="{{ $q['key'] }}">—</span>
-                            <span class="rv-edit">
-                                تعديل
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
-                            </span>
+                            <span class="rv-edit">تعديل <svg class="ic"><use href="#i-edit"/></svg></span>
                         </button>
                     @endforeach
                 </div>
-                <p class="q-err" data-err hidden role="alert"></p>
+                <p class="q-err" data-err hidden role="alert">
+                    <svg class="ic"><use href="#i-alert"/></svg><span data-err-text></span>
+                </p>
                 <div class="q-nav">
                     <button type="button" class="btn btn-primary btn-lg" data-submit>
                         <span class="spinner" aria-hidden="true"></span>
-                        <span class="btn-label">إرسال الطلب 🚀</span>
+                        <svg class="ic"><use href="#i-check"/></svg>
+                        <span class="btn-label">اعتماد وإرسال الطلب</span>
                     </button>
                     <span class="key-hint">اضغط <b>Enter ↵</b></span>
                 </div>
@@ -501,17 +522,31 @@
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
                 </div>
                 @if($client)
-                    <h2>شكراً {{ $f ? 'لكِ' : 'لك' }} <span class="grad-text">{{ $client['short_name'] }}</span> 💙</h2>
+                    <h2>شكراً {{ $f ? 'لكِ' : 'لك' }} <span class="grad-text">{{ $client['short_name'] }}</span></h2>
                 @else
-                    <h2>شكراً <span data-thanks-name>لك</span> 💙</h2>
+                    <h2>شكراً <span data-thanks-name>لك</span></h2>
                 @endif
-                <div class="req-chip" data-req hidden>رقم الطلب: <b data-req-num></b></div>
-                <p class="t-lead">وصلنا الطلب بنجاح، وبدأ فريق وريد دراسة الإجابات بعناية لتجهيز أفضل عرض ممكن.</p>
-                <div class="promise">📩 سيصلك <b>عرض السعر المخصّص</b> خلال <b>24 ساعة</b> بإذن الله.</div>
+                <p class="t-lead">استلمنا طلبك بنجاح، وبدأ فريق وريد دراسة الإجابات بعناية لتجهيز أفضل عرض ممكن.</p>
+
+                <div class="ref-box" data-req hidden>
+                    <span class="ref-label">الرقم المرجعي للطلب</span>
+                    <b class="ref-num" data-req-num></b>
+                    <span class="ref-note">يرجى الاحتفاظ بهذا الرقم للرجوع إليه في أي مراسلة</span>
+                </div>
+
+                <div class="promise">
+                    <svg class="ic"><use href="#i-mail"/></svg>
+                    <span>سيصلك <b>عرض السعر المخصّص</b> خلال <b>{{ $slaHours }} ساعة</b> بإذن الله.</span>
+                </div>
+
                 <div class="t-actions">
+                    <a class="btn btn-primary" data-doc href="#" target="_blank" rel="noopener" hidden>
+                        <svg class="ic"><use href="#i-download"/></svg>
+                        تحميل مستند الطلب (PDF)
+                    </a>
                     <a class="btn btn-wa" data-wa href="https://wa.me/{{ $whatsapp }}" target="_blank" rel="noopener">
-                        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M.057 24l1.687-6.163a11.867 11.867 0 01-1.587-5.946C.16 5.335 5.495 0 12.05 0a11.82 11.82 0 018.413 3.488 11.82 11.82 0 013.48 8.414c-.003 6.557-5.338 11.892-11.893 11.892a11.9 11.9 0 01-5.688-1.448L.057 24zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884a9.86 9.86 0 001.51 5.26l-.999 3.648 3.737-.97a9.86 9.86 0 00.241.263z"/></svg>
-                        التواصل المباشر عبر واتساب
+                        <svg class="ic"><use href="#i-whatsapp"/></svg>
+                        التواصل عبر واتساب
                     </a>
                     <a class="btn btn-skip" href="{{ url('/') }}">زيارة موقع وريد</a>
                 </div>
@@ -548,7 +583,7 @@
             var reviewReturn = false; // عند التعديل من شاشة المراجعة نعود إليها مباشرة
 
             function remainLabel(n) {
-                if (n === 0) return 'آخر سؤال 🎉';
+                if (n === 0) return 'آخر سؤال';
                 if (n === 1) return 'بقي سؤال واحد';
                 if (n === 2) return 'بقي سؤالان';
                 if (n <= 10) return 'بقيت ' + n + ' أسئلة';
@@ -616,7 +651,7 @@
 
             function showErr(sc, msg) {
                 var err = sc.querySelector('[data-err]');
-                err.textContent = '⚠ ' + msg;
+                err.querySelector('[data-err-text]').textContent = msg;
                 err.hidden = false;
                 var card = sc.querySelector('.card');
                 card.classList.remove('is-shake');
@@ -690,7 +725,7 @@
                 if (CFG.personalized) return;
                 var hello = document.querySelector('[data-hello]');
                 if (hello && answers.name) {
-                    hello.textContent = 'أهلاً ' + firstName() + ' 👋 تشرّفنا!';
+                    hello.textContent = 'أهلاً ' + firstName() + ' — تشرّفنا!';
                     hello.hidden = false;
                 }
             }
@@ -739,7 +774,7 @@
                 });
                 personalize();
                 show(Math.min(d.current, total - 1));
-                showToast('تمت استعادة إجاباتك السابقة ✨');
+                showToast('تمت استعادة إجاباتك السابقة');
             }
 
             function showToast(msg) {
@@ -787,18 +822,23 @@
                 clearDraft();
                 var name = document.querySelector('[data-thanks-name]');
                 if (name && firstName()) name.textContent = 'لك يا ' + firstName();
-                if (payload && payload.id) {
-                    var chip = document.querySelector('[data-req]');
-                    chip.hidden = false;
-                    chip.querySelector('[data-req-num]').textContent = '#' + payload.id;
+                if (payload && payload.reference) {
+                    var box = document.querySelector('[data-req]');
+                    box.hidden = false;
+                    box.querySelector('[data-req-num]').textContent = payload.reference;
+                }
+                var doc = document.querySelector('[data-doc]');
+                if (doc && payload && payload.documentUrl) {
+                    doc.href = payload.documentUrl;
+                    doc.hidden = false;
                 }
                 // رسالة واتساب جاهزة باسم العميل ورقم الطلب لمتابعة فورية سلسة
                 var wa = document.querySelector('[data-wa]');
                 if (wa) {
                     var who = CFG.personalized ? CFG.clientName : (answers.name || '');
-                    var txt = 'مرحباً فريق وريد 👋' + (who ? ' أنا ' + who + '،' : '') +
-                        ' أرسلت للتو طلب عرض سعر لمتجري الإلكتروني' +
-                        (payload && payload.id ? ' (رقم الطلب #' + payload.id + ')' : '') + '.';
+                    var txt = 'مرحباً فريق وريد،' + (who ? ' أنا ' + who + '،' : '') +
+                        ' أرسلت للتو طلب متجر إلكتروني' +
+                        (payload && payload.reference ? ' — الرقم المرجعي: ' + payload.reference : '') + '.';
                     wa.href = 'https://wa.me/' + CFG.whatsapp + '?text=' + encodeURIComponent(txt);
                 }
                 show(total + 1);
@@ -828,6 +868,13 @@
                 }).then(function (res) {
                     if (res.ok) {
                         return res.json().catch(function () { return {}; }).then(showThanks);
+                    }
+                    if (res.status === 409) {
+                        return res.json().then(function (j) {
+                            clearDraft();
+                            failBanner(sc, j.message || 'سبق استلام طلبك.');
+                            setTimeout(function () { window.location.reload(); }, 2200);
+                        });
                     }
                     if (res.status === 422) {
                         return res.json().then(function (j) {

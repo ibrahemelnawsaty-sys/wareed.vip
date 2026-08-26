@@ -5,6 +5,8 @@ use App\Models\Service;
 use App\Models\ServiceRequest;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\URL;
+use Illuminate\Testing\TestResponse;
 
 uses(RefreshDatabase::class);
 
@@ -12,7 +14,6 @@ uses(RefreshDatabase::class);
 function validQuoteAnswers(): array
 {
     return [
-        'phone' => '01055789056',
         'store_status' => 'مشروع جديد أبدؤه من الصفر',
         'store_field' => 'عطور ومستحضرات تجميل',
         'products_count' => 'من 50 إلى 200 منتج',
@@ -24,15 +25,30 @@ function validQuoteAnswers(): array
     ];
 }
 
-it('shows the personalized form for a known invite link', function () {
+function submitInvite(array $overrides = []): TestResponse
+{
+    return test()->postJson('/quote/hajar-salama', array_merge(validQuoteAnswers(), $overrides));
+}
+
+it('shows the personalized form without contact questions', function () {
     $this->get('/quote/hajar-salama')
         ->assertOk()
         ->assertSee('هاجر سلامة')
         ->assertSee('نموذج مخصّص')
-        // في الرابط المخصّص لا تُطلب بيانات معروفة مسبقاً
+        // بيانات العميلة معروفة مسبقاً فلا تُطلب في النموذج
         ->assertDontSee('ما الاسم الكريم؟')
         ->assertDontSee('ما البريد الإلكتروني؟')
-        ->assertDontSee('ما اسم المتجر أو المشروع؟');
+        ->assertDontSee('ما اسم المتجر أو المشروع؟')
+        ->assertDontSee('ما رقم الجوال المناسب للتواصل؟');
+});
+
+it('uses the formal icon system instead of emoji', function () {
+    $html = $this->get('/quote/hajar-salama')->assertOk()->getContent();
+
+    expect($html)->toContain('#i-storefront')
+        ->and($html)->toContain('<symbol id="i-cart"')
+        // لا إيموجي في الواجهة
+        ->and(preg_match('/[\x{1F300}-\x{1FAFF}\x{2700}-\x{27BF}\x{2B00}-\x{2BFF}]/u', $html))->toBe(0);
 });
 
 it('redirects the short personal link to the personalized form', function () {
@@ -51,27 +67,93 @@ it('shows the generic form with name, email and store name questions', function 
         ->assertSee('ما اسم المتجر أو المشروع؟');
 });
 
-it('stores a personalized submission with the invited client name and no email', function () {
+it('stores a personalized submission and returns an official reference', function () {
     Mail::fake();
     $service = Service::create(['key' => 'ecommerce', 'slug' => 'ecommerce', 'name' => ['ar' => 'المتاجر الإلكترونية']]);
 
-    $this->postJson('/quote/hajar-salama', validQuoteAnswers())
-        ->assertOk()
-        ->assertJson(['ok' => true])
-        ->assertJsonStructure(['ok', 'id']);
+    $response = submitInvite()->assertOk()->assertJson(['ok' => true]);
 
     $sr = ServiceRequest::sole();
     expect($sr->name)->toBe('أ. هاجر سلامة')
-        ->and($sr->email)->toBeNull()
-        ->and($sr->service_type)->toBe('ecommerce')
         ->and($sr->service_id)->toBe($service->id)
         ->and($sr->source)->toBe('quote_link:hajar-salama')
-        ->and($sr->budget)->toBe('أفضّل أن يقترح فريق وريد الأنسب')
-        ->and($sr->message)->toBe('أرغب في تصميم أنيق وبسيط.')
         ->and($sr->payload['مجال المتجر'])->toBe('عطور ومستحضرات تجميل')
-        ->and($sr->payload['الخدمات المطلوبة'])->toHaveCount(2);
+        ->and($response->json('reference'))->toBe($sr->reference)
+        ->and($response->json('documentUrl'))->toContain('/quote/hajar-salama/document');
 
     Mail::assertSent(ServiceRequestReceived::class);
+});
+
+it('formats the reference as WRD-YYYY-MM-DD-NNNNN', function () {
+    $sr = ServiceRequest::create([
+        'service_type' => 'ecommerce', 'name' => 'عميل', 'phone' => '—', 'status' => 'new', 'source' => 'quote_form',
+    ]);
+
+    expect($sr->reference)
+        ->toMatch('/^WRD-\d{4}-\d{2}-\d{2}-\d{5}$/')
+        ->toBe('WRD-'.$sr->created_at->format('Y-m-d').'-'.str_pad((string) ($sr->id + 100), 5, '0', STR_PAD_LEFT));
+});
+
+it('accepts only one submission per personalized link', function () {
+    Mail::fake();
+
+    submitInvite()->assertOk();
+
+    submitInvite()
+        ->assertStatus(409)
+        ->assertJson(['ok' => false, 'duplicate' => true])
+        ->assertJsonPath('reference', ServiceRequest::sole()->reference);
+
+    expect(ServiceRequest::count())->toBe(1);
+});
+
+it('shows the status page with the countdown once a request exists', function () {
+    Mail::fake();
+    submitInvite()->assertOk();
+    $sr = ServiceRequest::sole();
+
+    $this->get('/quote/hajar-salama')
+        ->assertOk()
+        ->assertSee('تم استلام طلبك')
+        ->assertSee($sr->reference)
+        ->assertSee('data-deadline', false)
+        // النموذج نفسه لم يعد يُعرض
+        ->assertDontSee('ما وضع المتجر حالياً؟');
+});
+
+it('renders the official document with the reference and a QR code', function () {
+    Mail::fake();
+    submitInvite()->assertOk();
+    $sr = ServiceRequest::sole();
+
+    $this->get('/quote/hajar-salama/document')
+        ->assertOk()
+        ->assertSee('طلب متجر إلكتروني')
+        ->assertSee('E-COMMERCE STORE REQUEST')
+        ->assertSee('نسخة العميل')
+        ->assertSee('مقدَّم إلى')
+        ->assertSee('أ. هاجر سلامة')
+        ->assertSee($sr->reference)
+        ->assertSee('عطور ومستحضرات تجميل')
+        ->assertSee('<svg', false);
+});
+
+it('returns 404 for a document with no request yet', function () {
+    $this->get('/quote/hajar-salama/document')->assertNotFound();
+});
+
+it('serves the generic document only through a signed url', function () {
+    Mail::fake();
+    $this->postJson('/quote', array_merge(validQuoteAnswers(), [
+        'name' => 'محمد أحمد', 'email' => 'client@example.com', 'store_name' => 'متجر لمسة',
+    ]))->assertOk();
+
+    $sr = ServiceRequest::sole();
+    $this->get(URL::signedRoute('quote.document.signed', ['serviceRequest' => $sr->id]))
+        ->assertOk()
+        ->assertSee('متجر لمسة');
+
+    $this->get('/quote/document/'.$sr->id)->assertForbidden();
 });
 
 it('stores a generic submission with the visitor contact details', function () {
@@ -93,6 +175,16 @@ it('stores a generic submission with the visitor contact details', function () {
         ->and($sr->payload['مجال المتجر'])->toBe('أخرى: مستلزمات أطفال');
 });
 
+it('allows several submissions on the generic form', function () {
+    Mail::fake();
+    $extra = ['name' => 'محمد', 'email' => 'a@example.com'];
+
+    $this->postJson('/quote', array_merge(validQuoteAnswers(), $extra))->assertOk();
+    $this->postJson('/quote', array_merge(validQuoteAnswers(), $extra))->assertOk();
+
+    expect(ServiceRequest::count())->toBe(2);
+});
+
 it('requires name and email on the generic form only', function () {
     $this->postJson('/quote', validQuoteAnswers())
         ->assertStatus(422)
@@ -100,30 +192,32 @@ it('requires name and email on the generic form only', function () {
 });
 
 it('validates the store questions', function () {
-    $this->postJson('/quote/hajar-salama', ['phone' => '01055789056'])
+    $this->postJson('/quote/hajar-salama', [])
         ->assertStatus(422)
         ->assertJsonValidationErrors(['store_status', 'store_field', 'products_count', 'branding', 'features', 'budget', 'launch_time']);
 });
 
 it('rejects answers outside the allowed options', function () {
-    $this->postJson('/quote/hajar-salama', array_merge(validQuoteAnswers(), ['budget' => 'مليون دولار']))
+    submitInvite(['budget' => 'مليون دولار'])
         ->assertStatus(422)
         ->assertJsonValidationErrors(['budget']);
-});
-
-it('rejects phone numbers without enough digits', function () {
-    $this->postJson('/quote/hajar-salama', array_merge(validQuoteAnswers(), ['phone' => '123']))
-        ->assertStatus(422)
-        ->assertJsonValidationErrors(['phone']);
 });
 
 it('silently ignores honeypot submissions without storing anything', function () {
     Mail::fake();
 
-    $this->postJson('/quote/hajar-salama', validQuoteAnswers() + ['website' => 'spam-bot'])
-        ->assertOk()
-        ->assertJson(['ok' => true]);
+    submitInvite(['website' => 'spam-bot'])->assertOk()->assertJson(['ok' => true]);
 
     expect(ServiceRequest::count())->toBe(0);
     Mail::assertNothingSent();
+});
+
+it('reopens the personalized link after the request is deleted', function () {
+    Mail::fake();
+    submitInvite()->assertOk();
+
+    $this->artisan('quote:reset', ['invite' => 'hajar-salama', '--force' => true])->assertSuccessful();
+
+    expect(ServiceRequest::count())->toBe(0);
+    $this->get('/quote/hajar-salama')->assertOk()->assertSee('ما وضع المتجر حالياً؟');
 });

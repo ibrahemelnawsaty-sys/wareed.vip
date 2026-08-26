@@ -32,9 +32,12 @@ Route::scopeBindings()->group(function () {
 Route::get('/quote', [QuoteController::class, 'show'])->name('quote');
 Route::post('/quote', [QuoteController::class, 'submit'])
     ->middleware('throttle:10,1')->name('quote.submit');
+Route::get('/quote/document/{serviceRequest}', [QuoteController::class, 'documentSigned'])
+    ->middleware('signed')->name('quote.document.signed');
 Route::get('/quote/{invite}', [QuoteController::class, 'show'])->name('quote.invite');
 Route::post('/quote/{invite}', [QuoteController::class, 'submit'])
     ->middleware('throttle:10,1')->name('quote.invite.submit');
+Route::get('/quote/{invite}/document', [QuoteController::class, 'document'])->name('quote.document');
 // اختصار شخصي يُشارك مع العميلة مباشرة
 Route::redirect('/hajar-salama', '/quote/hajar-salama');
 

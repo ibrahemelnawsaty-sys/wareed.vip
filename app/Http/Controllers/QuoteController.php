@@ -4,30 +4,44 @@ namespace App\Http\Controllers;
 
 use App\Models\Service;
 use App\Models\ServiceRequest;
+use chillerlan\QRCode\Common\EccLevel;
+use chillerlan\QRCode\Output\QROutputInterface;
+use chillerlan\QRCode\QRCode;
+use chillerlan\QRCode\QROptions;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 
 /**
- * نموذج عرض السعر التفاعلي للمتاجر الإلكترونية.
+ * نموذج طلب المتجر الإلكتروني (عرض السعر).
  *
  * يعمل بوضعين:
- *  - /quote          → النموذج العام (يسأل عن الاسم والجوال والبريد واسم المتجر).
- *  - /quote/{slug}   → رابط مخصّص لعميل بعينه: يرحّب به بالاسم ويتجاوز أسئلة
- *                      الاسم والبريد واسم المتجر لأنها معروفة مسبقاً.
+ *  - /quote          → النموذج العام (يسأل عن الاسم والبريد واسم المتجر).
+ *  - /quote/{slug}   → رابط مخصّص لعميل بعينه: بياناته معروفة مسبقاً في INVITES،
+ *                      ويُقبل منه طلب واحد فقط؛ بعده يعرض الرابط حالة الطلب.
  */
 class QuoteController extends Controller
 {
+    /** مهلة تجهيز عرض السعر — تُعرض في شاشة الشكر وصفحة الحالة والمستند. */
+    public const SLA_HOURS = 24;
+
     /**
      * الروابط المخصّصة: أضف عميلاً هنا ثم شارك معه wareed.vip/quote/{slug}.
-     * gender: 'f' أو 'm' — تضبط صيغ المخاطبة في الترحيب والشكر.
+     *
+     * gender: 'f' أو 'm' — تضبط صيغ المخاطبة.
+     * phone / email / store_name: بيانات معروفة مسبقاً لا يُسأل عنها في النموذج،
+     * وتظهر في مستند الطلب وفي لوحة المتابعة. اتركها فارغة إن لم تتوفر.
      */
     public const INVITES = [
         'hajar-salama' => [
             'name' => 'أ. هاجر سلامة',
             'short_name' => 'أ. هاجر',
             'gender' => 'f',
+            'phone' => '',
+            'email' => '',
+            'store_name' => '',
         ],
     ];
 
@@ -35,11 +49,17 @@ class QuoteController extends Controller
     {
         $client = $this->resolveInvite($invite);
 
+        // الرابط المخصّص يقبل طلباً واحداً: بعده يعرض حالة الطلب بدل النموذج
+        if ($client && $existing = $this->existingRequest($invite)) {
+            return $this->statusView($existing, $invite, $client);
+        }
+
         return view('quote.wizard', [
             'inviteSlug' => $invite,
             'client' => $client,
             'questions' => $this->questions(personalized: $client !== null),
-            'whatsapp' => preg_replace('/[^0-9]/', '', (string) setting('contact_whatsapp', '201055789056')),
+            'whatsapp' => $this->whatsapp(),
+            'slaHours' => self::SLA_HOURS,
         ]);
     }
 
@@ -47,6 +67,16 @@ class QuoteController extends Controller
     {
         $client = $this->resolveInvite($invite);
         $personalized = $client !== null;
+
+        // قفل الطلب الواحد للرابط المخصّص — يحمي من الإرسال المكرر أو من تبويب قديم
+        if ($personalized && $existing = $this->existingRequest($invite)) {
+            return response()->json([
+                'ok' => false,
+                'duplicate' => true,
+                'reference' => $existing->reference,
+                'message' => 'سبق استلام طلبك، وهو الآن قيد التجهيز.',
+            ], 409);
+        }
 
         // مصيدة سبام: حقل مخفي لا يملؤه البشر — نتظاهر بالنجاح دون حفظ
         if ($request->filled('website')) {
@@ -58,20 +88,12 @@ class QuoteController extends Controller
             'label'
         );
 
-        $phoneRule = function (string $attribute, mixed $value, \Closure $fail) {
-            $digits = strlen(preg_replace('/\D/', '', (string) $value));
-            if ($digits < 9 || $digits > 15) {
-                $fail('يرجى إدخال رقم جوال صحيح.');
-            }
-        };
-
         // تحقق يدوي يعيد 422 JSON دائماً: معالج الأخطاء العام يحصر عرض JSON في مسارات api/*
         // بينما هذا النموذج يرسل عبر fetch ويعتمد على استجابة JSON صريحة.
         $validator = Validator::make($request->all(), array_filter([
             'name' => $personalized ? null : ['required', 'string', 'max:120'],
             'email' => $personalized ? null : ['required', 'email:rfc', 'max:190'],
             'store_name' => $personalized ? null : ['nullable', 'string', 'max:190'],
-            'phone' => ['required', 'string', 'max:30', $phoneRule],
             'store_status' => ['required', Rule::in($options('store_status'))],
             'store_field' => ['required', Rule::in($options('store_field'))],
             'store_field_other' => ['nullable', 'string', 'max:300', 'required_if:store_field,أخرى'],
@@ -106,9 +128,9 @@ class QuoteController extends Controller
             'service_id' => Service::query()->where('key', 'ecommerce')->value('id'),
             'service_type' => 'ecommerce',
             'name' => $personalized ? $client['name'] : trim($data['name']),
-            'phone' => trim($data['phone']),
-            'email' => $personalized ? null : $data['email'],
-            'company' => $personalized ? null : ($data['store_name'] ?? null),
+            'phone' => $personalized ? ($client['phone'] ?: '—') : '—',
+            'email' => $personalized ? ($client['email'] ?: null) : $data['email'],
+            'company' => $personalized ? ($client['store_name'] ?: null) : ($data['store_name'] ?? null),
             'budget' => $data['budget'],
             'message' => $data['notes'] ?? null,
             // مفاتيح عربية لتظهر مقروءة في بريد الإشعار ولوحة التحكم مباشرة
@@ -126,8 +148,116 @@ class QuoteController extends Controller
             'user_agent' => substr((string) $request->userAgent(), 0, 255),
         ]);
 
-        // رقم مرجعي يظهر للعميل في شاشة الشكر
-        return response()->json(['ok' => true, 'id' => $serviceRequest->id]);
+        return response()->json([
+            'ok' => true,
+            'reference' => $serviceRequest->reference,
+            'documentUrl' => $this->documentUrl($serviceRequest, $invite),
+            'statusUrl' => $personalized ? route('quote.invite', $invite) : null,
+        ]);
+    }
+
+    /**
+     * مستند الطلب الرسمي (A4) عبر الرابط المخصّص — نسخة العميل للطباعة والحفظ PDF.
+     */
+    public function document(string $invite)
+    {
+        $client = $this->resolveInvite($invite);
+        $serviceRequest = $this->existingRequest($invite) ?? abort(404);
+
+        return $this->documentView($serviceRequest, $client);
+    }
+
+    /**
+     * المستند نفسه للنموذج العام — عبر رابط موقّع يُسلَّم للعميل بعد الإرسال.
+     */
+    public function documentSigned(ServiceRequest $serviceRequest)
+    {
+        return $this->documentView($serviceRequest, null);
+    }
+
+    private function documentView(ServiceRequest $sr, ?array $client)
+    {
+        return view('quote.document', [
+            'sr' => $sr,
+            'client' => $client,
+            'rows' => $this->documentRows($sr),
+            'qr' => $this->qrSvg($sr->reference),
+            'slaHours' => self::SLA_HOURS,
+        ]);
+    }
+
+    /** صفوف المستند: كل بيانات الطلب مرتّبة للعرض الرسمي. */
+    private function documentRows(ServiceRequest $sr): array
+    {
+        $payload = (array) $sr->payload;
+        $features = $payload['الخدمات المطلوبة'] ?? [];
+
+        return array_filter([
+            ['وضع المتجر', $payload['وضع المتجر'] ?? null],
+            ['مجال المتجر', $payload['مجال المتجر'] ?? null],
+            ['عدد المنتجات المتوقع', $payload['عدد المنتجات المتوقع'] ?? null],
+            ['الهوية البصرية', $payload['الهوية البصرية'] ?? null],
+            ['الخدمات المطلوبة', is_array($features) ? implode(' • ', $features) : $features],
+            ['الميزانية التقديرية', $sr->budget],
+            ['موعد الإطلاق المستهدف', $payload['موعد الإطلاق'] ?? null],
+            ['ملاحظات العميل', $sr->message],
+        ], fn ($row) => filled($row[1]));
+    }
+
+    /** رمز QR للرقم المرجعي — SVG مضمّن دون أي اعتماد خارجي. */
+    private function qrSvg(string $reference): string
+    {
+        $options = new QROptions([
+            'outputType' => QROutputInterface::MARKUP_SVG,
+            'eccLevel' => EccLevel::M,
+            'version' => 3,
+            'addQuietzone' => true,
+            'quietzoneSize' => 1,
+            'outputBase64' => false,
+            'svgUseFillAttributes' => false,
+            'cssClass' => 'qr',
+        ]);
+
+        // نزيل ترويسة XML لأن الـ SVG يُدرج داخل صفحة HTML
+        return preg_replace('/<\?xml.*?\?>\s*/s', '', (new QRCode($options))->render($reference));
+    }
+
+    private function documentUrl(ServiceRequest $sr, ?string $invite): string
+    {
+        return $invite !== null
+            ? route('quote.document', $invite)
+            : URL::signedRoute('quote.document.signed', ['serviceRequest' => $sr->id]);
+    }
+
+    /** آخر طلب وارد من رابط مخصّص — أساس قفل الطلب الواحد وصفحة الحالة. */
+    private function existingRequest(?string $invite): ?ServiceRequest
+    {
+        if ($invite === null) {
+            return null;
+        }
+
+        return ServiceRequest::query()
+            ->where('source', 'quote_link:'.$invite)
+            ->latest('id')
+            ->first();
+    }
+
+    private function statusView(ServiceRequest $sr, string $invite, array $client)
+    {
+        return response()->view('quote.status', [
+            'sr' => $sr,
+            'client' => $client,
+            'inviteSlug' => $invite,
+            'rows' => $this->documentRows($sr),
+            'whatsapp' => $this->whatsapp(),
+            'slaHours' => self::SLA_HOURS,
+            'deadline' => $sr->created_at->copy()->addHours(self::SLA_HOURS),
+        ]);
+    }
+
+    private function whatsapp(): string
+    {
+        return preg_replace('/[^0-9]/', '', (string) setting('contact_whatsapp', '201055789056'));
     }
 
     private function resolveInvite(?string $invite): ?array
@@ -142,6 +272,7 @@ class QuoteController extends Controller
     /**
      * مصدر الحقيقة الوحيد للأسئلة: تُبنى منه الشاشات ويُتحقق منه عند الإرسال.
      * generic_only: يُسأل فقط في النموذج العام (بياناته معروفة في الروابط المخصّصة).
+     * icon: اسم رمز من نظام الأيقونات الموحّد في resources/views/quote/_icons.blade.php
      */
     private function questions(bool $personalized): array
     {
@@ -153,14 +284,6 @@ class QuoteController extends Controller
                 'placeholder' => 'الاسم الكامل',
                 'autocomplete' => 'name',
                 'maxlength' => 120,
-            ],
-            [
-                'key' => 'phone', 'short' => 'رقم الجوال', 'type' => 'tel',
-                'title' => 'ما رقم الجوال المناسب للتواصل؟',
-                'hint' => 'يفضَّل رقم واتساب — عليه سنتواصل بخصوص عرض السعر',
-                'placeholder' => '01xxxxxxxxx',
-                'autocomplete' => 'tel',
-                'maxlength' => 30,
             ],
             [
                 'key' => 'email', 'short' => 'البريد الإلكتروني', 'generic_only' => true, 'type' => 'email',
@@ -182,9 +305,9 @@ class QuoteController extends Controller
                 'title' => 'ما وضع المتجر حالياً؟',
                 'hint' => 'يساعدنا هذا على تحديد نقطة البداية الصحيحة',
                 'options' => [
-                    ['icon' => '🌱', 'label' => 'مشروع جديد أبدؤه من الصفر'],
-                    ['icon' => '🏪', 'label' => 'لديّ متجر قائم وأريد تطويره أو إعادة تصميمه'],
-                    ['icon' => '📱', 'label' => 'أبيع عبر السوشيال ميديا وأريد متجراً احترافياً'],
+                    ['icon' => 'idea', 'label' => 'مشروع جديد أبدؤه من الصفر'],
+                    ['icon' => 'storefront', 'label' => 'لديّ متجر قائم وأريد تطويره أو إعادة تصميمه'],
+                    ['icon' => 'social', 'label' => 'أبيع عبر السوشيال ميديا وأريد متجراً احترافياً'],
                 ],
             ],
             [
@@ -192,14 +315,14 @@ class QuoteController extends Controller
                 'title' => 'ما مجال المتجر؟',
                 'hint' => 'الأقرب إلى نشاط المتجر',
                 'options' => [
-                    ['icon' => '👗', 'label' => 'أزياء وموضة'],
-                    ['icon' => '💄', 'label' => 'عطور ومستحضرات تجميل'],
-                    ['icon' => '🍯', 'label' => 'أغذية ومشروبات'],
-                    ['icon' => '📱', 'label' => 'إلكترونيات وتقنية'],
-                    ['icon' => '🛋️', 'label' => 'أثاث وديكور'],
-                    ['icon' => '💊', 'label' => 'صحة ورياضة'],
-                    ['icon' => '🎁', 'label' => 'هدايا وإكسسوارات'],
-                    ['icon' => '📦', 'label' => 'أخرى'],
+                    ['icon' => 'apparel', 'label' => 'أزياء وموضة'],
+                    ['icon' => 'beauty', 'label' => 'عطور ومستحضرات تجميل'],
+                    ['icon' => 'food', 'label' => 'أغذية ومشروبات'],
+                    ['icon' => 'electronics', 'label' => 'إلكترونيات وتقنية'],
+                    ['icon' => 'furniture', 'label' => 'أثاث وديكور'],
+                    ['icon' => 'health', 'label' => 'صحة ورياضة'],
+                    ['icon' => 'gift', 'label' => 'هدايا وإكسسوارات'],
+                    ['icon' => 'grid', 'label' => 'أخرى'],
                 ],
             ],
             [
@@ -207,10 +330,10 @@ class QuoteController extends Controller
                 'title' => 'كم عدد المنتجات المتوقع تقريباً؟',
                 'hint' => 'تقدير مبدئي يكفي تماماً',
                 'options' => [
-                    ['label' => 'أقل من 50 منتجاً'],
-                    ['label' => 'من 50 إلى 200 منتج'],
-                    ['label' => 'من 200 إلى 1000 منتج'],
-                    ['label' => 'أكثر من 1000 منتج'],
+                    ['icon' => 'box', 'label' => 'أقل من 50 منتجاً'],
+                    ['icon' => 'boxes', 'label' => 'من 50 إلى 200 منتج'],
+                    ['icon' => 'warehouse', 'label' => 'من 200 إلى 1000 منتج'],
+                    ['icon' => 'stack', 'label' => 'أكثر من 1000 منتج'],
                 ],
             ],
             [
@@ -218,9 +341,9 @@ class QuoteController extends Controller
                 'title' => 'هل توجد هوية بصرية للمتجر؟',
                 'hint' => 'الشعار والألوان والخطوط الخاصة بالعلامة التجارية',
                 'options' => [
-                    ['icon' => '✅', 'label' => 'نعم، لديّ هوية كاملة'],
-                    ['icon' => '🎨', 'label' => 'لديّ شعار فقط'],
-                    ['icon' => '✨', 'label' => 'أحتاج تصميم هوية كاملة من وريد'],
+                    ['icon' => 'verified', 'label' => 'نعم، لديّ هوية كاملة'],
+                    ['icon' => 'logo', 'label' => 'لديّ شعار فقط'],
+                    ['icon' => 'palette', 'label' => 'أحتاج تصميم هوية كاملة من وريد'],
                 ],
             ],
             [
@@ -228,14 +351,14 @@ class QuoteController extends Controller
                 'title' => 'ما الخدمات المطلوبة مع المتجر؟',
                 'hint' => 'يمكنك اختيار أكثر من خيار',
                 'options' => [
-                    ['icon' => '🛒', 'label' => 'تجهيز المتجر ورفع المنتجات'],
-                    ['icon' => '📸', 'label' => 'تصوير المنتجات'],
-                    ['icon' => '💳', 'label' => 'ربط بوابات الدفع الإلكتروني'],
-                    ['icon' => '🚚', 'label' => 'الربط مع شركات الشحن'],
-                    ['icon' => '📣', 'label' => 'تسويق وإدارة إعلانات'],
-                    ['icon' => '🔍', 'label' => 'تحسين الظهور في جوجل (SEO)'],
-                    ['icon' => '📲', 'label' => 'تطبيق جوال للمتجر'],
-                    ['icon' => '🤝', 'label' => 'أحتاج استشارة الفريق أولاً'],
+                    ['icon' => 'cart', 'label' => 'تجهيز المتجر ورفع المنتجات'],
+                    ['icon' => 'camera', 'label' => 'تصوير المنتجات'],
+                    ['icon' => 'payment', 'label' => 'ربط بوابات الدفع الإلكتروني'],
+                    ['icon' => 'shipping', 'label' => 'الربط مع شركات الشحن'],
+                    ['icon' => 'marketing', 'label' => 'تسويق وإدارة إعلانات'],
+                    ['icon' => 'seo', 'label' => 'تحسين الظهور في جوجل (SEO)'],
+                    ['icon' => 'mobile', 'label' => 'تطبيق جوال للمتجر'],
+                    ['icon' => 'consult', 'label' => 'أحتاج استشارة الفريق أولاً'],
                 ],
             ],
             [
@@ -243,11 +366,11 @@ class QuoteController extends Controller
                 'title' => 'ما الميزانية التقريبية المخصّصة للمشروع؟',
                 'hint' => 'تساعدنا على اقتراح الحل الأنسب — وليست التزاماً نهائياً',
                 'options' => [
-                    ['label' => 'أقل من 25 ألف جنيه'],
-                    ['label' => 'من 25 إلى 50 ألف جنيه'],
-                    ['label' => 'من 50 إلى 100 ألف جنيه'],
-                    ['label' => 'أكثر من 100 ألف جنيه'],
-                    ['label' => 'أفضّل أن يقترح فريق وريد الأنسب'],
+                    ['icon' => 'coin', 'label' => 'أقل من 25 ألف جنيه'],
+                    ['icon' => 'banknote', 'label' => 'من 25 إلى 50 ألف جنيه'],
+                    ['icon' => 'wallet', 'label' => 'من 50 إلى 100 ألف جنيه'],
+                    ['icon' => 'vault', 'label' => 'أكثر من 100 ألف جنيه'],
+                    ['icon' => 'advisor', 'label' => 'أفضّل أن يقترح فريق وريد الأنسب'],
                 ],
             ],
             [
@@ -255,10 +378,10 @@ class QuoteController extends Controller
                 'title' => 'ما الموعد المستهدف لإطلاق المتجر؟',
                 'hint' => '',
                 'options' => [
-                    ['icon' => '⚡', 'label' => 'بأسرع وقت ممكن'],
-                    ['icon' => '🗓️', 'label' => 'خلال شهر'],
-                    ['icon' => '🌿', 'label' => 'خلال شهر إلى ثلاثة أشهر'],
-                    ['icon' => '🔭', 'label' => 'أستكشف الخيارات حالياً'],
+                    ['icon' => 'bolt', 'label' => 'بأسرع وقت ممكن'],
+                    ['icon' => 'calendar', 'label' => 'خلال شهر'],
+                    ['icon' => 'timeline', 'label' => 'خلال شهر إلى ثلاثة أشهر'],
+                    ['icon' => 'compass', 'label' => 'أستكشف الخيارات حالياً'],
                 ],
             ],
             [
