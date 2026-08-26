@@ -6,6 +6,13 @@
     $qCount = count($questions);
     $qWord = $qCount >= 3 && $qCount <= 10 ? 'أسئلة' : 'سؤالاً';
     $f = ($client['gender'] ?? null) === 'f';
+    // إعدادات الواجهة تُبنى هنا وتُحقن كسطر واحد (وسائط الموجهات متعددة الأسطر غير موثوقة في Blade)
+    $wizardConfig = json_encode([
+        'postUrl' => $inviteSlug ? route('quote.invite.submit', $inviteSlug) : route('quote.submit'),
+        'csrf' => csrf_token(),
+        'personalized' => $client !== null,
+        'storageKey' => 'wareed-quote:'.($inviteSlug ?? 'general'),
+    ], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT);
 @endphp
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -421,12 +428,7 @@
         (function () {
             'use strict';
 
-            var CFG = @json([
-                'postUrl' => $inviteSlug ? route('quote.invite.submit', $inviteSlug) : route('quote.submit'),
-                'csrf' => csrf_token(),
-                'personalized' => $client !== null,
-                'storageKey' => 'wareed-quote:'.($inviteSlug ?? 'general'),
-            ]);
+            var CFG = {!! $wizardConfig !!};
 
             var screens = Array.prototype.slice.call(document.querySelectorAll('[data-q]'));
             var welcome = document.querySelector('[data-welcome]');

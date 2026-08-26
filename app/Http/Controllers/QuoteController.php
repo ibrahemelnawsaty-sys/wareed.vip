@@ -6,6 +6,7 @@ use App\Models\Service;
 use App\Models\ServiceRequest;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 
 /**
@@ -64,7 +65,9 @@ class QuoteController extends Controller
             }
         };
 
-        $data = $request->validate(array_filter([
+        // تحقق يدوي يعيد 422 JSON دائماً: معالج الأخطاء العام يحصر عرض JSON في مسارات api/*
+        // بينما هذا النموذج يرسل عبر fetch ويعتمد على استجابة JSON صريحة.
+        $validator = Validator::make($request->all(), array_filter([
             'name' => $personalized ? null : ['required', 'string', 'max:120'],
             'email' => $personalized ? null : ['required', 'email:rfc', 'max:190'],
             'store_name' => $personalized ? null : ['nullable', 'string', 'max:190'],
@@ -88,6 +91,12 @@ class QuoteController extends Controller
             'features.min' => 'يرجى اختيار خدمة واحدة على الأقل.',
             'store_field_other.required_if' => 'يرجى توضيح مجال المتجر.',
         ]);
+
+        if ($validator->fails()) {
+            return response()->json(['ok' => false, 'errors' => $validator->errors()->toArray()], 422);
+        }
+
+        $data = $validator->validated();
 
         $storeField = $data['store_field'] === 'أخرى' && filled($data['store_field_other'] ?? null)
             ? 'أخرى: '.$data['store_field_other']
