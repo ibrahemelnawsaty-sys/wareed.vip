@@ -39,9 +39,9 @@ class QuoteController extends Controller
             'name' => 'أ. هاجر سلامة',
             'short_name' => 'أ. هاجر',
             'gender' => 'f',
-            'phone' => '',
-            'email' => '',
-            'store_name' => '',
+            'phone' => '00201016031031',
+            'email' => 'hagersalma89@gmail.com',
+            'store_name' => 'متجر حواديت',
         ],
     ];
 
@@ -253,6 +253,18 @@ class QuoteController extends Controller
             'slaHours' => self::SLA_HOURS,
             'deadline' => $sr->created_at->copy()->addHours(self::SLA_HOURS),
         ]);
+    }
+
+    /**
+     * توحيد رقم الجوال لرابط wa.me: أرقام فقط بلا بادئة 00 أو +.
+     * يعيد null إن لم يكن الرقم صالحاً للمراسلة.
+     */
+    public static function waNumber(?string $phone): ?string
+    {
+        $digits = preg_replace('/\D/', '', (string) $phone);
+        $digits = ltrim((string) $digits, '0');
+
+        return strlen($digits) >= 9 ? $digits : null;
     }
 
     private function whatsapp(): string

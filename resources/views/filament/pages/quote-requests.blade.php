@@ -149,9 +149,9 @@
                         مستند الطلب
                     </x-filament::button>
 
-                    @if ($r['phone'])
+                    @if ($wa = App\Http\Controllers\QuoteController::waNumber($r['phone']))
                         <x-filament::button tag="a" size="sm" color="success" icon="heroicon-o-chat-bubble-left-right"
-                            :href="'https://wa.me/'.preg_replace('/[^0-9]/', '', $r['phone']).'?text='.rawurlencode('مرحباً، بخصوص طلب المتجر رقم '.$r['reference'])"
+                            :href="'https://wa.me/'.$wa.'?text='.rawurlencode('مرحباً، بخصوص طلب المتجر رقم '.$r['reference'])"
                             target="_blank">واتساب</x-filament::button>
                     @endif
 

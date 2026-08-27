@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\QuoteController;
 use App\Mail\ServiceRequestReceived;
 use App\Models\Service;
 use App\Models\ServiceRequest;
@@ -220,4 +221,27 @@ it('reopens the personalized link after the request is deleted', function () {
 
     expect(ServiceRequest::count())->toBe(0);
     $this->get('/quote/hajar-salama')->assertOk()->assertSee('ما وضع المتجر حالياً؟');
+});
+
+it('carries the invited client contact details into the request and document', function () {
+    Mail::fake();
+    submitInvite()->assertOk();
+
+    $sr = ServiceRequest::sole();
+    expect($sr->phone)->toBe('00201016031031')
+        ->and($sr->email)->toBe('hagersalma89@gmail.com')
+        ->and($sr->company)->toBe('متجر حواديت');
+
+    $this->get('/quote/hajar-salama/document')
+        ->assertOk()
+        ->assertSee('00201016031031')
+        ->assertSee('hagersalma89@gmail.com')
+        ->assertSee('متجر حواديت');
+});
+
+it('normalises phone numbers for whatsapp links', function () {
+    expect(QuoteController::waNumber('00201016031031'))->toBe('201016031031')
+        ->and(QuoteController::waNumber('+20 101 603 1031'))->toBe('201016031031')
+        ->and(QuoteController::waNumber('—'))->toBeNull()
+        ->and(QuoteController::waNumber(null))->toBeNull();
 });
