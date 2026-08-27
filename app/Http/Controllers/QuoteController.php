@@ -4,12 +4,14 @@ namespace App\Http\Controllers;
 
 use App\Models\Service;
 use App\Models\ServiceRequest;
+use Carbon\CarbonInterface;
 use chillerlan\QRCode\Common\EccLevel;
 use chillerlan\QRCode\Output\QROutputInterface;
 use chillerlan\QRCode\QRCode;
 use chillerlan\QRCode\QROptions;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
@@ -24,8 +26,27 @@ use Illuminate\Validation\Rule;
  */
 class QuoteController extends Controller
 {
-    /** مهلة تجهيز عرض السعر — تُعرض في شاشة الشكر وصفحة الحالة والمستند. */
-    public const SLA_HOURS = 24;
+    /** مهلة تجهيز عرض السعر بأيام العمل — تُعرض في شاشة الشكر وصفحة الحالة والمستند. */
+    public const SLA_BUSINESS_DAYS = 3;
+
+    /** أيام العطلة الأسبوعية (الجمعة والسبت) — تُستثنى من حساب المهلة. */
+    public const WEEKEND_DAYS = [CarbonInterface::FRIDAY, CarbonInterface::SATURDAY];
+
+    /** موعد تسليم عرض السعر: 3 أيام عمل من وقت الاستلام مع تخطّي العطلة. */
+    public static function deadlineFor(CarbonInterface $start): Carbon
+    {
+        $date = Carbon::instance($start->toDateTime());
+
+        for ($added = 0; $added < self::SLA_BUSINESS_DAYS;) {
+            $date->addDay();
+
+            if (! in_array($date->dayOfWeek, self::WEEKEND_DAYS, true)) {
+                $added++;
+            }
+        }
+
+        return $date;
+    }
 
     /**
      * الروابط المخصّصة: أضف عميلاً هنا ثم شارك معه wareed.vip/quote/{slug}.
@@ -59,7 +80,7 @@ class QuoteController extends Controller
             'client' => $client,
             'questions' => $this->questions(personalized: $client !== null),
             'whatsapp' => $this->whatsapp(),
-            'slaHours' => self::SLA_HOURS,
+            'slaDays' => self::SLA_BUSINESS_DAYS,
         ]);
     }
 
@@ -153,6 +174,7 @@ class QuoteController extends Controller
             'reference' => $serviceRequest->reference,
             'documentUrl' => $this->documentUrl($serviceRequest, $invite),
             'statusUrl' => $personalized ? route('quote.invite', $invite) : null,
+            'deadline' => self::deadlineFor($serviceRequest->created_at)->toIso8601String(),
         ]);
     }
 
@@ -180,16 +202,43 @@ class QuoteController extends Controller
         return view('quote.document', [
             'sr' => $sr,
             'client' => $client,
+            'contact' => $this->contactOf($sr, $client),
             'rows' => $this->documentRows($sr),
             'qr' => $this->qrSvg($sr->reference),
-            'slaHours' => self::SLA_HOURS,
+            'slaDays' => self::SLA_BUSINESS_DAYS,
+            'deadline' => self::deadlineFor($sr->created_at),
         ]);
+    }
+
+    /**
+     * بيانات تواصل العميل للعرض: من السجل أولاً، ثم من بيانات الرابط المخصّص.
+     * يضمن اكتمال المستند حتى للطلبات المسجّلة قبل إضافة بيانات العميل.
+     */
+    private function contactOf(ServiceRequest $sr, ?array $client): array
+    {
+        $pick = function (?string $stored, ?string $fallback): ?string {
+            $stored = trim((string) $stored);
+
+            return $stored !== '' && $stored !== '—' ? $stored : ($fallback ?: null);
+        };
+
+        return [
+            'name' => $client['name'] ?? $sr->name,
+            'phone' => $pick($sr->phone, $client['phone'] ?? null),
+            'email' => $pick($sr->email, $client['email'] ?? null),
+            'store' => $pick($sr->company, $client['store_name'] ?? null),
+        ];
     }
 
     /** صفوف المستند: كل بيانات الطلب مرتّبة للعرض الرسمي. */
     private function documentRows(ServiceRequest $sr): array
     {
-        $payload = (array) $sr->payload;
+        // المفاتيح التي تبدأ بشرطة سفلية بيانات داخلية (مثل عرض السعر) ولا تُعرض كإجابات
+        $payload = array_filter(
+            (array) $sr->payload,
+            fn ($key) => ! str_starts_with((string) $key, '_'),
+            ARRAY_FILTER_USE_KEY
+        );
         $features = $payload['الخدمات المطلوبة'] ?? [];
 
         return array_filter([
@@ -215,6 +264,9 @@ class QuoteController extends Controller
             'quietzoneSize' => 1,
             'outputBase64' => false,
             'svgUseFillAttributes' => false,
+            // الوحدات الفاتحة لا تُرسم إطلاقاً، وإلا ظهرت سوداء مثل الداكنة فيفسد الرمز
+            'drawLightModules' => false,
+            'connectPaths' => true,
             'cssClass' => 'qr',
         ]);
 
@@ -250,9 +302,96 @@ class QuoteController extends Controller
             'inviteSlug' => $invite,
             'rows' => $this->documentRows($sr),
             'whatsapp' => $this->whatsapp(),
-            'slaHours' => self::SLA_HOURS,
-            'deadline' => $sr->created_at->copy()->addHours(self::SLA_HOURS),
+            'slaDays' => self::SLA_BUSINESS_DAYS,
+            'deadline' => self::deadlineFor($sr->created_at),
+            'quote' => self::quoteOf($sr),
         ]);
+    }
+
+    /**
+     * عرض السعر المُصدَر للطلب مع مجاميعه المحسوبة، أو null إن لم يُصدر بعد.
+     * يُخزَّن داخل payload['_quote'] فلا يحتاج جدولاً ولا هجرة على الخادم.
+     */
+    public static function quoteOf(ServiceRequest $sr): ?array
+    {
+        $q = ((array) $sr->payload)['_quote'] ?? null;
+
+        if (! is_array($q) || empty($q['items'])) {
+            return null;
+        }
+
+        $items = array_map(fn (array $i) => [
+            'name' => (string) ($i['name'] ?? ''),
+            'desc' => (string) ($i['desc'] ?? ''),
+            'qty' => max(1, (int) ($i['qty'] ?? 1)),
+            'price' => max(0, (float) ($i['price'] ?? 0)),
+            'total' => max(1, (int) ($i['qty'] ?? 1)) * max(0, (float) ($i['price'] ?? 0)),
+        ], array_values($q['items']));
+
+        $subtotal = array_sum(array_column($items, 'total'));
+        $discount = min(max(0, (float) ($q['discount'] ?? 0)), $subtotal);
+        $afterDiscount = $subtotal - $discount;
+        $vatPercent = max(0, (float) ($q['vat_percent'] ?? 0));
+        $vat = round($afterDiscount * $vatPercent / 100, 2);
+
+        $issuedAt = isset($q['issued_at']) ? Carbon::parse($q['issued_at']) : now();
+
+        return [
+            'items' => $items,
+            'subtotal' => $subtotal,
+            'discount' => $discount,
+            'vat_percent' => $vatPercent,
+            'vat' => $vat,
+            'total' => $afterDiscount + $vat,
+            'currency' => (string) ($q['currency'] ?? 'ج.م'),
+            'timeline' => (string) ($q['timeline'] ?? ''),
+            'notes' => (string) ($q['notes'] ?? ''),
+            'valid_days' => max(1, (int) ($q['valid_days'] ?? 30)),
+            'issued_at' => $issuedAt,
+            'valid_until' => $issuedAt->copy()->addDays(max(1, (int) ($q['valid_days'] ?? 30))),
+        ];
+    }
+
+    /**
+     * عرض السعر الرسمي (A4) عبر الرابط المخصّص.
+     */
+    public function proposal(string $invite)
+    {
+        $client = $this->resolveInvite($invite);
+        $sr = $this->existingRequest($invite) ?? abort(404);
+
+        return $this->proposalView($sr, $client);
+    }
+
+    /** عرض السعر نفسه عبر رابط موقّع للنموذج العام. */
+    public function proposalSigned(ServiceRequest $serviceRequest)
+    {
+        return $this->proposalView($serviceRequest, null);
+    }
+
+    private function proposalView(ServiceRequest $sr, ?array $client)
+    {
+        $quote = self::quoteOf($sr) ?? abort(404);
+
+        return view('quote.proposal', [
+            'sr' => $sr,
+            'client' => $client,
+            'contact' => $this->contactOf($sr, $client),
+            'quote' => $quote,
+            'qr' => $this->qrSvg($sr->reference),
+        ]);
+    }
+
+    /** رابط عرض السعر: مخصّص عبر الدعوة، أو موقّع للنموذج العام. */
+    public static function proposalUrl(ServiceRequest $sr): string
+    {
+        $invite = str_starts_with((string) $sr->source, 'quote_link:')
+            ? substr((string) $sr->source, strlen('quote_link:'))
+            : null;
+
+        return $invite !== null
+            ? route('quote.proposal', $invite)
+            : URL::signedRoute('quote.proposal.signed', ['serviceRequest' => $sr->id]);
     }
 
     /**

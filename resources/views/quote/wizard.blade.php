@@ -14,6 +14,7 @@
         'clientName' => $client['name'] ?? null,
         'whatsapp' => $whatsapp,
         'storageKey' => 'wareed-quote:'.($inviteSlug ?? 'general'),
+        'slaDays' => $slaDays,
     ], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT);
 @endphp
 <!DOCTYPE html>
@@ -157,6 +158,13 @@
         .welcome h1 { font-size: clamp(1.65rem, 5.2vw, 2.35rem); margin-bottom: 14px; letter-spacing: -.02em; }
         .wave { display: inline-block; animation: wave 2s ease-in-out 1 .6s; transform-origin: 72% 72%; }
         @keyframes wave { 0%, 100% { transform: none; } 15% { transform: rotate(16deg); } 30% { transform: rotate(-9deg); } 45% { transform: rotate(14deg); } 60% { transform: rotate(-5deg); } 75% { transform: rotate(8deg); } }
+        .w-store {
+            display: inline-flex; align-items: center; gap: 8px; margin: 0 auto 16px;
+            font-size: .92rem; color: var(--muted);
+            background: #f3f7fe; border: 1px solid var(--line); border-radius: 999px; padding: 7px 18px;
+        }
+        .w-store b { color: var(--ink); font-weight: 700; }
+        .w-store .ic { color: var(--blue-deep); width: 17px; height: 17px; }
         .w-lead { color: var(--muted); font-size: clamp(.98rem, 2.6vw, 1.08rem); max-width: 52ch; margin: 0 auto 24px; }
         .w-meta { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-bottom: 30px; }
         .w-meta span {
@@ -309,6 +317,19 @@
         }
         .promise .ic { color: var(--blue-deep); }
         .promise b { color: var(--blue-deep); }
+        .t-timer { margin: 0 0 26px; }
+        .t-timer[hidden] { display: none; }
+        .t-timer-title { display: flex; align-items: center; justify-content: center; gap: 8px; font-size: .86rem; font-weight: 600; color: var(--muted); margin-bottom: 12px; }
+        .t-timer-title .ic { color: var(--blue-deep); }
+        .t-cells { display: flex; justify-content: center; gap: 9px; }
+        .tcell { min-width: 68px; padding: 11px 8px 8px; border-radius: 15px; background: #f7f9fe; border: 1px solid var(--line-strong); }
+        .tval {
+            font-size: 1.45rem; font-weight: 700; line-height: 1.1; direction: ltr; font-variant-numeric: tabular-nums;
+            background: var(--grad); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+        }
+        .tlab { font-size: .7rem; font-weight: 600; color: var(--faint); }
+        @media (max-width: 560px) { .tcell { min-width: 58px; } .tval { font-size: 1.25rem; } }
+
         .t-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; }
         .btn-wa { background: linear-gradient(135deg, #25d366, #128c7e); color: #fff; box-shadow: 0 14px 30px -12px rgba(37, 211, 102, .55); }
         .btn-wa:hover { transform: translateY(-2px); }
@@ -397,6 +418,12 @@
                 @if($client)
                     <span class="w-chip"><span class="pulse"></span> نموذج مخصّص {{ $f ? 'لكِ' : 'لك' }}</span>
                     <h1>أهلاً {{ $f ? 'بكِ' : 'بك' }} <span class="grad-text">{{ $client['name'] }}</span></h1>
+                    @if (! empty($client['store_name']))
+                        <p class="w-store">
+                            <svg class="ic"><use href="#i-storefront"/></svg>
+                            <span>نموذج <b>{{ $client['store_name'] }}</b></span>
+                        </p>
+                    @endif
                     <p class="w-lead">يسعدنا اهتمامك بإطلاق متجرك الإلكتروني مع وريد. أعددنا هذا النموذج خصيصاً {{ $f ? 'لكِ' : 'لك' }} — {{ $qCount }} {{ $qWord }} سريعة، وبناءً على إجاباتك سنجهّز عرض سعر دقيقاً يناسب المتجر تماماً.</p>
                 @else
                     <span class="w-chip"><span class="pulse"></span> طلبات المتاجر الإلكترونية</span>
@@ -536,7 +563,20 @@
 
                 <div class="promise">
                     <svg class="ic"><use href="#i-mail"/></svg>
-                    <span>سيصلك <b>عرض السعر المخصّص</b> خلال <b>{{ $slaHours }} ساعة</b> بإذن الله.</span>
+                    <span>سيصلك <b>عرض السعر المخصّص</b> خلال <b>{{ $slaDays }} أيام عمل</b> بإذن الله.</span>
+                </div>
+
+                <div class="t-timer" data-thanks-timer hidden>
+                    <div class="t-timer-title">
+                        <svg class="ic"><use href="#i-clock"/></svg>
+                        <span>الوقت المتبقي لتسليم عرض السعر</span>
+                    </div>
+                    <div class="t-cells">
+                        <div class="tcell"><div class="tval" data-td>--</div><div class="tlab">يوم</div></div>
+                        <div class="tcell"><div class="tval" data-th>--</div><div class="tlab">ساعة</div></div>
+                        <div class="tcell"><div class="tval" data-tm>--</div><div class="tlab">دقيقة</div></div>
+                        <div class="tcell"><div class="tval" data-ts>--</div><div class="tlab">ثانية</div></div>
+                    </div>
                 </div>
 
                 <div class="t-actions">
@@ -818,6 +858,38 @@
                 box.hidden = false;
             }
 
+            // عدّاد تسليم عرض السعر في شاشة الشكر (أيام · ساعات · دقائق · ثوانٍ)
+            function startThanksTimer(deadlineIso) {
+                var box = document.querySelector('[data-thanks-timer]');
+                if (!box) return;
+                var deadline = new Date(deadlineIso).getTime();
+                if (isNaN(deadline)) return;
+                box.hidden = false;
+
+                var cell = {
+                    d: box.querySelector('[data-td]'), h: box.querySelector('[data-th]'),
+                    m: box.querySelector('[data-tm]'), s: box.querySelector('[data-ts]')
+                };
+                var pad = function (n) { return String(n).padStart(2, '0'); };
+
+                function tick() {
+                    var left = deadline - Date.now();
+                    if (left <= 0) {
+                        cell.d.textContent = cell.h.textContent = cell.m.textContent = cell.s.textContent = '00';
+                        clearInterval(timer);
+                        return;
+                    }
+                    var t = Math.floor(left / 1000);
+                    cell.d.textContent = pad(Math.floor(t / 86400));
+                    cell.h.textContent = pad(Math.floor((t % 86400) / 3600));
+                    cell.m.textContent = pad(Math.floor((t % 3600) / 60));
+                    cell.s.textContent = pad(t % 60);
+                }
+
+                tick();
+                var timer = setInterval(tick, 1000);
+            }
+
             function showThanks(payload) {
                 clearDraft();
                 var name = document.querySelector('[data-thanks-name]');
@@ -832,6 +904,7 @@
                     doc.href = payload.documentUrl;
                     doc.hidden = false;
                 }
+                if (payload && payload.deadline) startThanksTimer(payload.deadline);
                 // رسالة واتساب جاهزة باسم العميل ورقم الطلب لمتابعة فورية سلسة
                 var wa = document.querySelector('[data-wa]');
                 if (wa) {

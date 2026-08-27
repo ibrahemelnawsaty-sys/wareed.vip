@@ -104,6 +104,24 @@
             background: var(--grad); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
         .ref-date { font-size: .76rem; color: var(--faint); }
 
+        .chip-done { color: #1d4ed8; background: rgba(59,130,246,.1); border-color: rgba(59,130,246,.35); }
+        .quote-card {
+            display: flex; flex-wrap: wrap; align-items: center; gap: 16px; text-align: start;
+            margin: 0 0 26px; padding: 20px 24px; border-radius: 20px;
+            background: linear-gradient(150deg, rgba(59,130,246,.09), rgba(45,212,191,.07));
+            border: 1px solid rgba(59,130,246,.3);
+        }
+        .quote-total { display: flex; flex-direction: column; gap: 2px; }
+        .quote-total .ql { font-size: .78rem; font-weight: 600; color: var(--muted); }
+        .quote-total .qv {
+            font-size: 1.85rem; font-weight: 700; line-height: 1.15; font-variant-numeric: tabular-nums;
+            background: var(--grad); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+        }
+        .quote-total .qv small { font-size: 1rem; }
+        .quote-total .qmeta { font-size: .76rem; color: var(--faint); }
+        .quote-card .btn { margin-inline-start: auto; }
+        .timer-wrap[hidden] { display: none; }
+
         /* المؤقّت */
         .timer-wrap { margin-bottom: 26px; }
         .timer-title { display: flex; align-items: center; justify-content: center; gap: 8px; font-size: .88rem; font-weight: 600; color: var(--muted); margin-bottom: 12px; }
@@ -190,12 +208,20 @@
 
 <main class="wrap">
     <div class="card center">
-        <div class="seal"><svg class="ic"><use href="#i-check"/></svg></div>
-        <span class="chip"><span class="pulse"></span> الطلب قيد التجهيز</span>
-        <h1>تم استلام طلبك {{ $f ? 'يا' : 'يا' }} <span class="grad-text">{{ $client['short_name'] }}</span></h1>
-        <p class="lead">
-            سبق أن {{ $f ? 'أرسلتِ' : 'أرسلت' }} طلب المتجر الإلكتروني، وهو الآن قيد الدراسة لدى فريق وريد لتجهيز عرض السعر المخصّص.
-        </p>
+        <div class="seal"><svg class="ic"><use href="#i-{{ $quote ? 'document' : 'check' }}"/></svg></div>
+        @if ($quote)
+            <span class="chip chip-done"><svg class="ic" style="width:14px;height:14px"><use href="#i-check"/></svg> عرض السعر جاهز</span>
+            <h1>عرض سعر متجرك جاهز <span class="grad-text">{{ $client['short_name'] }}</span></h1>
+            <p class="lead">
+                أنهى فريق وريد دراسة طلبك، وهذا عرض السعر المخصّص لمتجرك — يمكنك استعراضه وتحميله بصيغة PDF.
+            </p>
+        @else
+            <span class="chip"><span class="pulse"></span> الطلب قيد التجهيز</span>
+            <h1>تم استلام طلبك يا <span class="grad-text">{{ $client['short_name'] }}</span></h1>
+            <p class="lead">
+                سبق أن {{ $f ? 'أرسلتِ' : 'أرسلت' }} طلب المتجر الإلكتروني، وهو الآن قيد الدراسة لدى فريق وريد لتجهيز عرض السعر المخصّص.
+            </p>
+        @endif
 
         <div class="ref-box">
             <span class="ref-label">الرقم المرجعي للطلب</span>
@@ -203,7 +229,24 @@
             <span class="ref-date">تاريخ الاستلام: {{ $fmt($issued) }}</span>
         </div>
 
-        <div class="timer-wrap">
+        @if ($quote)
+            @php $money = fn ($n) => number_format((float) $n, ((float) $n == (int) $n) ? 0 : 2); @endphp
+            <div class="quote-card">
+                <div class="quote-total">
+                    <span class="ql">إجمالي عرض السعر</span>
+                    <b class="qv">{{ $money($quote['total']) }} <small>{{ $quote['currency'] }}</small></b>
+                    <span class="qmeta">
+                        {{ count($quote['items']) }} بنود · صالح حتى {{ $quote['valid_until']->format('Y/m/d') }}
+                        @if ($quote['timeline']) · مدة التنفيذ: {{ $quote['timeline'] }} @endif
+                    </span>
+                </div>
+                <a class="btn btn-primary" href="{{ route('quote.proposal', $inviteSlug) }}" target="_blank" rel="noopener">
+                    <svg class="ic"><use href="#i-download"/></svg> استعراض عرض السعر وتحميله
+                </a>
+            </div>
+        @endif
+
+        <div class="timer-wrap" @if ($quote) hidden @endif>
             <div class="timer-title">
                 <svg class="ic"><use href="#i-clock"/></svg>
                 <span data-timer-title>الوقت المتبقي لتسليم عرض السعر</span>
@@ -211,12 +254,13 @@
             <div class="timer" data-timer
                  data-deadline="{{ $deadline->toIso8601String() }}"
                  data-start="{{ $issued->toIso8601String() }}">
+                <div class="tcell"><div class="tval" data-d>--</div><div class="tlab">يوم</div></div>
                 <div class="tcell"><div class="tval" data-h>--</div><div class="tlab">ساعة</div></div>
                 <div class="tcell"><div class="tval" data-m>--</div><div class="tlab">دقيقة</div></div>
                 <div class="tcell"><div class="tval" data-s>--</div><div class="tlab">ثانية</div></div>
             </div>
             <div class="bar"><i data-bar style="width:0%"></i></div>
-            <p class="bar-note" data-bar-note>مهلة التجهيز {{ $slaHours }} ساعة من وقت استلام الطلب</p>
+            <p class="bar-note" data-bar-note>مهلة التجهيز {{ $slaDays }} أيام عمل من وقت استلام الطلب</p>
         </div>
 
         <div class="steps">
@@ -224,13 +268,31 @@
                 <div class="step-rail"><span class="step-dot"><svg class="ic"><use href="#i-check"/></svg></span><span class="step-line"></span></div>
                 <div class="step-body"><div class="step-t">استلام الطلب وتسجيله</div><div class="step-d">تم بنجاح — {{ $fmt($issued) }}</div></div>
             </div>
-            <div class="step active">
-                <div class="step-rail"><span class="step-dot"><svg class="ic"><use href="#i-sparkle"/></svg></span><span class="step-line"></span></div>
-                <div class="step-body"><div class="step-t">دراسة البيانات وتجهيز عرض السعر</div><div class="step-d">جارٍ العمل عليه الآن من فريق وريد</div></div>
+            <div class="step {{ $quote ? 'done' : 'active' }}">
+                <div class="step-rail">
+                    <span class="step-dot"><svg class="ic"><use href="#i-{{ $quote ? 'check' : 'sparkle' }}"/></svg></span>
+                    <span class="step-line"></span>
+                </div>
+                <div class="step-body">
+                    <div class="step-t">دراسة البيانات وتجهيز عرض السعر</div>
+                    <div class="step-d">{{ $quote ? 'اكتملت الدراسة وصدر العرض' : 'جارٍ العمل عليه الآن من فريق وريد' }}</div>
+                </div>
             </div>
-            <div class="step">
-                <div class="step-rail"><span class="step-dot"><svg class="ic"><use href="#i-mail"/></svg></span><span class="step-line"></span></div>
-                <div class="step-body"><div class="step-t">إرسال عرض السعر</div><div class="step-d">خلال {{ $slaHours }} ساعة من وقت الاستلام</div></div>
+            <div class="step {{ $quote ? 'done' : '' }}">
+                <div class="step-rail">
+                    <span class="step-dot"><svg class="ic"><use href="#i-{{ $quote ? 'check' : 'mail' }}"/></svg></span>
+                    <span class="step-line"></span>
+                </div>
+                <div class="step-body">
+                    <div class="step-t">{{ $quote ? 'وصل عرض السعر' : 'إرسال عرض السعر' }}</div>
+                    <div class="step-d">
+                        @if ($quote)
+                            أُرسل {{ $fmt($quote['issued_at']) }} — ونسخة منه في بريدك
+                        @else
+                            خلال {{ $slaDays }} أيام عمل من وقت الاستلام
+                        @endif
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -265,6 +327,7 @@
     var start = new Date(box.dataset.start).getTime();
     var span = Math.max(deadline - start, 1);
     var els = {
+        d: box.querySelector('[data-d]'),
         h: box.querySelector('[data-h]'), m: box.querySelector('[data-m]'), s: box.querySelector('[data-s]'),
         bar: document.querySelector('[data-bar]'), note: document.querySelector('[data-bar-note]'),
         title: document.querySelector('[data-timer-title]')
@@ -275,7 +338,7 @@
         var left = deadline - Date.now();
         if (left <= 0) {
             box.classList.add('is-done');
-            els.h.textContent = els.m.textContent = els.s.textContent = '00';
+            els.d.textContent = els.h.textContent = els.m.textContent = els.s.textContent = '00';
             els.bar.style.width = '100%';
             els.title.textContent = 'انتهت مهلة التجهيز المقدَّرة';
             els.note.textContent = 'عرض السعر في مراحله الأخيرة — يسعدنا تواصلك معنا للاطمئنان.';
@@ -283,7 +346,8 @@
             return;
         }
         var totalS = Math.floor(left / 1000);
-        els.h.textContent = pad(Math.floor(totalS / 3600));
+        els.d.textContent = pad(Math.floor(totalS / 86400));
+        els.h.textContent = pad(Math.floor((totalS % 86400) / 3600));
         els.m.textContent = pad(Math.floor((totalS % 3600) / 60));
         els.s.textContent = pad(totalS % 60);
         els.bar.style.width = Math.min(100, Math.max(0, ((span - left) / span) * 100)).toFixed(1) + '%';
