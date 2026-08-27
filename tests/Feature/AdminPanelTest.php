@@ -1,9 +1,12 @@
 <?php
 
 use App\Filament\Pages\QuoteRequests;
+use App\Http\Controllers\QuoteController;
+use App\Mail\QuoteProposalIssued;
 use App\Models\ServiceRequest;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Mail;
 use Spatie\Permission\Models\Role;
 
 uses(RefreshDatabase::class);
@@ -77,4 +80,93 @@ it('يعرض طلبات نموذج المتاجر في لوحة المتابعة
     expect(ServiceRequest::find($sr->id))->toBeNull()
         // الطلبات خارج النموذج لا تتأثر
         ->and(ServiceRequest::count())->toBe(1);
+});
+
+it('يُصدر عرض السعر من اللوحة ويرسله للعميل بالبريد', function () {
+    Mail::fake();
+    $this->actingAs(adminUser());
+
+    $sr = ServiceRequest::create([
+        'service_type' => 'ecommerce', 'name' => 'أ. هاجر سلامة',
+        'phone' => '00201016031031', 'email' => 'hagersalma89@gmail.com', 'company' => 'متجر حواديت',
+        'status' => 'new', 'source' => 'quote_link:hajar-salama',
+        'payload' => ['الخدمات المطلوبة' => ['تجهيز المتجر ورفع المنتجات', 'تصوير المنتجات']],
+    ]);
+
+    Livewire\Livewire::test(QuoteRequests::class)
+        ->call('openQuote', $sr->id)
+        // البنود تُقترح تلقائياً من الخدمات التي اختارها العميل
+        ->assertSet('draft.items.0.name', 'تجهيز المتجر ورفع المنتجات')
+        ->assertSet('draft.items.1.name', 'تصوير المنتجات')
+        ->set('draft.items.0.price', 18000)
+        ->set('draft.items.1.price', 2500)
+        ->set('draft.items.1.qty', 2)
+        ->set('draft.vat_percent', 14)
+        ->set('draft.timeline', '3 أسابيع')
+        ->call('issueQuote', true)
+        ->assertSet('editingId', null);
+
+    $sr->refresh();
+    $quote = QuoteController::quoteOf($sr);
+
+    expect($sr->status)->toBe('proposal')
+        ->and($quote['subtotal'])->toBe(23000.0)
+        ->and($quote['vat'])->toBe(3220.0)
+        ->and($quote['total'])->toBe(26220.0)
+        ->and($quote['timeline'])->toBe('3 أسابيع');
+
+    Mail::assertSent(
+        QuoteProposalIssued::class,
+        fn ($mail) => $mail->hasTo('hagersalma89@gmail.com')
+            && $mail->hasFrom('info@wareed.vip')
+    );
+});
+
+it('يحفظ عرض السعر دون إرسال بريد عند الطلب', function () {
+    Mail::fake();
+    $this->actingAs(adminUser());
+
+    $sr = ServiceRequest::create([
+        'service_type' => 'ecommerce', 'name' => 'عميل', 'phone' => '—', 'email' => 'c@example.com',
+        'status' => 'new', 'source' => 'quote_form', 'payload' => [],
+    ]);
+
+    Livewire\Livewire::test(QuoteRequests::class)
+        ->call('openQuote', $sr->id)
+        ->set('draft.items.0.name', 'تجهيز المتجر')
+        ->set('draft.items.0.price', 9000)
+        ->call('issueQuote', false);
+
+    expect(QuoteController::quoteOf($sr->fresh())['total'])->toBe(9000.0);
+    // إشعارات استلام الطلب تُرسل عند إنشائه؛ المهم ألّا يُرسل بريد عرض السعر
+    Mail::assertNotSent(QuoteProposalIssued::class);
+});
+
+it('يرفض إصدار عرض بلا بنود ويسمح بحذف العرض', function () {
+    Mail::fake();
+    $this->actingAs(adminUser());
+
+    $sr = ServiceRequest::create([
+        'service_type' => 'ecommerce', 'name' => 'عميل', 'phone' => '—',
+        'status' => 'new', 'source' => 'quote_form', 'payload' => [],
+    ]);
+
+    Livewire\Livewire::test(QuoteRequests::class)
+        ->call('openQuote', $sr->id)
+        ->set('draft.items.0.name', '')
+        ->call('issueQuote', true);
+
+    expect(QuoteController::quoteOf($sr->fresh()))->toBeNull();
+
+    Livewire\Livewire::test(QuoteRequests::class)
+        ->call('openQuote', $sr->id)
+        ->set('draft.items.0.name', 'بند')
+        ->set('draft.items.0.price', 500)
+        ->call('issueQuote', false);
+
+    expect(QuoteController::quoteOf($sr->fresh()))->not->toBeNull();
+
+    Livewire\Livewire::test(QuoteRequests::class)->call('deleteQuote', $sr->id);
+
+    expect(QuoteController::quoteOf($sr->fresh()))->toBeNull();
 });

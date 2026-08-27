@@ -5,6 +5,7 @@ use App\Mail\ServiceRequestReceived;
 use App\Models\Service;
 use App\Models\ServiceRequest;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Testing\TestResponse;
@@ -244,4 +245,133 @@ it('normalises phone numbers for whatsapp links', function () {
         ->and(QuoteController::waNumber('+20 101 603 1031'))->toBe('201016031031')
         ->and(QuoteController::waNumber('—'))->toBeNull()
         ->and(QuoteController::waNumber(null))->toBeNull();
+});
+
+it('welcomes the invited client with her name and store name', function () {
+    $this->get('/quote/hajar-salama')
+        ->assertOk()
+        ->assertSee('أ. هاجر سلامة')
+        ->assertSee('متجر حواديت');
+});
+
+it('promises three business days and skips the weekend', function () {
+    // الأحد 2026-08-30 + 3 أيام عمل = الأربعاء 2026-09-02
+    expect(QuoteController::deadlineFor(Carbon::parse('2026-08-30 10:00'))->toDateString())
+        ->toBe('2026-09-02');
+
+    // الأربعاء 2026-09-02: يتخطّى الجمعة والسبت فينتهي الاثنين 2026-09-07
+    expect(QuoteController::deadlineFor(Carbon::parse('2026-09-02 10:00'))->toDateString())
+        ->toBe('2026-09-07');
+
+    $this->get('/quote/hajar-salama')->assertOk()->assertSee('أيام عمل');
+});
+
+it('renders a scannable QR with dark modules only', function () {
+    Mail::fake();
+    submitInvite()->assertOk();
+
+    $html = $this->get('/quote/hajar-salama/document')->assertOk()->getContent();
+
+    // الوحدات الفاتحة لا تُرسم إطلاقاً، وإلا ظهر الرمز ككتلة سوداء
+    expect($html)->toContain('qr-data-dark')
+        ->and($html)->not->toContain('qr-data light');
+});
+
+it('shows the client contact details in the document with the mobile label', function () {
+    Mail::fake();
+    submitInvite()->assertOk();
+
+    $this->get('/quote/hajar-salama/document')
+        ->assertOk()
+        ->assertSee('رقم الموبايل')
+        ->assertDontSee('رقم الجوال')
+        ->assertSee('00201016031031')
+        ->assertSee('hagersalma89@gmail.com')
+        ->assertSee('متجر حواديت');
+});
+
+it('falls back to the invite details for older requests with no contact stored', function () {
+    Mail::fake();
+    // سجل قديم أُنشئ قبل إضافة بيانات العميلة
+    ServiceRequest::create([
+        'service_type' => 'ecommerce', 'name' => 'أ. هاجر سلامة', 'phone' => '—',
+        'status' => 'new', 'source' => 'quote_link:hajar-salama',
+        'payload' => ['مجال المتجر' => 'هدايا وإكسسوارات'],
+    ]);
+
+    $this->get('/quote/hajar-salama/document')
+        ->assertOk()
+        ->assertSee('00201016031031')
+        ->assertSee('متجر حواديت');
+});
+
+it('has no quote until one is issued', function () {
+    Mail::fake();
+    submitInvite()->assertOk();
+
+    expect(QuoteController::quoteOf(ServiceRequest::sole()))->toBeNull();
+    $this->get('/quote/hajar-salama/proposal')->assertNotFound();
+});
+
+it('computes quote totals with discount and vat', function () {
+    Mail::fake();
+    submitInvite()->assertOk();
+    $sr = ServiceRequest::sole();
+
+    $sr->update(['payload' => array_merge((array) $sr->payload, ['_quote' => [
+        'items' => [
+            ['name' => 'تجهيز المتجر', 'qty' => 1, 'price' => 20000],
+            ['name' => 'تصوير المنتجات', 'qty' => 3, 'price' => 1000],
+        ],
+        'discount' => 3000, 'vat_percent' => 14, 'currency' => 'ج.م',
+        'valid_days' => 30, 'issued_at' => now()->toIso8601String(),
+    ]])]);
+
+    $quote = QuoteController::quoteOf($sr->fresh());
+
+    expect($quote['subtotal'])->toBe(23000.0)
+        ->and($quote['discount'])->toBe(3000.0)
+        ->and($quote['vat'])->toBe(2800.0)
+        ->and($quote['total'])->toBe(22800.0)
+        ->and($quote['items'][1]['total'])->toBe(3000.0);
+});
+
+it('hides internal payload keys from the request details', function () {
+    Mail::fake();
+    submitInvite()->assertOk();
+    $sr = ServiceRequest::sole();
+    $sr->update(['payload' => array_merge((array) $sr->payload, ['_quote' => [
+        'items' => [['name' => 'بند داخلي لا يظهر', 'qty' => 1, 'price' => 100]],
+        'issued_at' => now()->toIso8601String(),
+    ]])]);
+
+    $this->get('/quote/hajar-salama/document')
+        ->assertOk()
+        ->assertDontSee('بند داخلي لا يظهر');
+});
+
+it('shows the issued quote to the client and serves the proposal document', function () {
+    Mail::fake();
+    submitInvite()->assertOk();
+    $sr = ServiceRequest::sole();
+    $sr->update(['status' => 'proposal', 'payload' => array_merge((array) $sr->payload, ['_quote' => [
+        'items' => [['name' => 'تجهيز المتجر ورفع المنتجات', 'desc' => 'حتى 200 منتج', 'qty' => 1, 'price' => 18000]],
+        'discount' => 0, 'vat_percent' => 0, 'currency' => 'ج.م',
+        'valid_days' => 30, 'timeline' => '3 أسابيع', 'issued_at' => now()->toIso8601String(),
+    ]])]);
+
+    // صفحة العميلة تعرض العرض بدل العدّاد
+    $this->get('/quote/hajar-salama')
+        ->assertOk()
+        ->assertSee('عرض سعر متجرك جاهز')
+        ->assertSee('18,000');
+
+    $this->get('/quote/hajar-salama/proposal')
+        ->assertOk()
+        ->assertSee('عرض سعر')
+        ->assertSee('PRICE QUOTATION')
+        ->assertSee('تجهيز المتجر ورفع المنتجات')
+        ->assertSee('حتى 200 منتج')
+        ->assertSee('3 أسابيع')
+        ->assertSee($sr->reference);
 });

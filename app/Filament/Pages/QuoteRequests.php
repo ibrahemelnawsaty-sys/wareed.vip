@@ -3,11 +3,13 @@
 namespace App\Filament\Pages;
 
 use App\Http\Controllers\QuoteController;
+use App\Mail\QuoteProposalIssued;
 use App\Models\ServiceRequest;
 use BackedEnum;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Filament\Support\Icons\Heroicon;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\URL;
 
 /**
@@ -28,6 +30,12 @@ class QuoteRequests extends Page
     protected static ?int $navigationSort = 1;
 
     public ?string $filter = 'all';
+
+    /** الطلب المفتوح حالياً في محرّر عرض السعر (null = المحرّر مغلق). */
+    public ?int $editingId = null;
+
+    /** مسوّدة عرض السعر الجاري تحريرها. */
+    public array $draft = [];
 
     public function getTitle(): string
     {
@@ -71,16 +79,24 @@ class QuoteRequests extends Page
                     'company' => $sr->company,
                     'budget' => $sr->budget,
                     'message' => $sr->message,
-                    'payload' => (array) $sr->payload,
+                    // المفاتيح الداخلية (مثل عرض السعر) تُعرض في قسمها الخاص لا ضمن إجابات العميل
+                    'payload' => array_filter(
+                        (array) $sr->payload,
+                        fn ($key) => ! str_starts_with((string) $key, '_'),
+                        ARRAY_FILTER_USE_KEY
+                    ),
                     'status' => $sr->status,
                     'invite' => $invite,
                     'created' => $sr->created_at,
-                    'deadline' => $sr->created_at?->copy()->addHours(QuoteController::SLA_HOURS),
+                    'deadline' => $sr->created_at ? QuoteController::deadlineFor($sr->created_at) : null,
                     'overdue' => $sr->status === 'new'
-                        && $sr->created_at?->copy()->addHours(QuoteController::SLA_HOURS)->isPast(),
+                        && $sr->created_at
+                        && QuoteController::deadlineFor($sr->created_at)->isPast(),
                     'document' => $invite
                         ? route('quote.document', $invite)
                         : URL::signedRoute('quote.document.signed', ['serviceRequest' => $sr->id]),
+                    'quote' => QuoteController::quoteOf($sr),
+                    'proposal' => QuoteController::proposalUrl($sr),
                 ];
             })
             ->all();
@@ -97,7 +113,8 @@ class QuoteRequests extends Page
             'today' => $all->filter(fn ($r) => $r->created_at?->isToday())->count(),
             'overdue' => $all->filter(
                 fn ($r) => $r->status === 'new'
-                    && $r->created_at?->copy()->addHours(QuoteController::SLA_HOURS)->isPast()
+                    && $r->created_at
+                    && QuoteController::deadlineFor($r->created_at)->isPast()
             )->count(),
         ];
     }
@@ -105,6 +122,163 @@ class QuoteRequests extends Page
     public function setFilter(string $filter): void
     {
         $this->filter = $filter;
+    }
+
+    /** فتح محرّر عرض السعر لطلب بعينه (يُحمّل العرض السابق إن وُجد). */
+    public function openQuote(int $id): void
+    {
+        $sr = static::baseQuery()->whereKey($id)->firstOrFail();
+        $saved = ((array) $sr->payload)['_quote'] ?? null;
+
+        $this->editingId = $id;
+        $this->draft = [
+            'items' => ! empty($saved['items']) ? array_values($saved['items']) : $this->suggestedItems($sr),
+            'discount' => (float) ($saved['discount'] ?? 0),
+            'vat_percent' => (float) ($saved['vat_percent'] ?? 0),
+            'currency' => (string) ($saved['currency'] ?? 'ج.م'),
+            'valid_days' => (int) ($saved['valid_days'] ?? 30),
+            'timeline' => (string) ($saved['timeline'] ?? ''),
+            'notes' => (string) ($saved['notes'] ?? ''),
+        ];
+    }
+
+    public function closeQuote(): void
+    {
+        $this->editingId = null;
+        $this->draft = [];
+    }
+
+    public function addItem(): void
+    {
+        $this->draft['items'][] = ['name' => '', 'desc' => '', 'qty' => 1, 'price' => 0];
+    }
+
+    public function removeItem(int $index): void
+    {
+        unset($this->draft['items'][$index]);
+        $this->draft['items'] = array_values($this->draft['items']);
+    }
+
+    /** بنود مقترحة مبنية على الخدمات التي اختارها العميل في النموذج. */
+    private function suggestedItems(ServiceRequest $sr): array
+    {
+        $features = ((array) $sr->payload)['الخدمات المطلوبة'] ?? [];
+        $features = is_array($features) ? $features : [$features];
+        $features = array_values(array_filter($features, fn ($f) => $f !== 'أحتاج استشارة الفريق أولاً'));
+
+        if (! $features) {
+            $features = ['تجهيز المتجر الإلكتروني'];
+        }
+
+        return array_map(fn ($f) => ['name' => $f, 'desc' => '', 'qty' => 1, 'price' => 0], $features);
+    }
+
+    /** مجاميع المسوّدة لعرضها مباشرة أثناء التحرير. */
+    public function getDraftTotalsProperty(): array
+    {
+        $subtotal = 0.0;
+
+        foreach ($this->draft['items'] ?? [] as $item) {
+            $subtotal += max(1, (int) ($item['qty'] ?? 1)) * max(0, (float) ($item['price'] ?? 0));
+        }
+
+        $discount = min(max(0, (float) ($this->draft['discount'] ?? 0)), $subtotal);
+        $afterDiscount = $subtotal - $discount;
+        $vat = round($afterDiscount * max(0, (float) ($this->draft['vat_percent'] ?? 0)) / 100, 2);
+
+        return [
+            'subtotal' => $subtotal,
+            'discount' => $discount,
+            'vat' => $vat,
+            'total' => $afterDiscount + $vat,
+            'currency' => $this->draft['currency'] ?? 'ج.م',
+        ];
+    }
+
+    /**
+     * إصدار عرض السعر: يُحفظ في الطلب، تتغيّر حالته، ويُرسل للعميل بالبريد فوراً.
+     * $send = false يحفظ العرض دون إرسال بريد (للمراجعة قبل الإرسال).
+     */
+    public function issueQuote(bool $send = true): void
+    {
+        $sr = static::baseQuery()->whereKey($this->editingId)->firstOrFail();
+
+        $items = array_values(array_filter(
+            $this->draft['items'] ?? [],
+            fn ($i) => trim((string) ($i['name'] ?? '')) !== ''
+        ));
+
+        if (! $items) {
+            Notification::make()->title('أضف بنداً واحداً على الأقل باسم واضح.')->danger()->send();
+
+            return;
+        }
+
+        $payload = (array) $sr->payload;
+        $payload['_quote'] = [
+            'items' => array_map(fn ($i) => [
+                'name' => trim((string) $i['name']),
+                'desc' => trim((string) ($i['desc'] ?? '')),
+                'qty' => max(1, (int) ($i['qty'] ?? 1)),
+                'price' => max(0, (float) ($i['price'] ?? 0)),
+            ], $items),
+            'discount' => max(0, (float) ($this->draft['discount'] ?? 0)),
+            'vat_percent' => max(0, (float) ($this->draft['vat_percent'] ?? 0)),
+            'currency' => trim((string) ($this->draft['currency'] ?? 'ج.م')) ?: 'ج.م',
+            'valid_days' => max(1, (int) ($this->draft['valid_days'] ?? 30)),
+            'timeline' => trim((string) ($this->draft['timeline'] ?? '')),
+            'notes' => trim((string) ($this->draft['notes'] ?? '')),
+            'issued_at' => ($payload['_quote']['issued_at'] ?? null) && ! $send
+                ? $payload['_quote']['issued_at']
+                : now()->toIso8601String(),
+        ];
+
+        $sr->update(['payload' => $payload, 'status' => 'proposal']);
+
+        $mailed = false;
+
+        if ($send && filter_var($sr->email, FILTER_VALIDATE_EMAIL)) {
+            // الطلب محفوظ بالفعل؛ فشل البريد يُبلَّغ ولا يُسقط العملية (دستور §3)
+            try {
+                Mail::to($sr->email)->send(new QuoteProposalIssued($sr->fresh()));
+                $mailed = true;
+            } catch (\Throwable $e) {
+                report($e);
+                Notification::make()
+                    ->title('صدر العرض، لكن تعذّر إرسال البريد')
+                    ->body('راجع إعدادات البريد ثم أعد الإرسال.')
+                    ->warning()
+                    ->send();
+            }
+        }
+
+        if ($mailed) {
+            Notification::make()
+                ->title('صدر عرض السعر '.$sr->reference)
+                ->body('أُرسل إلى '.$sr->email.' وظهر للعميل في صفحة الطلب.')
+                ->success()
+                ->send();
+        } elseif (! $send) {
+            Notification::make()->title('حُفظ عرض السعر دون إرسال بريد.')->success()->send();
+        } elseif (! filter_var($sr->email, FILTER_VALIDATE_EMAIL)) {
+            Notification::make()
+                ->title('صدر العرض وظهر للعميل')
+                ->body('لا يوجد بريد إلكتروني مسجّل لهذا الطلب فلم يُرسل بريد.')
+                ->warning()
+                ->send();
+        }
+
+        $this->closeQuote();
+    }
+
+    public function deleteQuote(int $id): void
+    {
+        $sr = static::baseQuery()->whereKey($id)->firstOrFail();
+        $payload = (array) $sr->payload;
+        unset($payload['_quote']);
+        $sr->update(['payload' => $payload, 'status' => 'contacted']);
+
+        Notification::make()->title('حُذف عرض السعر من الطلب '.$sr->reference)->success()->send();
     }
 
     public function markStatus(int $id, string $status): void
