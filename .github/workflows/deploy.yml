@@ -1,0 +1,76 @@
+# نشر تلقائي إلى استضافة Hostinger عبر FTP.
+# يعمل عند كل دفع إلى main — لا رفع يدوي بعد اليوم.
+#
+# الإعداد لمرة واحدة (GitHub → Settings → Secrets and variables → Actions):
+#   FTP_SERVER    خادم FTP من hPanel، مثل ftp.wareed.vip
+#   FTP_USERNAME  اسم مستخدم FTP
+#   FTP_PASSWORD  كلمة مرور FTP
+#   FTP_DIR       (اختياري) مجلد الموقع على السيرفر، الافتراضي /public_html/
+name: نشر إلى الاستضافة
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:   # تشغيل يدوي من تبويب Actions عند الحاجة
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false   # لا نقطع نشراً جارياً حتى لا تصل ملفات نصف مرفوعة
+
+jobs:
+  deploy:
+    name: رفع الملفات إلى السيرفر
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: جلب الكود
+        uses: actions/checkout@v4
+
+      - name: فحص صحة ملفات PHP قبل النشر
+        run: |
+          set -e
+          find app bootstrap config database routes -name '*.php' -print0 \
+            | xargs -0 -n1 -P4 php -l > /dev/null
+          echo "كل ملفات PHP سليمة."
+
+      - name: رفع التغييرات عبر FTP
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          server-dir: ${{ secrets.FTP_DIR || '/public_html/' }}
+          protocol: ftps
+          # يرفع الملفات المتغيّرة فقط (يقارن مع سجل على السيرفر) — نشر سريع
+          state-name: .ftp-deploy-sync-state.json
+          dangerous-clean-slate: false
+          # ما لا يُرفع ولا يُحذف من السيرفر إطلاقاً:
+          # vendor و.env وstorage وقاعدة البيانات ملفات سيرفر خالصة
+          exclude: |
+            **/.git*
+            **/.git*/**
+            **/.github/**
+            **/node_modules/**
+            vendor/**
+            storage/**
+            bootstrap/cache/**
+            database/*.sqlite
+            .env
+            .env.*
+            tests/**
+            docs/**
+            *.md
+            phpunit.xml
+            package.json
+            package-lock.json
+            vite.config.js
+            .editorconfig
+            .gitattributes
+            .npmrc
+
+      - name: تلميح ما بعد النشر
+        run: |
+          echo "تم رفع التغييرات."
+          echo "قوالب Blade تُعاد ترجمتها تلقائياً عند تغيّر الملف."
+          echo "إن كنت تستخدم route:cache أو config:cache على السيرفر،"
+          echo "احذف ملفات bootstrap/cache/*.php أو شغّل php artisan optimize:clear."
