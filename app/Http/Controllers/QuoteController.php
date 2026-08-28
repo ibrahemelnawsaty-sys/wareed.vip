@@ -32,6 +32,96 @@ class QuoteController extends Controller
     /** أيام العطلة الأسبوعية (الجمعة والسبت) — تُستثنى من حساب المهلة. */
     public const WEEKEND_DAYS = [CarbonInterface::FRIDAY, CarbonInterface::SATURDAY];
 
+    /** نسبة ضريبة القيمة المضافة الافتراضية في عرض السعر. */
+    public const DEFAULT_VAT_PERCENT = 14;
+
+    /**
+     * مراحل الطلب بالترتيب. العدّاد يعمل في مرحلتين فقط:
+     * تجهيز عرض السعر (3 أيام عمل من الاجتماع) وتنفيذ المتجر (حتى موعد التسليم).
+     */
+    public const STAGES = [
+        'awaiting_meeting' => [
+            'label' => 'تحديد موعد الاجتماع',
+            'icon' => 'calendar',
+            'client' => 'بانتظار تحديد موعد اجتماع تعريفي مع فريق وريد.',
+            'countdown' => false,
+        ],
+        'meeting_scheduled' => [
+            'label' => 'الاجتماع التعريفي',
+            'icon' => 'consult',
+            'client' => 'الاجتماع محدّد — نلتقي لمناقشة تفاصيل المتجر.',
+            'countdown' => false,
+        ],
+        'quote_due' => [
+            'label' => 'تجهيز عرض السعر',
+            'icon' => 'document',
+            'client' => 'بعد الاجتماع يجهّز الفريق عرض السعر خلال 3 أيام عمل.',
+            'countdown' => true,
+        ],
+        'awaiting_approval' => [
+            'label' => 'اعتماد العرض',
+            'icon' => 'verified',
+            'client' => 'عرض السعر جاهز — بانتظار اعتمادك للبدء في التنفيذ.',
+            'countdown' => false,
+        ],
+        'in_progress' => [
+            'label' => 'تنفيذ المتجر',
+            'icon' => 'bolt',
+            'client' => 'بدأ تنفيذ المتجر — العدّاد يوضّح المتبقي حتى موعد التسليم.',
+            'countdown' => true,
+        ],
+        'delivered' => [
+            'label' => 'التسليم',
+            'icon' => 'check',
+            'client' => 'تم تسليم المتجر بنجاح. سعدنا بالعمل معك.',
+            'countdown' => false,
+        ],
+    ];
+
+    /**
+     * حالة مسار الطلب: المرحلة الحالية وتواريخها والعدّاد الفعّال إن وُجد.
+     * تُخزَّن في payload['_flow'] فلا تحتاج جدولاً ولا هجرة على الخادم.
+     */
+    public static function flowOf(ServiceRequest $sr): array
+    {
+        $saved = ((array) $sr->payload)['_flow'] ?? [];
+        $stage = $saved['stage'] ?? 'awaiting_meeting';
+
+        if (! array_key_exists($stage, self::STAGES)) {
+            $stage = 'awaiting_meeting';
+        }
+
+        $at = function (string $key) use ($saved): ?Carbon {
+            return filled($saved[$key] ?? null) ? Carbon::parse($saved[$key]) : null;
+        };
+
+        $meetingAt = $at('meeting_at');
+        $meetingDoneAt = $at('meeting_done_at');
+        $dueAt = $at('due_at');
+
+        // العدّاد يعمل في مرحلتين فقط حسب مسار العمل المعتمد
+        [$countFrom, $countTo] = match ($stage) {
+            'quote_due' => [$meetingDoneAt, $meetingDoneAt ? self::deadlineFor($meetingDoneAt) : null],
+            'in_progress' => [$at('started_at'), $dueAt],
+            default => [null, null],
+        };
+
+        return [
+            'stage' => $stage,
+            'index' => array_search($stage, array_keys(self::STAGES), true),
+            'meeting_at' => $meetingAt,
+            'meeting_done_at' => $meetingDoneAt,
+            'approved_at' => $at('approved_at'),
+            'started_at' => $at('started_at'),
+            'due_at' => $dueAt,
+            'delivered_at' => $at('delivered_at'),
+            'note' => (string) ($saved['note'] ?? ''),
+            'count_from' => $countFrom,
+            'count_to' => $countTo,
+            'counting' => $countFrom !== null && $countTo !== null,
+        ];
+    }
+
     /** موعد تسليم عرض السعر: 3 أيام عمل من وقت الاستلام مع تخطّي العطلة. */
     public static function deadlineFor(CarbonInterface $start): Carbon
     {
@@ -303,8 +393,9 @@ class QuoteController extends Controller
             'rows' => $this->documentRows($sr),
             'whatsapp' => $this->whatsapp(),
             'slaDays' => self::SLA_BUSINESS_DAYS,
-            'deadline' => self::deadlineFor($sr->created_at),
             'quote' => self::quoteOf($sr),
+            'flow' => self::flowOf($sr),
+            'stages' => self::STAGES,
         ]);
     }
 

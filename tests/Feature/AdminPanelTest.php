@@ -133,11 +133,16 @@ it('يحفظ عرض السعر دون إرسال بريد عند الطلب', fu
 
     Livewire\Livewire::test(QuoteRequests::class)
         ->call('openQuote', $sr->id)
+        // الضريبة 14% افتراضياً فلا يحتاج المستخدم لكتابتها كل مرة
+        ->assertSet('draft.vat_percent', (float) QuoteController::DEFAULT_VAT_PERCENT)
         ->set('draft.items.0.name', 'تجهيز المتجر')
         ->set('draft.items.0.price', 9000)
         ->call('issueQuote', false);
 
-    expect(QuoteController::quoteOf($sr->fresh())['total'])->toBe(9000.0);
+    $quote = QuoteController::quoteOf($sr->fresh());
+    expect($quote['subtotal'])->toBe(9000.0)
+        ->and($quote['vat'])->toBe(1260.0)
+        ->and($quote['total'])->toBe(10260.0);
     // إشعارات استلام الطلب تُرسل عند إنشائه؛ المهم ألّا يُرسل بريد عرض السعر
     Mail::assertNotSent(QuoteProposalIssued::class);
 });
@@ -169,4 +174,71 @@ it('يرفض إصدار عرض بلا بنود ويسمح بحذف العرض', 
     Livewire\Livewire::test(QuoteRequests::class)->call('deleteQuote', $sr->id);
 
     expect(QuoteController::quoteOf($sr->fresh()))->toBeNull();
+});
+
+it('ينقل الطلب عبر مراحل المسار ويشغّل العدّاد في المرحلتين الصحيحتين', function () {
+    Mail::fake();
+    $this->actingAs(adminUser());
+
+    $sr = ServiceRequest::create([
+        'service_type' => 'ecommerce', 'name' => 'أ. هاجر سلامة', 'phone' => '00201016031031',
+        'email' => 'hagersalma89@gmail.com', 'status' => 'new', 'source' => 'quote_link:hajar-salama',
+        'payload' => ['الخدمات المطلوبة' => ['تجهيز المتجر ورفع المنتجات']],
+    ]);
+
+    $flow = fn () => QuoteController::flowOf($sr->fresh());
+
+    // البداية: بانتظار تحديد موعد الاجتماع — بلا عدّاد
+    expect($flow()['stage'])->toBe('awaiting_meeting')
+        ->and($flow()['counting'])->toBeFalse();
+
+    $page = Livewire\Livewire::test(QuoteRequests::class);
+
+    // تثبيت موعد الاجتماع — ما زال بلا عدّاد
+    $page->set("flowInput.{$sr->id}.meeting_at", '2026-09-01T11:00')->call('setMeeting', $sr->id);
+    expect($flow()['stage'])->toBe('meeting_scheduled')
+        ->and($flow()['counting'])->toBeFalse()
+        ->and($flow()['meeting_at']->format('Y-m-d H:i'))->toBe('2026-09-01 11:00');
+
+    // بعد الاجتماع: يعمل العدّاد حتى تسليم العرض (3 أيام عمل)
+    $page->call('meetingDone', $sr->id);
+    expect($flow()['stage'])->toBe('quote_due')
+        ->and($flow()['counting'])->toBeTrue()
+        ->and($flow()['count_to']->toDateString())
+        ->toBe(QuoteController::deadlineFor($flow()['meeting_done_at'])->toDateString());
+
+    // إصدار العرض ينقل تلقائياً إلى اعتماد العميل — ويتوقف العدّاد
+    $page->call('openQuote', $sr->id)
+        ->set('draft.items.0.price', 20000)
+        ->call('issueQuote', false);
+    expect($flow()['stage'])->toBe('awaiting_approval')
+        ->and($flow()['counting'])->toBeFalse();
+
+    // الاعتماد وبدء التنفيذ: يعمل العدّاد حتى موعد التسليم
+    $page->set("flowInput.{$sr->id}.due_at", '2026-10-15')->call('startExecution', $sr->id);
+    expect($flow()['stage'])->toBe('in_progress')
+        ->and($flow()['counting'])->toBeTrue()
+        ->and($flow()['due_at']->toDateString())->toBe('2026-10-15')
+        ->and($sr->fresh()->status)->toBe('won');
+
+    // التسليم: نهاية المسار بلا عدّاد
+    $page->call('markDelivered', $sr->id);
+    expect($flow()['stage'])->toBe('delivered')
+        ->and($flow()['counting'])->toBeFalse()
+        ->and($flow()['delivered_at'])->not->toBeNull();
+});
+
+it('يرفض تثبيت الاجتماع أو بدء التنفيذ بلا تاريخ', function () {
+    $this->actingAs(adminUser());
+
+    $sr = ServiceRequest::create([
+        'service_type' => 'ecommerce', 'name' => 'عميل', 'phone' => '—',
+        'status' => 'new', 'source' => 'quote_form', 'payload' => [],
+    ]);
+
+    Livewire\Livewire::test(QuoteRequests::class)->call('setMeeting', $sr->id);
+    expect(QuoteController::flowOf($sr->fresh())['stage'])->toBe('awaiting_meeting');
+
+    Livewire\Livewire::test(QuoteRequests::class)->call('startExecution', $sr->id);
+    expect(QuoteController::flowOf($sr->fresh())['stage'])->toBe('awaiting_meeting');
 });

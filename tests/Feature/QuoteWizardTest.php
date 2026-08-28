@@ -354,11 +354,15 @@ it('shows the issued quote to the client and serves the proposal document', func
     Mail::fake();
     submitInvite()->assertOk();
     $sr = ServiceRequest::sole();
-    $sr->update(['status' => 'proposal', 'payload' => array_merge((array) $sr->payload, ['_quote' => [
-        'items' => [['name' => 'تجهيز المتجر ورفع المنتجات', 'desc' => 'حتى 200 منتج', 'qty' => 1, 'price' => 18000]],
-        'discount' => 0, 'vat_percent' => 0, 'currency' => 'ج.م',
-        'valid_days' => 30, 'timeline' => '3 أسابيع', 'issued_at' => now()->toIso8601String(),
-    ]])]);
+    $sr->update(['status' => 'proposal', 'payload' => array_merge((array) $sr->payload, [
+        '_quote' => [
+            'items' => [['name' => 'تجهيز المتجر ورفع المنتجات', 'desc' => 'حتى 200 منتج', 'qty' => 1, 'price' => 18000]],
+            'discount' => 0, 'vat_percent' => 0, 'currency' => 'ج.م',
+            'valid_days' => 30, 'timeline' => '3 أسابيع', 'issued_at' => now()->toIso8601String(),
+        ],
+        // إصدار العرض ينقل المسار إلى مرحلة اعتماد العميل
+        '_flow' => ['stage' => 'awaiting_approval'],
+    ])]);
 
     // صفحة العميلة تعرض العرض بدل العدّاد
     $this->get('/quote/hajar-salama')
@@ -374,4 +378,71 @@ it('shows the issued quote to the client and serves the proposal document', func
         ->assertSee('حتى 200 منتج')
         ->assertSee('3 أسابيع')
         ->assertSee($sr->reference);
+});
+
+it('shows the awaiting-meeting stage first with no countdown', function () {
+    Mail::fake();
+    submitInvite()->assertOk();
+
+    $this->get('/quote/hajar-salama')
+        ->assertOk()
+        ->assertSee('تحديد موعد الاجتماع')
+        ->assertSee('بانتظار تحديد موعد اجتماع')
+        // العدّاد لا يعمل قبل الاجتماع
+        ->assertSee('data-counting="0"', false);
+});
+
+it('runs the countdown after the meeting and again during execution', function () {
+    Mail::fake();
+    submitInvite()->assertOk();
+    $sr = ServiceRequest::sole();
+
+    $setFlow = function (array $flow) use ($sr) {
+        $sr->update(['payload' => array_merge((array) $sr->payload, ['_flow' => $flow])]);
+    };
+
+    // بعد الاجتماع: العدّاد يعمل حتى تسليم العرض
+    $setFlow(['stage' => 'quote_due', 'meeting_done_at' => now()->toIso8601String()]);
+    $this->get('/quote/hajar-salama')
+        ->assertOk()
+        ->assertSee('الوقت المتبقي لتسليم عرض السعر')
+        ->assertSee('data-counting="1"', false);
+
+    // بانتظار الاعتماد: العدّاد متوقّف
+    $setFlow(['stage' => 'awaiting_approval']);
+    $this->get('/quote/hajar-salama')->assertOk()->assertSee('data-counting="0"', false);
+
+    // أثناء التنفيذ: العدّاد يعمل حتى موعد التسليم
+    $setFlow([
+        'stage' => 'in_progress',
+        'started_at' => now()->toIso8601String(),
+        'due_at' => now()->addDays(20)->toIso8601String(),
+    ]);
+    $this->get('/quote/hajar-salama')
+        ->assertOk()
+        ->assertSee('الوقت المتبقي لتسليم المتجر')
+        ->assertSee('data-counting="1"', false);
+
+    // بعد التسليم: يتوقّف العدّاد نهائياً
+    $setFlow(['stage' => 'delivered', 'delivered_at' => now()->toIso8601String()]);
+    $this->get('/quote/hajar-salama')
+        ->assertOk()
+        ->assertSee('تم تسليم متجرك')
+        ->assertSee('data-counting="0"', false);
+});
+
+it('shows the scheduled meeting date to the client', function () {
+    Mail::fake();
+    submitInvite()->assertOk();
+    $sr = ServiceRequest::sole();
+    $sr->update(['payload' => array_merge((array) $sr->payload, ['_flow' => [
+        'stage' => 'meeting_scheduled',
+        'meeting_at' => Carbon::parse('2026-09-01 11:00')->toIso8601String(),
+    ]])]);
+
+    $this->get('/quote/hajar-salama')
+        ->assertOk()
+        ->assertSee('موعد الاجتماع التعريفي')
+        ->assertSee('1 سبتمبر 2026')
+        ->assertSee('data-counting="0"', false);
 });
