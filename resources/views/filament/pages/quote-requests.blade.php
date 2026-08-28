@@ -49,6 +49,22 @@
 
         .wq-empty { border: 1px dashed rgb(209 213 219); border-radius: .75rem; padding: 2.5rem 1rem; text-align: center; color: rgb(107 114 128); margin-top: 1.25rem; }
 
+        /* شريط مراحل الطلب */
+        .wq-flow { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; padding: .75rem 1rem; border-top: 1px solid rgb(243 244 246); background: rgb(250 251 255); }
+        .wq-flow-steps { display: flex; flex-wrap: wrap; align-items: center; gap: .3rem; }
+        .wq-pip { display: inline-flex; align-items: center; gap: .3rem; font-size: .72rem; font-weight: 600; color: rgb(156 163 175); white-space: nowrap; }
+        .wq-pip i { width: .5rem; height: .5rem; border-radius: 50%; background: rgb(209 213 219); display: inline-block; }
+        .wq-pip.done { color: rgb(21 128 61); } .wq-pip.done i { background: rgb(34 197 94); }
+        .wq-pip.now { color: rgb(37 99 235); font-weight: 700; } .wq-pip.now i { background: rgb(37 99 235); box-shadow: 0 0 0 3px rgba(37,99,235,.18); }
+        .wq-pip-sep { color: rgb(209 213 219); font-size: .7rem; }
+        .wq-flow-do { margin-inline-start: auto; display: flex; flex-wrap: wrap; align-items: center; gap: .45rem; }
+        .wq-when { font-size: .74rem; color: rgb(107 114 128); }
+        .wq-when b { color: rgb(17 24 39); }
+        .wq-dt { padding: .35rem .5rem; border-radius: .45rem; border: 1px solid rgb(209 213 219); background: #fff; font-size: .78rem; color: rgb(17 24 39); }
+        .dark .wq-flow { background: rgba(255,255,255,.03); border-color: rgba(255,255,255,.08); }
+        .dark .wq-dt { background: rgb(17 24 39); border-color: rgba(255,255,255,.15); color: #fff; }
+        .dark .wq-when b { color: #fff; }
+
         /* محرّر عرض السعر */
         .wq-editor { border-top: 2px solid rgb(37 99 235); background: rgb(248 250 255); padding: 1rem; }
         .wq-editor h3 { font-size: .95rem; font-weight: 700; margin-bottom: .15rem; }
@@ -186,6 +202,76 @@
                         <p>{{ $r['message'] }}</p>
                     </div>
                 @endif
+
+                @php
+                    $flow = $r['flow'];
+                    $stages = \App\Http\Controllers\QuoteController::STAGES;
+                    $keys = array_keys($stages);
+                    $fdt = fn ($d) => $d?->format('Y/m/d — H:i');
+                @endphp
+                <div class="wq-flow">
+                    <div class="wq-flow-steps">
+                        @foreach ($keys as $i => $key)
+                            <span @class(['wq-pip', 'done' => $i < $flow['index'], 'now' => $i === $flow['index']])>
+                                <i></i>{{ $stages[$key]['label'] }}
+                            </span>
+                            @if (! $loop->last)<span class="wq-pip-sep">←</span>@endif
+                        @endforeach
+                    </div>
+
+                    <div class="wq-flow-do">
+                        @switch ($flow['stage'])
+                            @case ('awaiting_meeting')
+                                <input type="datetime-local" class="wq-dt" wire:model="flowInput.{{ $r['id'] }}.meeting_at">
+                                <x-filament::button wire:click="setMeeting({{ $r['id'] }})" size="sm" color="primary" icon="heroicon-o-calendar-days">
+                                    تثبيت موعد الاجتماع
+                                </x-filament::button>
+                                @break
+
+                            @case ('meeting_scheduled')
+                                <span class="wq-when">الاجتماع: <b>{{ $fdt($flow['meeting_at']) }}</b></span>
+                                <x-filament::button wire:click="meetingDone({{ $r['id'] }})" size="sm" color="success" icon="heroicon-o-check">
+                                    تم الاجتماع — ابدأ مهلة العرض
+                                </x-filament::button>
+                                <x-filament::button wire:click="resetStage({{ $r['id'] }}, 'awaiting_meeting')" size="sm" color="gray">
+                                    تغيير الموعد
+                                </x-filament::button>
+                                @break
+
+                            @case ('quote_due')
+                                <span class="wq-when">
+                                    تسليم العرض قبل: <b>{{ $fdt($flow['count_to']) }}</b>
+                                    @if ($flow['count_to']?->isPast()) <span style="color:rgb(220 38 38)">(تأخّر)</span> @endif
+                                </span>
+                                @break
+
+                            @case ('awaiting_approval')
+                                <span class="wq-when">بانتظار اعتماد العميل</span>
+                                <input type="date" class="wq-dt" wire:model="flowInput.{{ $r['id'] }}.due_at">
+                                <x-filament::button wire:click="startExecution({{ $r['id'] }})" size="sm" color="success" icon="heroicon-o-play">
+                                    اعتُمد — ابدأ التنفيذ
+                                </x-filament::button>
+                                @break
+
+                            @case ('in_progress')
+                                <span class="wq-when">
+                                    التسليم قبل: <b>{{ $flow['due_at']?->format('Y/m/d') }}</b>
+                                    @if ($flow['due_at']?->isPast()) <span style="color:rgb(220 38 38)">(تأخّر)</span> @endif
+                                </span>
+                                <x-filament::button wire:click="markDelivered({{ $r['id'] }})" size="sm" color="success" icon="heroicon-o-check-badge">
+                                    تم التسليم
+                                </x-filament::button>
+                                @break
+
+                            @case ('delivered')
+                                <span class="wq-when">سُلّم: <b>{{ $fdt($flow['delivered_at']) }}</b></span>
+                                <x-filament::button wire:click="resetStage({{ $r['id'] }}, 'in_progress')" size="sm" color="gray">
+                                    إرجاع للتنفيذ
+                                </x-filament::button>
+                                @break
+                        @endswitch
+                    </div>
+                </div>
 
                 @if ($r['quote'])
                     <div class="wq-quote-badge">

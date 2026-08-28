@@ -105,6 +105,14 @@
         .ref-date { font-size: .76rem; color: var(--faint); }
 
         .chip-done { color: #1d4ed8; background: rgba(59,130,246,.1); border-color: rgba(59,130,246,.35); }
+        .meet-card {
+            display: flex; align-items: center; gap: 14px; text-align: start;
+            margin: 0 0 24px; padding: 16px 22px; border-radius: 18px;
+            background: #f7f9fe; border: 1px solid var(--line-strong);
+        }
+        .meet-card .ic { width: 26px; height: 26px; color: var(--blue-deep); }
+        .meet-card .ml { display: block; font-size: .78rem; font-weight: 600; color: var(--muted); }
+        .meet-card .mv { font-size: 1.02rem; font-weight: 700; }
         .quote-card {
             display: flex; flex-wrap: wrap; align-items: center; gap: 16px; text-align: start;
             margin: 0 0 26px; padding: 20px 24px; border-radius: 20px;
@@ -208,26 +216,44 @@
 
 <main class="wrap">
     <div class="card center">
-        <div class="seal"><svg class="ic"><use href="#i-{{ $quote ? 'document' : 'check' }}"/></svg></div>
-        @if ($quote)
-            <span class="chip chip-done"><svg class="ic" style="width:14px;height:14px"><use href="#i-check"/></svg> عرض السعر جاهز</span>
-            <h1>عرض سعر متجرك جاهز <span class="grad-text">{{ $client['short_name'] }}</span></h1>
-            <p class="lead">
-                أنهى فريق وريد دراسة طلبك، وهذا عرض السعر المخصّص لمتجرك — يمكنك استعراضه وتحميله بصيغة PDF.
-            </p>
-        @else
-            <span class="chip"><span class="pulse"></span> الطلب قيد التجهيز</span>
-            <h1>تم استلام طلبك يا <span class="grad-text">{{ $client['short_name'] }}</span></h1>
-            <p class="lead">
-                سبق أن {{ $f ? 'أرسلتِ' : 'أرسلت' }} طلب المتجر الإلكتروني، وهو الآن قيد الدراسة لدى فريق وريد لتجهيز عرض السعر المخصّص.
-            </p>
-        @endif
+        @php
+            $stage = $flow['stage'];
+            $stageInfo = $stages[$stage];
+            $headline = match ($stage) {
+                'awaiting_meeting' => 'تم استلام طلبك يا',
+                'meeting_scheduled' => 'اجتماعنا محدّد يا',
+                'quote_due' => 'نجهّز عرض سعرك الآن يا',
+                'awaiting_approval' => 'عرض سعر متجرك جاهز يا',
+                'in_progress' => 'بدأ تنفيذ متجرك يا',
+                'delivered' => 'تم تسليم متجرك يا',
+            };
+        @endphp
+
+        <div class="seal"><svg class="ic"><use href="#i-{{ $stageInfo['icon'] }}"/></svg></div>
+        <span class="chip {{ $stageInfo['countdown'] ? '' : 'chip-done' }}">
+            @if ($stageInfo['countdown'])<span class="pulse"></span>@else
+                <svg class="ic" style="width:14px;height:14px"><use href="#i-check"/></svg>
+            @endif
+            {{ $stageInfo['label'] }}
+        </span>
+        <h1>{{ $headline }} <span class="grad-text">{{ $client['short_name'] }}</span></h1>
+        <p class="lead">{{ $stageInfo['client'] }}</p>
 
         <div class="ref-box">
             <span class="ref-label">الرقم المرجعي للطلب</span>
             <b class="ref-num">{{ $sr->reference }}</b>
             <span class="ref-date">تاريخ الاستلام: {{ $fmt($issued) }}</span>
         </div>
+
+        @if ($flow['stage'] === 'meeting_scheduled' && $flow['meeting_at'])
+            <div class="meet-card">
+                <svg class="ic"><use href="#i-calendar"/></svg>
+                <div>
+                    <span class="ml">موعد الاجتماع التعريفي</span>
+                    <b class="mv">{{ $fmt($flow['meeting_at']) }}</b>
+                </div>
+            </div>
+        @endif
 
         @if ($quote)
             @php $money = fn ($n) => number_format((float) $n, ((float) $n == (int) $n) ? 0 : 2); @endphp
@@ -246,54 +272,68 @@
             </div>
         @endif
 
-        <div class="timer-wrap" @if ($quote) hidden @endif>
+        <div class="timer-wrap" data-counting="{{ $flow['counting'] ? '1' : '0' }}" @unless ($flow['counting']) hidden @endunless>
             <div class="timer-title">
                 <svg class="ic"><use href="#i-clock"/></svg>
-                <span data-timer-title>الوقت المتبقي لتسليم عرض السعر</span>
+                <span data-timer-title>
+                    {{ $flow['stage'] === 'in_progress' ? 'الوقت المتبقي لتسليم المتجر' : 'الوقت المتبقي لتسليم عرض السعر' }}
+                </span>
             </div>
             <div class="timer" data-timer
-                 data-deadline="{{ $deadline->toIso8601String() }}"
-                 data-start="{{ $issued->toIso8601String() }}">
+                 data-deadline="{{ $flow['count_to']?->toIso8601String() }}"
+                 data-start="{{ $flow['count_from']?->toIso8601String() }}">
                 <div class="tcell"><div class="tval" data-d>--</div><div class="tlab">يوم</div></div>
                 <div class="tcell"><div class="tval" data-h>--</div><div class="tlab">ساعة</div></div>
                 <div class="tcell"><div class="tval" data-m>--</div><div class="tlab">دقيقة</div></div>
                 <div class="tcell"><div class="tval" data-s>--</div><div class="tlab">ثانية</div></div>
             </div>
             <div class="bar"><i data-bar style="width:0%"></i></div>
-            <p class="bar-note" data-bar-note>مهلة التجهيز {{ $slaDays }} أيام عمل من وقت استلام الطلب</p>
+            <p class="bar-note" data-bar-note>
+                @if ($flow['stage'] === 'in_progress')
+                    موعد التسليم المتوقّع: {{ $flow['due_at']?->format('Y/m/d') }}
+                @else
+                    مهلة تجهيز العرض {{ $slaDays }} أيام عمل من تاريخ الاجتماع
+                @endif
+            </p>
         </div>
 
         <div class="steps">
             <div class="step done">
                 <div class="step-rail"><span class="step-dot"><svg class="ic"><use href="#i-check"/></svg></span><span class="step-line"></span></div>
-                <div class="step-body"><div class="step-t">استلام الطلب وتسجيله</div><div class="step-d">تم بنجاح — {{ $fmt($issued) }}</div></div>
-            </div>
-            <div class="step {{ $quote ? 'done' : 'active' }}">
-                <div class="step-rail">
-                    <span class="step-dot"><svg class="ic"><use href="#i-{{ $quote ? 'check' : 'sparkle' }}"/></svg></span>
-                    <span class="step-line"></span>
-                </div>
                 <div class="step-body">
-                    <div class="step-t">دراسة البيانات وتجهيز عرض السعر</div>
-                    <div class="step-d">{{ $quote ? 'اكتملت الدراسة وصدر العرض' : 'جارٍ العمل عليه الآن من فريق وريد' }}</div>
+                    <div class="step-t">استلام الطلب وتسجيله</div>
+                    <div class="step-d">تم بنجاح — {{ $fmt($issued) }}</div>
                 </div>
             </div>
-            <div class="step {{ $quote ? 'done' : '' }}">
-                <div class="step-rail">
-                    <span class="step-dot"><svg class="ic"><use href="#i-{{ $quote ? 'check' : 'mail' }}"/></svg></span>
-                    <span class="step-line"></span>
-                </div>
-                <div class="step-body">
-                    <div class="step-t">{{ $quote ? 'وصل عرض السعر' : 'إرسال عرض السعر' }}</div>
-                    <div class="step-d">
-                        @if ($quote)
-                            أُرسل {{ $fmt($quote['issued_at']) }} — ونسخة منه في بريدك
-                        @else
-                            خلال {{ $slaDays }} أيام عمل من وقت الاستلام
-                        @endif
+
+            @foreach ($stages as $key => $info)
+                @php
+                    $i = $loop->index;
+                    $state = $i < $flow['index'] ? 'done' : ($i === $flow['index'] ? 'active' : '');
+                    $when = match ($key) {
+                        'awaiting_meeting' => $flow['meeting_at'] ? 'تم التحديد — '.$fmt($flow['meeting_at']) : null,
+                        'meeting_scheduled' => $flow['meeting_done_at']
+                            ? 'تم الاجتماع — '.$fmt($flow['meeting_done_at'])
+                            : ($flow['meeting_at'] ? $fmt($flow['meeting_at']) : null),
+                        'quote_due' => $quote ? 'صدر العرض — '.$fmt($quote['issued_at']) : null,
+                        'awaiting_approval' => $flow['approved_at'] ? 'اعتُمد — '.$fmt($flow['approved_at']) : null,
+                        'in_progress' => $flow['due_at'] ? 'موعد التسليم: '.$flow['due_at']->format('Y/m/d') : null,
+                        'delivered' => $flow['delivered_at'] ? $fmt($flow['delivered_at']) : null,
+                    };
+                @endphp
+                <div class="step {{ $state }}">
+                    <div class="step-rail">
+                        <span class="step-dot">
+                            <svg class="ic"><use href="#i-{{ $state === 'done' ? 'check' : $info['icon'] }}"/></svg>
+                        </span>
+                        <span class="step-line"></span>
+                    </div>
+                    <div class="step-body">
+                        <div class="step-t">{{ $info['label'] }}</div>
+                        <div class="step-d">{{ $when ?? ($state === 'active' ? $info['client'] : 'لم تبدأ بعد') }}</div>
                     </div>
                 </div>
-            </div>
+            @endforeach
         </div>
 
         <details class="summary-box">

@@ -9,6 +9,7 @@ use BackedEnum;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Filament\Support\Icons\Heroicon;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\URL;
 
@@ -36,6 +37,9 @@ class QuoteRequests extends Page
 
     /** مسوّدة عرض السعر الجاري تحريرها. */
     public array $draft = [];
+
+    /** مدخلات إدارة مراحل الطلب (تاريخ الاجتماع، موعد التسليم…) لكل طلب. */
+    public array $flowInput = [];
 
     public function getTitle(): string
     {
@@ -97,6 +101,7 @@ class QuoteRequests extends Page
                         : URL::signedRoute('quote.document.signed', ['serviceRequest' => $sr->id]),
                     'quote' => QuoteController::quoteOf($sr),
                     'proposal' => QuoteController::proposalUrl($sr),
+                    'flow' => QuoteController::flowOf($sr),
                 ];
             })
             ->all();
@@ -134,7 +139,7 @@ class QuoteRequests extends Page
         $this->draft = [
             'items' => ! empty($saved['items']) ? array_values($saved['items']) : $this->suggestedItems($sr),
             'discount' => (float) ($saved['discount'] ?? 0),
-            'vat_percent' => (float) ($saved['vat_percent'] ?? 0),
+            'vat_percent' => (float) ($saved['vat_percent'] ?? QuoteController::DEFAULT_VAT_PERCENT),
             'currency' => (string) ($saved['currency'] ?? 'ج.م'),
             'valid_days' => (int) ($saved['valid_days'] ?? 30),
             'timeline' => (string) ($saved['timeline'] ?? ''),
@@ -233,6 +238,13 @@ class QuoteRequests extends Page
                 : now()->toIso8601String(),
         ];
 
+        // إصدار العرض ينقل مسار الطلب تلقائياً إلى مرحلة اعتماد العميل
+        $flow = $payload['_flow'] ?? [];
+        if (($flow['stage'] ?? null) !== 'in_progress' && ($flow['stage'] ?? null) !== 'delivered') {
+            $flow['stage'] = 'awaiting_approval';
+            $payload['_flow'] = $flow;
+        }
+
         $sr->update(['payload' => $payload, 'status' => 'proposal']);
 
         $mailed = false;
@@ -269,6 +281,97 @@ class QuoteRequests extends Page
         }
 
         $this->closeQuote();
+    }
+
+    /** تحديث مسار الطلب: المرحلة وتواريخها. */
+    private function saveFlow(int $id, array $changes): ServiceRequest
+    {
+        $sr = static::baseQuery()->whereKey($id)->firstOrFail();
+        $payload = (array) $sr->payload;
+        $payload['_flow'] = array_merge($payload['_flow'] ?? [], $changes);
+        $sr->update(['payload' => $payload]);
+
+        return $sr->fresh();
+    }
+
+    /** تثبيت موعد الاجتماع التعريفي. */
+    public function setMeeting(int $id): void
+    {
+        $when = trim((string) ($this->flowInput[$id]['meeting_at'] ?? ''));
+
+        if ($when === '') {
+            Notification::make()->title('حدّد تاريخ ووقت الاجتماع أولاً.')->danger()->send();
+
+            return;
+        }
+
+        $sr = $this->saveFlow($id, [
+            'stage' => 'meeting_scheduled',
+            'meeting_at' => Carbon::parse($when)->toIso8601String(),
+        ]);
+
+        Notification::make()->title('ثُبّت موعد الاجتماع للطلب '.$sr->reference)->success()->send();
+    }
+
+    /** انتهاء الاجتماع: تبدأ مهلة الـ3 أيام لتسليم عرض السعر. */
+    public function meetingDone(int $id): void
+    {
+        $sr = $this->saveFlow($id, [
+            'stage' => 'quote_due',
+            'meeting_done_at' => now()->toIso8601String(),
+        ]);
+
+        $due = QuoteController::deadlineFor(now());
+
+        Notification::make()
+            ->title('بدأت مهلة تجهيز عرض السعر')
+            ->body('موعد التسليم: '.$due->format('Y/m/d — H:i'))
+            ->success()
+            ->send();
+    }
+
+    /** اعتماد العميل للعرض وبدء التنفيذ حتى موعد التسليم. */
+    public function startExecution(int $id): void
+    {
+        $due = trim((string) ($this->flowInput[$id]['due_at'] ?? ''));
+
+        if ($due === '') {
+            Notification::make()->title('حدّد موعد التسليم المتوقع أولاً.')->danger()->send();
+
+            return;
+        }
+
+        $sr = $this->saveFlow($id, [
+            'stage' => 'in_progress',
+            'approved_at' => now()->toIso8601String(),
+            'started_at' => now()->toIso8601String(),
+            'due_at' => Carbon::parse($due)->toIso8601String(),
+        ]);
+
+        $sr->update(['status' => 'won']);
+
+        Notification::make()->title('بدأ تنفيذ المتجر للطلب '.$sr->reference)->success()->send();
+    }
+
+    /** تسليم المتجر — نهاية المسار. */
+    public function markDelivered(int $id): void
+    {
+        $sr = $this->saveFlow($id, [
+            'stage' => 'delivered',
+            'delivered_at' => now()->toIso8601String(),
+        ]);
+
+        Notification::make()->title('تم تسليم المتجر — الطلب '.$sr->reference)->success()->send();
+    }
+
+    /** إرجاع الطلب لمرحلة سابقة عند الحاجة. */
+    public function resetStage(int $id, string $stage): void
+    {
+        abort_unless(array_key_exists($stage, QuoteController::STAGES), 422);
+
+        $sr = $this->saveFlow($id, ['stage' => $stage]);
+
+        Notification::make()->title('أُعيد الطلب '.$sr->reference.' إلى مرحلة: '.QuoteController::STAGES[$stage]['label'])->success()->send();
     }
 
     public function deleteQuote(int $id): void
