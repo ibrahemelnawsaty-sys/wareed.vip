@@ -52,7 +52,12 @@
         </a>
     </p>
 
-    @if ($quote['timeline'])
+    @if ($quote['delivery_at'])
+        <p style="margin:0 0 10px;color:#55638a;font-size:13px;">
+            <strong style="color:#0d1830;">موعد التسليم:</strong>
+            {{ $quote['delivery_at']->format('Y/m/d') }} — والمراحل التفصيلية داخل العرض.
+        </p>
+    @elseif ($quote['timeline'])
         <p style="margin:0 0 10px;color:#55638a;font-size:13px;">
             <strong style="color:#0d1830;">مدة التنفيذ:</strong> {{ $quote['timeline'] }}
         </p>

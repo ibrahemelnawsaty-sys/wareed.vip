@@ -392,3 +392,50 @@ it('يحسب الخصم كنسبة من الإجمالي ويشتقّها للع
         ->call('openQuote', $sr->id)
         ->assertSet('draft.discount_percent', 20.0);
 });
+
+it('يجدول مراحل التسليم ويحفظ تواريخ استحقاق الدفعات', function () {
+    Mail::fake();
+    $this->actingAs(adminUser());
+
+    $sr = ServiceRequest::create([
+        'service_type' => 'ecommerce', 'name' => 'عميل', 'phone' => '—',
+        'status' => 'new', 'source' => 'quote_form', 'payload' => [],
+    ]);
+
+    $item = fn (string $phase, string $name) => [
+        'phase' => $phase, 'name' => $name, 'desc' => '', 'note' => '',
+        'qty' => 1, 'unit' => '', 'price' => 5000, 'free' => false,
+    ];
+
+    $page = Livewire\Livewire::test(QuoteRequests::class)
+        ->call('openQuote', $sr->id)
+        ->set('draft.items', [
+            $item('المرحلة الأولى', 'تجهيز المتجر'),
+            $item('المرحلة الثانية', 'ربط بوابات الدفع'),
+        ]);
+
+    // كل ضغطة «إضافة مرحلة» ترث أول مرحلة لم تُجدوَل بعد
+    $page->call('addStage')->call('addStage')->call('addStage');
+    expect(array_column($page->get('draft.schedule'), 'phase'))
+        ->toBe(['المرحلة الأولى', 'المرحلة الثانية', '']);
+
+    $page->call('removeStage', 2);
+    expect($page->get('draft.schedule'))->toHaveCount(2);
+
+    $page->set('draft.schedule.0.date', '2026-10-15')
+        ->set('draft.schedule.1.date', '2026-11-30')
+        ->set('draft.payments.0.due', '2026-10-01')
+        ->call('issueQuote', false);
+
+    $quote = QuoteController::quoteOf($sr->fresh());
+    expect($quote['schedule'])->toHaveCount(2)
+        ->and($quote['schedule'][1]['phase'])->toBe('المرحلة الثانية')
+        ->and($quote['delivery_at']->toDateString())->toBe('2026-11-30')
+        ->and($quote['payments'][0]['due']->toDateString())->toBe('2026-10-01');
+
+    // الجدول والتواريخ تعود كما هي عند إعادة فتح المحرّر
+    Livewire\Livewire::test(QuoteRequests::class)
+        ->call('openQuote', $sr->id)
+        ->assertSet('draft.schedule.1.date', '2026-11-30')
+        ->assertSet('draft.payments.0.due', '2026-10-01');
+});

@@ -403,6 +403,14 @@ class QuoteController extends Controller
      * عرض السعر المُصدَر للطلب مع مجاميعه المحسوبة، أو null إن لم يُصدر بعد.
      * يُخزَّن داخل payload['_quote'] فلا يحتاج جدولاً ولا هجرة على الخادم.
      */
+    /** تحويل تاريخ مخزّن نصاً إلى Carbon، وتجاهل الفارغ أو غير الصالح بلا استثناء. */
+    private static function parseDate(mixed $value): ?Carbon
+    {
+        $value = trim((string) ($value ?? ''));
+
+        return $value === '' ? null : rescue(fn () => Carbon::parse($value), null, false);
+    }
+
     public static function quoteOf(ServiceRequest $sr): ?array
     {
         $q = ((array) $sr->payload)['_quote'] ?? null;
@@ -468,6 +476,7 @@ class QuoteController extends Controller
             return [
                 'label' => trim((string) ($p['label'] ?? '')),
                 'note' => trim((string) ($p['note'] ?? '')),
+                'due' => self::parseDate($p['due'] ?? null),
                 'percent' => $percent,
                 'amount' => round($total * $percent / 100, 2),
             ];
@@ -475,6 +484,17 @@ class QuoteController extends Controller
             (array) ($q['payments'] ?? []),
             fn ($p) => trim((string) ($p['label'] ?? '')) !== '' && (float) ($p['percent'] ?? 0) > 0
         )));
+
+        // الجدول الزمني: كل مرحلة وموعد تسليمها — يحلّ محل نص «مدة التنفيذ» الحر
+        $schedule = array_values(array_filter(
+            array_map(fn ($s) => [
+                'phase' => trim((string) ($s['phase'] ?? '')),
+                'date' => self::parseDate($s['date'] ?? null),
+            ], (array) ($q['schedule'] ?? [])),
+            fn ($s) => $s['phase'] !== '' || $s['date'],
+        ));
+
+        $deliveryAt = collect($schedule)->pluck('date')->filter()->max();
 
         $issuedAt = isset($q['issued_at']) ? Carbon::parse($q['issued_at']) : now();
 
@@ -484,6 +504,8 @@ class QuoteController extends Controller
             'payments_percent' => array_sum(array_column($payments, 'percent')),
             'phases' => $phases,
             'has_phases' => $hasPhases,
+            'schedule' => $schedule,
+            'delivery_at' => $deliveryAt,
             'subtotal' => $subtotal,
             'discount' => $discount,
             'discount_percent' => $discountPercent,
