@@ -242,3 +242,62 @@ it('يرفض تثبيت الاجتماع أو بدء التنفيذ بلا تا�
     Livewire\Livewire::test(QuoteRequests::class)->call('startExecution', $sr->id);
     expect(QuoteController::flowOf($sr->fresh())['stage'])->toBe('awaiting_meeting');
 });
+
+it('يبدأ محرّر العرض بدفعتين افتراضيتين ويحسب قيمتيهما تلقائياً', function () {
+    Mail::fake();
+    $this->actingAs(adminUser());
+
+    $sr = ServiceRequest::create([
+        'service_type' => 'ecommerce', 'name' => 'عميل', 'phone' => '—', 'email' => 'c@example.com',
+        'status' => 'new', 'source' => 'quote_form', 'payload' => [],
+    ]);
+
+    Livewire\Livewire::test(QuoteRequests::class)
+        ->call('openQuote', $sr->id)
+        ->assertSet('draft.payments.0.percent', 50.0)
+        ->assertSet('draft.payments.1.percent', 50.0)
+        ->set('draft.items.0.name', 'تجهيز المتجر')
+        ->set('draft.items.0.price', 10000)
+        ->set('draft.vat_percent', 0)
+        ->set('draft.payments.0.percent', 40)
+        ->set('draft.payments.1.percent', 60)
+        ->call('issueQuote', false);
+
+    $quote = QuoteController::quoteOf($sr->fresh());
+
+    expect($quote['payments'][0]['amount'])->toBe(4000.0)
+        ->and($quote['payments'][1]['amount'])->toBe(6000.0)
+        ->and($quote['payments_percent'])->toBe(100.0);
+});
+
+it('يدعم البنود المجانية والمراحل وملاحظات الاشتراك في المحرّر', function () {
+    Mail::fake();
+    $this->actingAs(adminUser());
+
+    $sr = ServiceRequest::create([
+        'service_type' => 'ecommerce', 'name' => 'عميل', 'phone' => '—',
+        'status' => 'new', 'source' => 'quote_form',
+        'payload' => ['الخدمات المطلوبة' => ['تجهيز المتجر', 'تدريب']],
+    ]);
+
+    Livewire\Livewire::test(QuoteRequests::class)
+        ->call('openQuote', $sr->id)
+        ->set('draft.items.0.phase', 'المرحلة الأولى')
+        ->set('draft.items.0.price', 15000)
+        ->set('draft.items.0.note', 'اشتراك سنوي')
+        ->set('draft.items.1.phase', 'المرحلة الأولى')
+        ->set('draft.items.1.price', 2000)
+        // تعليم البند مجانياً يصفّر سعره
+        ->call('toggleFree', 1)
+        ->assertSet('draft.items.1.price', 0)
+        ->set('draft.vat_percent', 0)
+        ->call('issueQuote', false);
+
+    $quote = QuoteController::quoteOf($sr->fresh());
+
+    expect($quote['total'])->toBe(15000.0)
+        ->and($quote['items'][0]['note'])->toBe('اشتراك سنوي')
+        ->and($quote['items'][1]['free'])->toBeTrue()
+        ->and($quote['phases'])->toHaveCount(1)
+        ->and($quote['phases'][0]['name'])->toBe('المرحلة الأولى');
+});

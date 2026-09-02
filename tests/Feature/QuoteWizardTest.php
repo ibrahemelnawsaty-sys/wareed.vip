@@ -4,6 +4,7 @@ use App\Http\Controllers\QuoteController;
 use App\Mail\ServiceRequestReceived;
 use App\Models\Service;
 use App\Models\ServiceRequest;
+use App\Models\Setting;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Mail;
@@ -445,4 +446,184 @@ it('shows the scheduled meeting date to the client', function () {
         ->assertSee('موعد الاجتماع التعريفي')
         ->assertSee('1 سبتمبر 2026')
         ->assertSee('data-counting="0"', false);
+});
+
+it('groups quote items into named phases with per-phase totals', function () {
+    Mail::fake();
+    submitInvite()->assertOk();
+    $sr = ServiceRequest::sole();
+
+    $sr->update(['payload' => array_merge((array) $sr->payload, [
+        '_flow' => ['stage' => 'awaiting_approval'],
+        '_quote' => [
+            'items' => [
+                ['phase' => 'المرحلة الأولى', 'name' => 'تجهيز المتجر', 'qty' => 1, 'price' => 15000],
+                ['phase' => 'المرحلة الأولى', 'name' => 'رفع المنتجات', 'qty' => 1, 'price' => 3000],
+                ['phase' => 'المرحلة الثانية', 'name' => 'تسويق وإعلانات', 'qty' => 2, 'price' => 2500],
+            ],
+            'discount' => 0, 'vat_percent' => 0, 'currency' => 'ج.م',
+            'valid_days' => 30, 'issued_at' => now()->toIso8601String(),
+        ],
+    ])]);
+
+    $quote = QuoteController::quoteOf($sr->fresh());
+
+    expect($quote['has_phases'])->toBeTrue()
+        ->and($quote['phases'])->toHaveCount(2)
+        ->and($quote['phases'][0]['name'])->toBe('المرحلة الأولى')
+        ->and($quote['phases'][0]['total'])->toBe(18000.0)
+        ->and($quote['phases'][1]['total'])->toBe(5000.0)
+        ->and($quote['subtotal'])->toBe(23000.0);
+
+    $this->get('/quote/hajar-salama/proposal')
+        ->assertOk()
+        ->assertSee('المرحلة الأولى')
+        ->assertSee('المرحلة الثانية');
+});
+
+it('renders free items as مجاناً and excludes them from the total', function () {
+    Mail::fake();
+    submitInvite()->assertOk();
+    $sr = ServiceRequest::sole();
+
+    $sr->update(['payload' => array_merge((array) $sr->payload, [
+        '_flow' => ['stage' => 'awaiting_approval'],
+        '_quote' => [
+            'items' => [
+                ['name' => 'تجهيز المتجر', 'qty' => 1, 'price' => 20000],
+                ['name' => 'استضافة السنة الأولى', 'qty' => 1, 'price' => 4000, 'free' => true],
+                ['name' => 'تدريب على اللوحة', 'qty' => 1, 'price' => 0],
+            ],
+            'discount' => 0, 'vat_percent' => 0, 'currency' => 'ج.م',
+            'valid_days' => 30, 'issued_at' => now()->toIso8601String(),
+        ],
+    ])]);
+
+    $quote = QuoteController::quoteOf($sr->fresh());
+
+    expect($quote['items'][1]['free'])->toBeTrue()
+        ->and($quote['items'][1]['total'])->toBe(0.0)
+        // السعر صفر يُعدّ مجانياً حتى دون تعليم الخانة
+        ->and($quote['items'][2]['free'])->toBeTrue()
+        ->and($quote['total'])->toBe(20000.0);
+
+    $this->get('/quote/hajar-salama/proposal')
+        ->assertOk()
+        ->assertSee('مجاناً')
+        ->assertSee('استضافة السنة الأولى');
+});
+
+it('shows the item note as a badge in the proposal', function () {
+    Mail::fake();
+    submitInvite()->assertOk();
+    $sr = ServiceRequest::sole();
+
+    $sr->update(['payload' => array_merge((array) $sr->payload, [
+        '_flow' => ['stage' => 'awaiting_approval'],
+        '_quote' => [
+            'items' => [['name' => 'استضافة وسيرفر', 'note' => 'اشتراك سنوي', 'qty' => 1, 'price' => 6000]],
+            'discount' => 0, 'vat_percent' => 0, 'currency' => 'ج.م',
+            'valid_days' => 30, 'issued_at' => now()->toIso8601String(),
+        ],
+    ])]);
+
+    expect(QuoteController::quoteOf($sr->fresh())['items'][0]['note'])->toBe('اشتراك سنوي');
+
+    $this->get('/quote/hajar-salama/proposal')->assertOk()->assertSee('اشتراك سنوي');
+});
+
+it('prints the legal identifiers on the proposal header', function () {
+    Mail::fake();
+    Setting::set('tax_number', '774-094-117', 'legal');
+    Setting::set('commercial_register', '295283', 'legal');
+    Setting::set('legal_name', 'وريد لتقنية المعلومات', 'legal');
+
+    submitInvite()->assertOk();
+    $sr = ServiceRequest::sole();
+    $sr->update(['payload' => array_merge((array) $sr->payload, ['_quote' => [
+        'items' => [['name' => 'تجهيز المتجر', 'qty' => 1, 'price' => 10000]],
+        'valid_days' => 30, 'issued_at' => now()->toIso8601String(),
+    ]])]);
+
+    $this->get('/quote/hajar-salama/proposal')
+        ->assertOk()
+        ->assertSee('الرقم الضريبي')
+        ->assertSee('774-094-117')
+        ->assertSee('السجل التجاري')
+        ->assertSee('295283')
+        ->assertSee('وريد لتقنية المعلومات');
+});
+
+it('computes payment amounts as a percentage of the total', function () {
+    Mail::fake();
+    submitInvite()->assertOk();
+    $sr = ServiceRequest::sole();
+
+    $sr->update(['payload' => array_merge((array) $sr->payload, [
+        '_flow' => ['stage' => 'awaiting_approval'],
+        '_quote' => [
+            'items' => [['name' => 'تجهيز المتجر', 'qty' => 1, 'price' => 20000]],
+            'discount' => 0, 'vat_percent' => 14, 'currency' => 'ج.م', 'valid_days' => 30,
+            'payments' => [
+                ['label' => 'دفعة مقدّمة', 'percent' => 50],
+                ['label' => 'دفعة عند التسليم', 'note' => 'قبل رفع المتجر', 'percent' => 50],
+                // دفعة بلا اسم أو بنسبة صفر تُستبعد
+                ['label' => '', 'percent' => 30],
+                ['label' => 'بلا نسبة', 'percent' => 0],
+            ],
+            'issued_at' => now()->toIso8601String(),
+        ],
+    ])]);
+
+    $quote = QuoteController::quoteOf($sr->fresh());
+
+    expect($quote['total'])->toBe(22800.0)
+        ->and($quote['payments'])->toHaveCount(2)
+        ->and($quote['payments'][0]['amount'])->toBe(11400.0)
+        ->and($quote['payments'][1]['amount'])->toBe(11400.0)
+        ->and($quote['payments'][1]['note'])->toBe('قبل رفع المتجر')
+        ->and($quote['payments_percent'])->toBe(100.0);
+
+    $this->get('/quote/hajar-salama/proposal')
+        ->assertOk()
+        ->assertSee('الدفعات وطريقة السداد')
+        ->assertSee('دفعة مقدّمة')
+        ->assertSee('11,400');
+});
+
+it('prints the bank transfer details when configured', function () {
+    Mail::fake();
+    Setting::set('bank_name', 'بنك مصر', 'legal');
+    Setting::set('bank_account_name', 'وريد لتقنية المعلومات', 'legal');
+    Setting::set('bank_account_number', '1234567890123', 'legal');
+    Setting::set('bank_iban', 'EG380003000123456789012345', 'legal');
+
+    submitInvite()->assertOk();
+    $sr = ServiceRequest::sole();
+    $sr->update(['payload' => array_merge((array) $sr->payload, ['_quote' => [
+        'items' => [['name' => 'تجهيز المتجر', 'qty' => 1, 'price' => 10000]],
+        'valid_days' => 30, 'issued_at' => now()->toIso8601String(),
+    ]])]);
+
+    $this->get('/quote/hajar-salama/proposal')
+        ->assertOk()
+        ->assertSee('بيانات التحويل البنكي')
+        ->assertSee('بنك مصر')
+        ->assertSee('1234567890123')
+        ->assertSee('EG380003000123456789012345');
+});
+
+it('hides the payments section when nothing is configured', function () {
+    Mail::fake();
+    submitInvite()->assertOk();
+    $sr = ServiceRequest::sole();
+    $sr->update(['payload' => array_merge((array) $sr->payload, ['_quote' => [
+        'items' => [['name' => 'تجهيز المتجر', 'qty' => 1, 'price' => 10000]],
+        'valid_days' => 30, 'issued_at' => now()->toIso8601String(),
+    ]])]);
+
+    $this->get('/quote/hajar-salama/proposal')
+        ->assertOk()
+        ->assertDontSee('الدفعات وطريقة السداد')
+        ->assertDontSee('بيانات التحويل البنكي');
 });

@@ -224,7 +224,10 @@
         <div class="head-org">
             <div class="org-lines">
                 <div class="name">وريد</div>
-                <div class="tag">منصتك التقنية المتكاملة</div>
+                <div class="tag">{{ setting('legal_name') ?: 'منصتك التقنية المتكاملة' }}</div>
+                @if ($tax = setting('tax_number'))
+                    <div>الرقم الضريبي: <span dir="ltr">{{ $tax }}</span></div>
+                @endif
                 <div>البريد: <span dir="ltr">{{ $contactEmail }}</span></div>
                 <div>الهاتف: <span dir="ltr">{{ $contactPhone }}</span></div>
                 <div>الموقع: <span dir="ltr">wareed.vip</span></div>
@@ -327,6 +330,7 @@
 (function () {
     'use strict';
     var PAGE_PX = 297 * (96 / 25.4);
+    var MIN_ZOOM = 0.62; // أقل من ذلك يصبح النص غير مريح للقراءة
     var sheet = document.querySelector('.sheet');
     if (!sheet) return;
 
@@ -338,18 +342,38 @@
         return h;
     }
 
-    function fit() {
-        document.body.classList.remove('fit-1', 'fit-2');
-        if (naturalHeight() <= PAGE_PX) return;
-        document.body.classList.add('fit-1');
-        if (naturalHeight() <= PAGE_PX) return;
-        document.body.classList.remove('fit-1');
-        document.body.classList.add('fit-2');
+    function clearScale() {
+        sheet.style.zoom = '';
+        sheet.style.width = '';
+        sheet.style.minHeight = '';
     }
 
-    if (document.fonts && document.fonts.ready) {
-        document.fonts.ready.then(fit);
+    /** تصغير متناسب مع تعويض العرض والارتفاع ليبقى المقاس المطبوع A4 */
+    function scaleToFit(height) {
+        var z = Math.max(MIN_ZOOM, (PAGE_PX - 2) / height);
+        sheet.style.zoom = z;
+        sheet.style.width = 'calc(210mm / ' + z + ')';
+        sheet.style.minHeight = 'calc(297mm / ' + z + ')';
     }
+
+    function fit() {
+        document.body.classList.remove('fit-1', 'fit-2');
+        clearScale();
+        if (naturalHeight() <= PAGE_PX) return;
+
+        document.body.classList.add('fit-1');
+        if (naturalHeight() <= PAGE_PX) return;
+
+        document.body.classList.remove('fit-1');
+        document.body.classList.add('fit-2');
+        var h = naturalHeight();
+        if (h <= PAGE_PX) return;
+
+        // ما زال المحتوى أطول من الصفحة: تصغير متناسب كملاذ أخير
+        scaleToFit(h);
+    }
+
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(fit);
     fit();
     window.addEventListener('beforeprint', fit);
     window.addEventListener('resize', fit);

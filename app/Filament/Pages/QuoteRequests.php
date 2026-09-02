@@ -32,6 +32,12 @@ class QuoteRequests extends Page
 
     public ?string $filter = 'all';
 
+    /** جدول دفعات مبدئي يظهر عند فتح محرّر عرض جديد. */
+    public const DEFAULT_PAYMENTS = [
+        ['label' => 'دفعة مقدّمة عند اعتماد العرض', 'note' => '', 'percent' => 50.0],
+        ['label' => 'دفعة عند تسليم المتجر', 'note' => '', 'percent' => 50.0],
+    ];
+
     /** الطلب المفتوح حالياً في محرّر عرض السعر (null = المحرّر مغلق). */
     public ?int $editingId = null;
 
@@ -124,6 +130,42 @@ class QuoteRequests extends Page
         ];
     }
 
+    /**
+     * اختبار اتصال SMTP: يرسل بريداً تجريبياً لعنوان الاستقبال ويعرض سبب الفشل إن حدث.
+     * يغني عن التخمين عند ضبط بيانات البريد في .env على الخادم.
+     */
+    public function sendTestEmail(): void
+    {
+        $to = (string) setting('contact_email', 'info@wareed.vip');
+
+        try {
+            Mail::html(
+                '<div style="font-family:Tahoma,Arial,sans-serif;direction:rtl;padding:16px;line-height:1.9">'
+                .'<h3 style="margin:0 0 8px">اختبار بريد منصة وريد</h3>'
+                .'<p style="margin:0;color:#55638a">وصلتك هذه الرسالة، إذن إعدادات SMTP تعمل بنجاح '
+                .'وستصل رسائل عروض الأسعار وإشعارات الطلبات للعملاء.</p>'
+                .'<p style="margin:12px 0 0;color:#8493b5;font-size:12px">'
+                .now()->format('Y/m/d — H:i').'</p></div>',
+                fn ($m) => $m->to($to)->subject('اختبار بريد منصة وريد')
+            );
+
+            Notification::make()
+                ->title('نجح الإرسال')
+                ->body('أُرسلت رسالة تجريبية إلى '.$to.' — تحقّق من الوارد (وصندوق الرسائل غير المرغوبة).')
+                ->success()
+                ->send();
+        } catch (\Throwable $e) {
+            report($e);
+
+            Notification::make()
+                ->title('فشل إرسال البريد')
+                ->body('راجع إعدادات MAIL في ملف .env. السبب: '.mb_substr($e->getMessage(), 0, 220))
+                ->danger()
+                ->persistent()
+                ->send();
+        }
+    }
+
     public function setFilter(string $filter): void
     {
         $this->filter = $filter;
@@ -137,14 +179,34 @@ class QuoteRequests extends Page
 
         $this->editingId = $id;
         $this->draft = [
-            'items' => ! empty($saved['items']) ? array_values($saved['items']) : $this->suggestedItems($sr),
+            'items' => ! empty($saved['items'])
+                ? array_map(fn ($i) => $this->normaliseItem((array) $i), array_values($saved['items']))
+                : $this->suggestedItems($sr),
             'discount' => (float) ($saved['discount'] ?? 0),
             'vat_percent' => (float) ($saved['vat_percent'] ?? QuoteController::DEFAULT_VAT_PERCENT),
             'currency' => (string) ($saved['currency'] ?? 'ج.م'),
             'valid_days' => (int) ($saved['valid_days'] ?? 30),
             'timeline' => (string) ($saved['timeline'] ?? ''),
             'notes' => (string) ($saved['notes'] ?? ''),
+            'payments' => ! empty($saved['payments'])
+                ? array_map(fn ($p) => [
+                    'label' => (string) ($p['label'] ?? ''),
+                    'note' => (string) ($p['note'] ?? ''),
+                    'percent' => (float) ($p['percent'] ?? 0),
+                ], array_values($saved['payments']))
+                : self::DEFAULT_PAYMENTS,
         ];
+    }
+
+    public function addPayment(): void
+    {
+        $this->draft['payments'][] = ['label' => '', 'note' => '', 'percent' => 0];
+    }
+
+    public function removePayment(int $index): void
+    {
+        unset($this->draft['payments'][$index]);
+        $this->draft['payments'] = array_values($this->draft['payments']);
     }
 
     public function closeQuote(): void
@@ -155,7 +217,24 @@ class QuoteRequests extends Page
 
     public function addItem(): void
     {
-        $this->draft['items'][] = ['name' => '', 'desc' => '', 'qty' => 1, 'price' => 0];
+        // البند الجديد يرث مرحلة آخر بند حتى تبقى بنود المرحلة الواحدة متتابعة
+        $last = end($this->draft['items']) ?: [];
+
+        $this->draft['items'][] = [
+            'phase' => (string) ($last['phase'] ?? ''),
+            'name' => '', 'desc' => '', 'note' => '', 'qty' => 1, 'price' => 0, 'free' => false,
+        ];
+    }
+
+    /** تبديل حالة «مجاني» للبند — البند المجاني لا يضيف شيئاً للإجمالي. */
+    public function toggleFree(int $index): void
+    {
+        $free = ! (bool) ($this->draft['items'][$index]['free'] ?? false);
+        $this->draft['items'][$index]['free'] = $free;
+
+        if ($free) {
+            $this->draft['items'][$index]['price'] = 0;
+        }
     }
 
     public function removeItem(int $index): void
@@ -165,6 +244,20 @@ class QuoteRequests extends Page
     }
 
     /** بنود مقترحة مبنية على الخدمات التي اختارها العميل في النموذج. */
+    /** توحيد بنية البند القادم من عرض محفوظ أو من مسوّدة قديمة. */
+    private function normaliseItem(array $i): array
+    {
+        return [
+            'phase' => (string) ($i['phase'] ?? ''),
+            'name' => (string) ($i['name'] ?? ''),
+            'desc' => (string) ($i['desc'] ?? ''),
+            'note' => (string) ($i['note'] ?? ''),
+            'qty' => max(1, (int) ($i['qty'] ?? 1)),
+            'price' => max(0, (float) ($i['price'] ?? 0)),
+            'free' => (bool) ($i['free'] ?? false),
+        ];
+    }
+
     private function suggestedItems(ServiceRequest $sr): array
     {
         $features = ((array) $sr->payload)['الخدمات المطلوبة'] ?? [];
@@ -175,7 +268,7 @@ class QuoteRequests extends Page
             $features = ['تجهيز المتجر الإلكتروني'];
         }
 
-        return array_map(fn ($f) => ['name' => $f, 'desc' => '', 'qty' => 1, 'price' => 0], $features);
+        return array_map(fn ($f) => $this->normaliseItem(['name' => $f]), $features);
     }
 
     /** مجاميع المسوّدة لعرضها مباشرة أثناء التحرير. */
@@ -184,6 +277,9 @@ class QuoteRequests extends Page
         $subtotal = 0.0;
 
         foreach ($this->draft['items'] ?? [] as $item) {
+            if ($item['free'] ?? false) {
+                continue;
+            }
             $subtotal += max(1, (int) ($item['qty'] ?? 1)) * max(0, (float) ($item['price'] ?? 0));
         }
 
@@ -191,12 +287,22 @@ class QuoteRequests extends Page
         $afterDiscount = $subtotal - $discount;
         $vat = round($afterDiscount * max(0, (float) ($this->draft['vat_percent'] ?? 0)) / 100, 2);
 
+        $total = $afterDiscount + $vat;
+
+        $payments = array_map(fn ($p) => [
+            'label' => (string) ($p['label'] ?? ''),
+            'percent' => (float) ($p['percent'] ?? 0),
+            'amount' => round($total * max(0, (float) ($p['percent'] ?? 0)) / 100, 2),
+        ], $this->draft['payments'] ?? []);
+
         return [
             'subtotal' => $subtotal,
             'discount' => $discount,
             'vat' => $vat,
-            'total' => $afterDiscount + $vat,
+            'total' => $total,
             'currency' => $this->draft['currency'] ?? 'ج.م',
+            'payments' => $payments,
+            'payments_percent' => array_sum(array_column($payments, 'percent')),
         ];
     }
 
@@ -222,10 +328,13 @@ class QuoteRequests extends Page
         $payload = (array) $sr->payload;
         $payload['_quote'] = [
             'items' => array_map(fn ($i) => [
+                'phase' => trim((string) ($i['phase'] ?? '')),
                 'name' => trim((string) $i['name']),
                 'desc' => trim((string) ($i['desc'] ?? '')),
+                'note' => trim((string) ($i['note'] ?? '')),
                 'qty' => max(1, (int) ($i['qty'] ?? 1)),
-                'price' => max(0, (float) ($i['price'] ?? 0)),
+                'price' => ($i['free'] ?? false) ? 0.0 : max(0, (float) ($i['price'] ?? 0)),
+                'free' => (bool) ($i['free'] ?? false),
             ], $items),
             'discount' => max(0, (float) ($this->draft['discount'] ?? 0)),
             'vat_percent' => max(0, (float) ($this->draft['vat_percent'] ?? 0)),
@@ -233,6 +342,14 @@ class QuoteRequests extends Page
             'valid_days' => max(1, (int) ($this->draft['valid_days'] ?? 30)),
             'timeline' => trim((string) ($this->draft['timeline'] ?? '')),
             'notes' => trim((string) ($this->draft['notes'] ?? '')),
+            'payments' => array_values(array_map(fn ($p) => [
+                'label' => trim((string) ($p['label'] ?? '')),
+                'note' => trim((string) ($p['note'] ?? '')),
+                'percent' => max(0, min(100, (float) ($p['percent'] ?? 0))),
+            ], array_filter(
+                $this->draft['payments'] ?? [],
+                fn ($p) => trim((string) ($p['label'] ?? '')) !== '' && (float) ($p['percent'] ?? 0) > 0
+            ))),
             'issued_at' => ($payload['_quote']['issued_at'] ?? null) && ! $send
                 ? $payload['_quote']['issued_at']
                 : now()->toIso8601String(),

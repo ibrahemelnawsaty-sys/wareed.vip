@@ -38,6 +38,8 @@ class ManageSettings extends Page implements HasForms
 
     protected array $plainKeys = [
         'contact_phone', 'contact_email', 'contact_whatsapp',
+        'legal_name', 'tax_number', 'commercial_register', 'legal_address',
+        'bank_name', 'bank_account_name', 'bank_account_number', 'bank_iban', 'bank_swift',
         'social_facebook', 'social_instagram', 'social_linkedin', 'social_tiktok',
     ];
 
@@ -98,6 +100,27 @@ class ManageSettings extends Page implements HasForms
                         TextInput::make('contact_address')->label('العنوان'),
                         TextInput::make('contact_address_en')->label('Address (EN)'),
                     ]),
+                Section::make('البيانات القانونية (تظهر في عرض السعر والمستندات)')
+                    ->columns(2)
+                    ->schema([
+                        TextInput::make('legal_name')->label('الاسم القانوني للشركة'),
+                        TextInput::make('tax_number')->label('الرقم الضريبي')
+                            ->helperText('من البطاقة الضريبية — يظهر في ترويسة عرض السعر.'),
+                        TextInput::make('commercial_register')->label('رقم السجل التجاري'),
+                        TextInput::make('legal_address')->label('العنوان الرسمي'),
+                    ]),
+
+                Section::make('بيانات التحويل البنكي (تظهر في عرض السعر)')
+                    ->columns(2)
+                    ->collapsible()
+                    ->schema([
+                        TextInput::make('bank_name')->label('اسم البنك'),
+                        TextInput::make('bank_account_name')->label('اسم صاحب الحساب'),
+                        TextInput::make('bank_account_number')->label('رقم الحساب'),
+                        TextInput::make('bank_iban')->label('IBAN'),
+                        TextInput::make('bank_swift')->label('SWIFT / BIC'),
+                    ]),
+
                 Section::make('وسائل التواصل الاجتماعي')
                     ->columns(2)
                     ->collapsible()

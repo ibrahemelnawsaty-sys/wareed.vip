@@ -411,13 +411,35 @@ class QuoteController extends Controller
             return null;
         }
 
-        $items = array_map(fn (array $i) => [
-            'name' => (string) ($i['name'] ?? ''),
-            'desc' => (string) ($i['desc'] ?? ''),
-            'qty' => max(1, (int) ($i['qty'] ?? 1)),
-            'price' => max(0, (float) ($i['price'] ?? 0)),
-            'total' => max(1, (int) ($i['qty'] ?? 1)) * max(0, (float) ($i['price'] ?? 0)),
-        ], array_values($q['items']));
+        $items = array_map(function (array $i): array {
+            $free = (bool) ($i['free'] ?? false);
+            $qty = max(1, (int) ($i['qty'] ?? 1));
+            $price = $free ? 0.0 : max(0, (float) ($i['price'] ?? 0));
+
+            return [
+                'phase' => trim((string) ($i['phase'] ?? '')),
+                'name' => (string) ($i['name'] ?? ''),
+                'desc' => (string) ($i['desc'] ?? ''),
+                // ملاحظة البند: نوع الاشتراك أو أي توضيح يظهر بجانب الاسم
+                'note' => trim((string) ($i['note'] ?? '')),
+                'qty' => $qty,
+                'price' => $price,
+                // بند مجاني: يُعرض «مجاناً» ولا يضيف شيئاً للإجمالي
+                'free' => $free || $price <= 0,
+                'total' => $qty * $price,
+            ];
+        }, array_values($q['items']));
+
+        // تجميع البنود في مراحل مسمّاة مع حفظ ترتيبها كما أدخلها المستخدم
+        $phases = [];
+        foreach ($items as $item) {
+            $key = $item['phase'];
+            $phases[$key] ??= ['name' => $key, 'items' => [], 'total' => 0.0];
+            $phases[$key]['items'][] = $item;
+            $phases[$key]['total'] += $item['total'];
+        }
+        $phases = array_values($phases);
+        $hasPhases = count($phases) > 1 || ($phases[0]['name'] ?? '') !== '';
 
         $subtotal = array_sum(array_column($items, 'total'));
         $discount = min(max(0, (float) ($q['discount'] ?? 0)), $subtotal);
@@ -425,15 +447,36 @@ class QuoteController extends Controller
         $vatPercent = max(0, (float) ($q['vat_percent'] ?? 0));
         $vat = round($afterDiscount * $vatPercent / 100, 2);
 
+        $total = $afterDiscount + $vat;
+
+        // الدفعات: نسبة من الإجمالي تُحسب قيمتها تلقائياً
+        $payments = array_values(array_map(function (array $p) use ($total): array {
+            $percent = max(0, min(100, (float) ($p['percent'] ?? 0)));
+
+            return [
+                'label' => trim((string) ($p['label'] ?? '')),
+                'note' => trim((string) ($p['note'] ?? '')),
+                'percent' => $percent,
+                'amount' => round($total * $percent / 100, 2),
+            ];
+        }, array_filter(
+            (array) ($q['payments'] ?? []),
+            fn ($p) => trim((string) ($p['label'] ?? '')) !== '' && (float) ($p['percent'] ?? 0) > 0
+        )));
+
         $issuedAt = isset($q['issued_at']) ? Carbon::parse($q['issued_at']) : now();
 
         return [
             'items' => $items,
+            'payments' => $payments,
+            'payments_percent' => array_sum(array_column($payments, 'percent')),
+            'phases' => $phases,
+            'has_phases' => $hasPhases,
             'subtotal' => $subtotal,
             'discount' => $discount,
             'vat_percent' => $vatPercent,
             'vat' => $vat,
-            'total' => $afterDiscount + $vat,
+            'total' => $total,
             'currency' => (string) ($q['currency'] ?? 'ج.م'),
             'timeline' => (string) ($q['timeline'] ?? ''),
             'notes' => (string) ($q['notes'] ?? ''),
@@ -469,8 +512,25 @@ class QuoteController extends Controller
             'client' => $client,
             'contact' => $this->contactOf($sr, $client),
             'quote' => $quote,
+            'bank' => self::bankDetails(),
             'qr' => $this->qrSvg($sr->reference),
         ]);
+    }
+
+    /** بيانات التحويل البنكي من إعدادات الموقع — تظهر في عرض السعر. */
+    public static function bankDetails(): array
+    {
+        $bank = [
+            'bank' => (string) setting('bank_name', ''),
+            'holder' => (string) setting('bank_account_name', ''),
+            'account' => (string) setting('bank_account_number', ''),
+            'iban' => (string) setting('bank_iban', ''),
+            'swift' => (string) setting('bank_swift', ''),
+        ];
+
+        $bank['has'] = (bool) array_filter($bank, fn ($v) => trim((string) $v) !== '');
+
+        return $bank;
     }
 
     /** رابط عرض السعر: مخصّص عبر الدعوة، أو موقّع للنموذج العام. */
