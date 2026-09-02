@@ -8,6 +8,7 @@
     $fmt = fn ($d) => $days[$d->format('l')].'، '.$d->day.' '.$months[(int) $d->month].' '.$d->year.'م';
     $cur = $quote['currency'];
     $money = fn ($n) => number_format((float) $n, ((float) $n == (int) $n) ? 0 : 2);
+    $pct = fn ($n) => rtrim(rtrim(number_format((float) $n, 2), '0'), '.');
     $contactEmail = setting('contact_email', 'info@wareed.vip');
     $contactPhone = setting('contact_phone', '+201055789056');
     $legalName = setting('legal_name');
@@ -365,10 +366,10 @@
         <table>
             <tr><td>الإجمالي قبل الخصم</td><td>{{ $money($quote['subtotal']) }} {{ $cur }}</td></tr>
             @if ($quote['discount'] > 0)
-                <tr><td>الخصم</td><td>− {{ $money($quote['discount']) }} {{ $cur }}</td></tr>
+                <tr><td>الخصم ({{ $pct($quote['discount_percent']) }}%)</td><td>− {{ $money($quote['discount']) }} {{ $cur }}</td></tr>
             @endif
             @if ($quote['vat_percent'] > 0)
-                <tr><td>ضريبة القيمة المضافة ({{ rtrim(rtrim(number_format($quote['vat_percent'], 2), '0'), '.') }}%)</td><td>{{ $money($quote['vat']) }} {{ $cur }}</td></tr>
+                <tr><td>ضريبة القيمة المضافة ({{ $pct($quote['vat_percent']) }}%)</td><td>{{ $money($quote['vat']) }} {{ $cur }}</td></tr>
             @endif
             <tr class="grand"><td>الإجمالي المستحق</td><td>{{ $money($quote['total']) }} {{ $cur }}</td></tr>
         </table>

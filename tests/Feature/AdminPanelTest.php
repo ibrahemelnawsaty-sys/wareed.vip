@@ -350,3 +350,45 @@ it('يعيد ترتيب بنود عرض السعر بالسحب أو بالأس�
     expect(array_column(QuoteController::quoteOf($sr->fresh())['items'], 'name'))
         ->toBe(['ج', 'ب', 'أ']);
 });
+
+it('يحسب الخصم كنسبة من الإجمالي ويشتقّها للعروض القديمة', function () {
+    Mail::fake();
+    $this->actingAs(adminUser());
+
+    $sr = ServiceRequest::create([
+        'service_type' => 'ecommerce', 'name' => 'عميل', 'phone' => '—',
+        'status' => 'new', 'source' => 'quote_form', 'payload' => [],
+    ]);
+
+    Livewire\Livewire::test(QuoteRequests::class)
+        ->call('openQuote', $sr->id)
+        ->set('draft.items', [['phase' => '', 'name' => 'تجهيز المتجر', 'desc' => '', 'note' => '',
+            'qty' => 1, 'unit' => '', 'price' => 20000, 'free' => false]])
+        ->set('draft.discount_percent', 25)
+        ->set('draft.vat_percent', 14)
+        // القيمة تُحسب لحظياً في ملخّص المحرّر قبل الإصدار
+        ->assertSet('draft.discount_percent', 25)
+        ->call('issueQuote', false);
+
+    $quote = QuoteController::quoteOf($sr->fresh());
+    expect($quote['discount_percent'])->toBe(25.0)
+        ->and($quote['discount'])->toBe(5000.0)
+        ->and($quote['vat'])->toBe(2100.0)
+        ->and($quote['total'])->toBe(17100.0);
+
+    // النسبة تعود كما هي عند إعادة فتح المحرّر
+    Livewire\Livewire::test(QuoteRequests::class)
+        ->call('openQuote', $sr->id)
+        ->assertSet('draft.discount_percent', 25.0);
+
+    // عرض قديم مخزّن بقيمة خصم مباشرة يُفتح بنسبته المكافئة
+    $sr->update(['payload' => array_merge((array) $sr->payload, ['_quote' => [
+        'items' => [['name' => 'تجهيز المتجر', 'qty' => 1, 'price' => 20000]],
+        'discount' => 4000, 'vat_percent' => 14, 'currency' => 'ج.م',
+        'valid_days' => 30, 'issued_at' => now()->toIso8601String(),
+    ]])]);
+
+    Livewire\Livewire::test(QuoteRequests::class)
+        ->call('openQuote', $sr->id)
+        ->assertSet('draft.discount_percent', 20.0);
+});

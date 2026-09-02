@@ -459,8 +459,9 @@
 
                         <div class="wq-opts">
                             <div>
-                                <label class="wq-lbl">خصم</label>
-                                <input class="wq-in num" type="number" min="0" step="any" wire:model.live.debounce.400ms="draft.discount">
+                                <label class="wq-lbl">خصم %</label>
+                                <input class="wq-in num" type="number" min="0" max="100" step="any"
+                                       wire:model.live.debounce.400ms="draft.discount_percent">
                             </div>
                             <div>
                                 <label class="wq-lbl">ضريبة %</label>
@@ -522,7 +523,10 @@
 
                         <div class="wq-sum">
                             <span>الإجمالي قبل الخصم: <b>{{ number_format($t['subtotal'], 2) }}</b></span>
-                            <span>الخصم: <b>{{ number_format($t['discount'], 2) }}</b></span>
+                            <span>
+                                الخصم@if ($t['discount_percent'] > 0) ({{ rtrim(rtrim(number_format($t['discount_percent'], 2), '0'), '.') }}%)@endif:
+                                <b>{{ number_format($t['discount'], 2) }}</b>
+                            </span>
                             <span>الضريبة: <b>{{ number_format($t['vat'], 2) }}</b></span>
                             <span class="grand">الإجمالي: {{ number_format($t['total'], 2) }} {{ $t['currency'] }}</span>
                         </div>

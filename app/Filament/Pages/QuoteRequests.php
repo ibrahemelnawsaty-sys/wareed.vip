@@ -176,13 +176,15 @@ class QuoteRequests extends Page
     {
         $sr = static::baseQuery()->whereKey($id)->firstOrFail();
         $saved = ((array) $sr->payload)['_quote'] ?? null;
+        // نقرأ النسبة من العرض المحسوب كي تُشتقّ تلقائياً للعروض القديمة المخزّنة بقيمة خصم مباشرة
+        $computed = QuoteController::quoteOf($sr);
 
         $this->editingId = $id;
         $this->draft = [
             'items' => ! empty($saved['items'])
                 ? array_map(fn ($i) => $this->normaliseItem((array) $i), array_values($saved['items']))
                 : $this->suggestedItems($sr),
-            'discount' => (float) ($saved['discount'] ?? 0),
+            'discount_percent' => (float) ($computed['discount_percent'] ?? 0),
             'vat_percent' => (float) ($saved['vat_percent'] ?? QuoteController::DEFAULT_VAT_PERCENT),
             'currency' => (string) ($saved['currency'] ?? 'ج.م'),
             'valid_days' => (int) ($saved['valid_days'] ?? 30),
@@ -305,7 +307,8 @@ class QuoteRequests extends Page
             $subtotal += max(1, (int) ($item['qty'] ?? 1)) * max(0, (float) ($item['price'] ?? 0));
         }
 
-        $discount = min(max(0, (float) ($this->draft['discount'] ?? 0)), $subtotal);
+        $discountPercent = max(0, min(100, (float) ($this->draft['discount_percent'] ?? 0)));
+        $discount = round($subtotal * $discountPercent / 100, 2);
         $afterDiscount = $subtotal - $discount;
         $vat = round($afterDiscount * max(0, (float) ($this->draft['vat_percent'] ?? 0)) / 100, 2);
 
@@ -320,6 +323,7 @@ class QuoteRequests extends Page
         return [
             'subtotal' => $subtotal,
             'discount' => $discount,
+            'discount_percent' => $discountPercent,
             'vat' => $vat,
             'total' => $total,
             'currency' => $this->draft['currency'] ?? 'ج.م',
@@ -359,7 +363,7 @@ class QuoteRequests extends Page
                 'price' => ($i['free'] ?? false) ? 0.0 : max(0, (float) ($i['price'] ?? 0)),
                 'free' => (bool) ($i['free'] ?? false),
             ], $items),
-            'discount' => max(0, (float) ($this->draft['discount'] ?? 0)),
+            'discount_percent' => max(0, min(100, (float) ($this->draft['discount_percent'] ?? 0))),
             'vat_percent' => max(0, (float) ($this->draft['vat_percent'] ?? 0)),
             'currency' => trim((string) ($this->draft['currency'] ?? 'ج.م')) ?: 'ج.م',
             'valid_days' => max(1, (int) ($this->draft['valid_days'] ?? 30)),
