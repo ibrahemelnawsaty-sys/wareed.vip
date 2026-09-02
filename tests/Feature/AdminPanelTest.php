@@ -301,3 +301,45 @@ it('يدعم البنود المجانية والمراحل وملاحظات ا�
         ->and($quote['phases'])->toHaveCount(1)
         ->and($quote['phases'][0]['name'])->toBe('المرحلة الأولى');
 });
+
+it('يعيد ترتيب بنود عرض السعر بالسحب أو بالأسهم', function () {
+    Mail::fake();
+    $this->actingAs(adminUser());
+
+    $sr = ServiceRequest::create([
+        'service_type' => 'ecommerce', 'name' => 'عميل', 'phone' => '—',
+        'status' => 'new', 'source' => 'quote_form', 'payload' => [],
+    ]);
+
+    $item = fn (string $name) => [
+        'phase' => '', 'name' => $name, 'desc' => '', 'note' => '',
+        'qty' => 1, 'price' => 100, 'free' => false,
+    ];
+
+    $page = Livewire\Livewire::test(QuoteRequests::class)
+        ->call('openQuote', $sr->id)
+        ->set('draft.items', [$item('أ'), $item('ب'), $item('ج')]);
+
+    $names = fn () => array_column($page->get('draft.items'), 'name');
+
+    // سحب البند الأخير إلى أول القائمة
+    $page->call('moveItem', 2, 0);
+    expect($names())->toBe(['ج', 'أ', 'ب']);
+
+    // تحريك البند خطوة واحدة لأسفل
+    $page->call('moveItem', 0, 1);
+    expect($names())->toBe(['أ', 'ج', 'ب']);
+
+    // وجهة خارج النطاق تُقصَر على آخر موضع
+    $page->call('moveItem', 0, 99);
+    expect($names())->toBe(['ج', 'ب', 'أ']);
+
+    // مصدر غير موجود أو نقل إلى الموضع نفسه لا يغيّر شيئاً
+    $page->call('moveItem', 7, 0)->call('moveItem', 1, 1);
+    expect($names())->toBe(['ج', 'ب', 'أ']);
+
+    // الترتيب الجديد هو ترتيب البنود في العرض الصادر
+    $page->call('issueQuote', false);
+    expect(array_column(QuoteController::quoteOf($sr->fresh())['items'], 'name'))
+        ->toBe(['ج', 'ب', 'أ']);
+});
