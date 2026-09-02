@@ -135,6 +135,8 @@
         table.pay-table td small { display: block; color: var(--muted); font-size: 7.6pt; margin-top: .4mm; }
         table.pay-table td.num { text-align: center; font-weight: 700; font-variant-numeric: tabular-nums; }
         table.pay-table td.amt { text-align: start; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+        table.pay-table.sched { margin-top: 3mm; }
+        table.pay-table td.due { font-size: 8pt; font-weight: 600; color: var(--muted); white-space: nowrap; }
         .bank { border: 1px solid rgba(37, 99, 235, .3); border-radius: 3mm; padding: 3mm 5mm; background: linear-gradient(150deg, rgba(59,130,246,.06), rgba(45,212,191,.04)); }
         .bank h4 { font-size: 8.4pt; font-weight: 700; margin-bottom: 1.6mm; }
         .bank .brow { display: flex; gap: 2mm; font-size: 8pt; color: var(--muted); line-height: 1.75; }
@@ -207,6 +209,12 @@
             .toolbar { display: none !important; }
             .sheet { width: 210mm; min-height: 297mm; box-shadow: none; margin: 0; }
             * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+
+            /* عرض طويل جداً لا يسعه التصغير: تُطبع صفحة ثانية مرتّبة لا مقطوعة */
+            table.items thead, table.pay-table thead { display: table-header-group; }
+            table.items tr, table.pay-table tr { break-inside: avoid; }
+            .section-title { break-after: avoid; }
+            .totals, .bank, .term-box, section.pay { break-inside: avoid; }
         }
         @media screen and (max-width: 230mm) {
             body { padding: 14px 8px 40px; }
@@ -297,7 +305,9 @@
                 <div class="party-name">منصة وريد</div>
                 <div class="party-row"><span>الخدمة</span><b>المتاجر الإلكترونية</b></div>
                 <div class="party-row"><span>نوع المستند</span><b>عرض سعر</b></div>
-                @if ($quote['timeline'])
+                @if ($quote['delivery_at'])
+                    <div class="party-row"><span>موعد التسليم</span><b>{{ $fmt($quote['delivery_at']) }}</b></div>
+                @elseif ($quote['timeline'])
                     <div class="party-row"><span>مدة التنفيذ</span><b>{{ $quote['timeline'] }}</b></div>
                 @endif
             </div>
@@ -375,6 +385,27 @@
         </table>
     </div>
 
+    @if ($quote['schedule'])
+        <div class="section-title">
+            الجدول الزمني للتسليم
+            <span class="en">DELIVERY SCHEDULE</span>
+        </div>
+        <table class="pay-table sched">
+            <thead>
+                <tr><th style="width:9mm">م</th><th>المرحلة</th><th style="width:46mm">تاريخ التسليم</th></tr>
+            </thead>
+            <tbody>
+                @foreach ($quote['schedule'] as $stageNo => $stage)
+                    <tr>
+                        <td class="n">{{ $stageNo + 1 }}</td>
+                        <td><b>{{ $stage['phase'] ?: 'مرحلة' }}</b></td>
+                        <td class="amt">{{ $stage['date'] ? $fmt($stage['date']) : 'يُحدَّد لاحقاً' }}</td>
+                    </tr>
+                @endforeach
+            </tbody>
+        </table>
+    @endif
+
     @if ($quote['payments'] || $bank['has'])
         <div class="section-title">
             الدفعات وطريقة السداد
@@ -382,9 +413,15 @@
         </div>
         <section class="pay">
             @if ($quote['payments'])
+                @php $hasDue = collect($quote['payments'])->contains(fn ($p) => (bool) $p['due']); @endphp
                 <table class="pay-table">
                     <thead>
-                        <tr><th>الدفعة</th><th style="width:16mm;text-align:center">النسبة</th><th style="width:26mm">القيمة</th></tr>
+                        <tr>
+                            <th>الدفعة</th>
+                            @if ($hasDue)<th style="width:30mm">الاستحقاق</th>@endif
+                            <th style="width:16mm;text-align:center">النسبة</th>
+                            <th style="width:26mm">القيمة</th>
+                        </tr>
                     </thead>
                     <tbody>
                         @foreach ($quote['payments'] as $pay)
@@ -393,7 +430,10 @@
                                     <b>{{ $pay['label'] }}</b>
                                     @if ($pay['note'])<small>{{ $pay['note'] }}</small>@endif
                                 </td>
-                                <td class="num">{{ rtrim(rtrim(number_format($pay['percent'], 2), '0'), '.') }}%</td>
+                                @if ($hasDue)
+                                    <td class="due">{{ $pay['due'] ? $fmt($pay['due']) : '—' }}</td>
+                                @endif
+                                <td class="num">{{ $pct($pay['percent']) }}%</td>
                                 <td class="amt">{{ $money($pay['amount']) }} {{ $cur }}</td>
                             </tr>
                         @endforeach
@@ -419,7 +459,11 @@
             <h4>شروط العرض</h4>
             <p>
                 هذا العرض صالح لمدة {{ $quote['valid_days'] }} يوماً من تاريخ إصداره.
-                @if ($quote['timeline']) تبدأ مدة التنفيذ ({{ $quote['timeline'] }}) من تاريخ اعتماد العرض. @endif
+                @if ($quote['schedule'])
+                    مواعيد التسليم موضّحة في الجدول الزمني أعلاه وتبدأ من تاريخ اعتماد العرض.
+                @elseif ($quote['timeline'])
+                    تبدأ مدة التنفيذ ({{ $quote['timeline'] }}) من تاريخ اعتماد العرض.
+                @endif
                 الأسعار المذكورة شاملة لما ورد في البنود أعلاه فقط.
             </p>
         </div>
@@ -471,12 +515,34 @@
         sheet.style.minHeight = '';
     }
 
-    /** تصغير متناسب مع تعويض العرض والارتفاع ليبقى المقاس المطبوع A4 */
-    function scaleToFit(height) {
-        var z = Math.max(MIN_ZOOM, (PAGE_PX - 2) / height);
+    /** تطبيق تصغير متناسب مع تعويض العرض والارتفاع ليبقى المقاس المطبوع A4 */
+    function applyScale(z) {
         sheet.style.zoom = z;
         sheet.style.width = 'calc(210mm / ' + z + ')';
         sheet.style.minHeight = 'calc(297mm / ' + z + ')';
+    }
+
+    /**
+     * أصغر تصغير يكفي — لا أكثر.
+     * تعويض العرض (210mm / z) يوسّع السطور فينكمش الارتفاع، فحساب z من ارتفاع
+     * التخطيط الضيّق يبالغ في التصغير. لذلك نبحث ثنائياً ونقيس بعد كل محاولة.
+     */
+    function scaleToFit() {
+        var lo = MIN_ZOOM, hi = 1, best = MIN_ZOOM;
+
+        for (var i = 0; i < 12; i++) {
+            var z = (lo + hi) / 2;
+            applyScale(z);
+
+            if (naturalHeight() * z <= PAGE_PX - 2) {
+                best = z;
+                lo = z;
+            } else {
+                hi = z;
+            }
+        }
+
+        applyScale(best);
     }
 
     function fit() {
@@ -489,11 +555,10 @@
 
         document.body.classList.remove('fit-1');
         document.body.classList.add('fit-2');
-        var h = naturalHeight();
-        if (h <= PAGE_PX) return;
+        if (naturalHeight() <= PAGE_PX) return;
 
         // ما زال المحتوى أطول من الصفحة: تصغير متناسب كملاذ أخير
-        scaleToFit(h);
+        scaleToFit();
     }
 
     if (document.fonts && document.fonts.ready) document.fonts.ready.then(fit);

@@ -587,6 +587,69 @@ it('shows the unit next to the quantity in the proposal', function () {
         ->assertSee('<small>شهر</small>', false);
 });
 
+it('prints the delivery schedule and payment due dates in the proposal', function () {
+    Mail::fake();
+    submitInvite()->assertOk();
+    $sr = ServiceRequest::sole();
+
+    $sr->update(['payload' => array_merge((array) $sr->payload, [
+        '_flow' => ['stage' => 'awaiting_approval'],
+        '_quote' => [
+            'items' => [['name' => 'تجهيز المتجر', 'qty' => 1, 'price' => 20000]],
+            'discount_percent' => 0, 'vat_percent' => 0, 'currency' => 'ج.م',
+            'schedule' => [
+                ['phase' => 'المرحلة الأولى — التأسيس', 'date' => '2026-10-15'],
+                ['phase' => 'المرحلة الثانية — التشغيل', 'date' => '2026-11-30'],
+                // صف فارغ تماماً يُهمَل
+                ['phase' => '', 'date' => ''],
+            ],
+            'payments' => [
+                ['label' => 'دفعة مقدّمة', 'percent' => 50, 'due' => '2026-10-01'],
+                ['label' => 'دفعة التسليم', 'percent' => 50, 'due' => ''],
+            ],
+            'valid_days' => 30, 'issued_at' => now()->toIso8601String(),
+        ],
+    ])]);
+
+    $quote = QuoteController::quoteOf($sr->fresh());
+
+    expect($quote['schedule'])->toHaveCount(2)
+        // موعد التسليم = آخر تاريخ في الجدول
+        ->and($quote['delivery_at']->toDateString())->toBe('2026-11-30')
+        ->and($quote['payments'][0]['due']->toDateString())->toBe('2026-10-01')
+        ->and($quote['payments'][1]['due'])->toBeNull();
+
+    $this->get('/quote/hajar-salama/proposal')
+        ->assertOk()
+        ->assertSee('الجدول الزمني للتسليم')
+        ->assertSee('الخميس، 15 أكتوبر 2026م')
+        ->assertSee('الإثنين، 30 نوفمبر 2026م')
+        ->assertSee('الخميس، 1 أكتوبر 2026م')
+        ->assertSee('مواعيد التسليم موضّحة في الجدول الزمني أعلاه');
+});
+
+it('falls back to the legacy timeline text when no schedule is set', function () {
+    Mail::fake();
+    submitInvite()->assertOk();
+    $sr = ServiceRequest::sole();
+
+    $sr->update(['payload' => array_merge((array) $sr->payload, [
+        '_flow' => ['stage' => 'awaiting_approval'],
+        '_quote' => [
+            'items' => [['name' => 'تجهيز المتجر', 'qty' => 1, 'price' => 20000]],
+            'discount' => 0, 'vat_percent' => 0, 'currency' => 'ج.م', 'timeline' => '3 أسابيع',
+            'valid_days' => 30, 'issued_at' => now()->toIso8601String(),
+        ],
+    ])]);
+
+    expect(QuoteController::quoteOf($sr->fresh())['delivery_at'])->toBeNull();
+
+    $this->get('/quote/hajar-salama/proposal')
+        ->assertOk()
+        ->assertDontSee('الجدول الزمني للتسليم')
+        ->assertSee('تبدأ مدة التنفيذ (3 أسابيع) من تاريخ اعتماد العرض');
+});
+
 it('prints the legal identifiers on the proposal header', function () {
     Mail::fake();
     Setting::set('tax_number', '774-094-117', 'legal');

@@ -113,7 +113,7 @@
             border: 1px solid rgb(254 202 202); background: rgb(254 242 242); color: rgb(185 28 28); font-size: 1rem; line-height: 1;
         }
         .wq-del:hover { background: rgb(254 226 226); }
-        .wq-opts { display: grid; grid-template-columns: repeat(5, 1fr); gap: .5rem; margin-top: .9rem; }
+        .wq-opts { display: grid; grid-template-columns: repeat(4, 1fr); gap: .5rem; margin-top: .9rem; }
         .wq-sum { display: flex; flex-wrap: wrap; gap: 1.25rem; align-items: center; margin-top: .9rem; padding: .7rem 1rem; border-radius: .6rem; background: #fff; border: 1px solid rgb(229 231 235); }
         .wq-sum span { font-size: .8rem; color: rgb(107 114 128); }
         .wq-sum b { color: rgb(17 24 39); font-variant-numeric: tabular-nums; }
@@ -124,10 +124,17 @@
         .wq-pay-head .fi-btn { margin-inline-start: auto; }
         .wq-good { color: rgb(21 128 61); }
         .wq-bad { color: rgb(202 138 4); }
-        .wq-pay-row { display: grid; grid-template-columns: 1fr 1fr 5rem 9rem 2rem; gap: .5rem; align-items: center; margin-bottom: .4rem; }
+        .wq-pay-row { display: grid; grid-template-columns: 1fr 1fr 9.5rem 4.5rem 8.5rem 2rem; gap: .5rem; align-items: center; margin-bottom: .4rem; }
+        .wq-date { font-variant-numeric: tabular-nums; }
+        .wq-stage-row { display: grid; grid-template-columns: 1fr 11rem 2rem; gap: .5rem; align-items: center; margin-bottom: .4rem; }
+        .wq-empty-hint { font-size: .78rem; color: rgb(156 163 175); padding: .35rem 0; }
         .wq-pay-amt { font-size: .85rem; font-weight: 700; color: rgb(37 99 235); font-variant-numeric: tabular-nums; text-align: center; }
         .dark .wq-pay { background: rgb(17 24 39); border-color: rgba(255,255,255,.1); }
-        @media (max-width: 900px) { .wq-pay-row { grid-template-columns: 1fr 1fr; } }
+        @media (max-width: 900px) {
+            .wq-pay-row { grid-template-columns: 1fr 1fr; }
+            .wq-stage-row { grid-template-columns: 1fr 2rem; }
+            .wq-stage-row .wq-date { grid-column: 1 / -1; }
+        }
 
         .wq-editor-actions { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .9rem; }
         .wq-editor-actions .end { margin-inline-start: auto; display: flex; gap: .5rem; }
@@ -364,8 +371,14 @@
                             وعند الإصدار يظهر العرض للعميل في صفحة طلبه ويصله بريد من {{ setting('contact_email', 'info@wareed.vip') }}.
                         </p>
 
+                        @php
+                            $phaseNames = collect($draft['items'] ?? [])->pluck('phase')
+                                ->map(fn ($p) => trim((string) $p))->filter()
+                                ->merge(['المرحلة الأولى', 'المرحلة الثانية', 'المرحلة الثالثة'])
+                                ->unique()->values();
+                        @endphp
                         <datalist id="wq-phases-{{ $r['id'] }}">
-                            @foreach (['المرحلة الأولى', 'المرحلة الثانية', 'المرحلة الثالثة'] as $ph)
+                            @foreach ($phaseNames as $ph)
                                 <option value="{{ $ph }}"></option>
                             @endforeach
                         </datalist>
@@ -490,10 +503,6 @@
                                 <label class="wq-lbl">صلاحية العرض (يوم)</label>
                                 <input class="wq-in num" type="number" min="1" step="1" wire:model.live.debounce.400ms="draft.valid_days">
                             </div>
-                            <div>
-                                <label class="wq-lbl">مدة التنفيذ</label>
-                                <input class="wq-in" type="text" placeholder="مثال: 3 أسابيع" wire:model.live.debounce.400ms="draft.timeline">
-                            </div>
                         </div>
 
                         <div style="margin-top:.9rem">
@@ -504,9 +513,35 @@
 
                         <div class="wq-pay">
                             <div class="wq-pay-head">
+                                <b>الجدول الزمني للتسليم</b>
+                                <span class="wq-pay-note">
+                                    مراحل التنفيذ وموعد تسليم كل مرحلة — تظهر كجدول في العرض،
+                                    وآخر موعد فيها يُعرض كمدة التنفيذ.
+                                </span>
+                                <x-filament::button wire:click="addStage" size="xs" color="gray" icon="heroicon-o-plus">
+                                    إضافة مرحلة
+                                </x-filament::button>
+                            </div>
+
+                            @forelse ($draft['schedule'] ?? [] as $si => $stage)
+                                <div class="wq-stage-row" wire:key="stage-{{ $r['id'] }}-{{ $si }}">
+                                    <input class="wq-in" type="text" placeholder="اسم المرحلة" list="wq-phases-{{ $r['id'] }}"
+                                           wire:model.live.debounce.400ms="draft.schedule.{{ $si }}.phase">
+                                    <input class="wq-in wq-date" type="date" title="تاريخ التسليم"
+                                           wire:model.live="draft.schedule.{{ $si }}.date">
+                                    <button type="button" class="wq-del" style="margin-top:0"
+                                            wire:click="removeStage({{ $si }})" title="حذف المرحلة">×</button>
+                                </div>
+                            @empty
+                                <p class="wq-empty-hint">لا مراحل مجدولة — اضغط «إضافة مرحلة» لتحديد مواعيد التسليم.</p>
+                            @endforelse
+                        </div>
+
+                        <div class="wq-pay">
+                            <div class="wq-pay-head">
                                 <b>الدفعات</b>
                                 <span class="wq-pay-note">
-                                    النسبة من الإجمالي والقيمة تُحسب تلقائياً
+                                    النسبة من الإجمالي والقيمة تُحسب تلقائياً، وتاريخ الاستحقاق اختياري
                                     @php $pp = $t['payments_percent']; @endphp
                                     @if ($pp > 0)
                                         — مجموع النسب:
@@ -526,6 +561,8 @@
                                            wire:model.live.debounce.400ms="draft.payments.{{ $pi }}.label">
                                     <input class="wq-in" type="text" placeholder="ملاحظة (اختياري)"
                                            wire:model.live.debounce.400ms="draft.payments.{{ $pi }}.note">
+                                    <input class="wq-in wq-date" type="date" title="تاريخ الاستحقاق"
+                                           wire:model.live="draft.payments.{{ $pi }}.due">
                                     <input class="wq-in num" type="number" min="0" max="100" step="any" placeholder="%"
                                            wire:model.live.debounce.400ms="draft.payments.{{ $pi }}.percent">
                                     <span class="wq-pay-amt">

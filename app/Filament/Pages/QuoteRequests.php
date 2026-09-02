@@ -34,8 +34,8 @@ class QuoteRequests extends Page
 
     /** جدول دفعات مبدئي يظهر عند فتح محرّر عرض جديد. */
     public const DEFAULT_PAYMENTS = [
-        ['label' => 'دفعة مقدّمة عند اعتماد العرض', 'note' => '', 'percent' => 50.0],
-        ['label' => 'دفعة عند تسليم المتجر', 'note' => '', 'percent' => 50.0],
+        ['label' => 'دفعة مقدّمة عند اعتماد العرض', 'note' => '', 'due' => '', 'percent' => 50.0],
+        ['label' => 'دفعة عند تسليم المتجر', 'note' => '', 'due' => '', 'percent' => 50.0],
     ];
 
     /** الطلب المفتوح حالياً في محرّر عرض السعر (null = المحرّر مغلق). */
@@ -188,12 +188,18 @@ class QuoteRequests extends Page
             'vat_percent' => (float) ($saved['vat_percent'] ?? QuoteController::DEFAULT_VAT_PERCENT),
             'currency' => (string) ($saved['currency'] ?? 'ج.م'),
             'valid_days' => (int) ($saved['valid_days'] ?? 30),
+            // نص «مدة التنفيذ» القديم لم يعد يُحرَّر — يُحمل كما هو كي لا تفقده العروض السابقة
             'timeline' => (string) ($saved['timeline'] ?? ''),
             'notes' => (string) ($saved['notes'] ?? ''),
+            'schedule' => array_map(fn ($t) => [
+                'phase' => (string) ($t['phase'] ?? ''),
+                'date' => (string) ($t['date'] ?? ''),
+            ], array_values((array) ($saved['schedule'] ?? []))),
             'payments' => ! empty($saved['payments'])
                 ? array_map(fn ($p) => [
                     'label' => (string) ($p['label'] ?? ''),
                     'note' => (string) ($p['note'] ?? ''),
+                    'due' => (string) ($p['due'] ?? ''),
                     'percent' => (float) ($p['percent'] ?? 0),
                 ], array_values($saved['payments']))
                 : self::DEFAULT_PAYMENTS,
@@ -202,13 +208,34 @@ class QuoteRequests extends Page
 
     public function addPayment(): void
     {
-        $this->draft['payments'][] = ['label' => '', 'note' => '', 'percent' => 0];
+        $this->draft['payments'][] = ['label' => '', 'note' => '', 'due' => '', 'percent' => 0];
     }
 
     public function removePayment(int $index): void
     {
         unset($this->draft['payments'][$index]);
         $this->draft['payments'] = array_values($this->draft['payments']);
+    }
+
+    /** صف جديد في الجدول الزمني — يرث اسم مرحلة لم تُجدوَل بعد إن وُجدت. */
+    public function addStage(): void
+    {
+        $scheduled = array_column($this->draft['schedule'] ?? [], 'phase');
+
+        $next = collect($this->draft['items'] ?? [])
+            ->pluck('phase')
+            ->map(fn ($p) => trim((string) $p))
+            ->filter()
+            ->unique()
+            ->first(fn ($p) => ! in_array($p, $scheduled, true));
+
+        $this->draft['schedule'][] = ['phase' => (string) $next, 'date' => ''];
+    }
+
+    public function removeStage(int $index): void
+    {
+        unset($this->draft['schedule'][$index]);
+        $this->draft['schedule'] = array_values($this->draft['schedule']);
     }
 
     public function closeQuote(): void
@@ -376,9 +403,17 @@ class QuoteRequests extends Page
             'valid_days' => max(1, (int) ($this->draft['valid_days'] ?? 30)),
             'timeline' => trim((string) ($this->draft['timeline'] ?? '')),
             'notes' => trim((string) ($this->draft['notes'] ?? '')),
+            'schedule' => array_values(array_map(fn ($t) => [
+                'phase' => trim((string) ($t['phase'] ?? '')),
+                'date' => trim((string) ($t['date'] ?? '')),
+            ], array_filter(
+                $this->draft['schedule'] ?? [],
+                fn ($t) => trim((string) ($t['phase'] ?? '')) !== '' || trim((string) ($t['date'] ?? '')) !== ''
+            ))),
             'payments' => array_values(array_map(fn ($p) => [
                 'label' => trim((string) ($p['label'] ?? '')),
                 'note' => trim((string) ($p['note'] ?? '')),
+                'due' => trim((string) ($p['due'] ?? '')),
                 'percent' => max(0, min(100, (float) ($p['percent'] ?? 0))),
             ], array_filter(
                 $this->draft['payments'] ?? [],
