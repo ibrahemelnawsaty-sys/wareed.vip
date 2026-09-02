@@ -6,6 +6,7 @@
     $months = [1=>'يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
     $days = ['Saturday'=>'السبت','Sunday'=>'الأحد','Monday'=>'الإثنين','Tuesday'=>'الثلاثاء','Wednesday'=>'الأربعاء','Thursday'=>'الخميس','Friday'=>'الجمعة'];
     $fmt = fn ($d) => $days[$d->format('l')].'، '.$d->day.' '.$months[(int) $d->month].' '.$d->year.'م';
+    $fmtShort = fn ($d) => $d->day.' '.$months[(int) $d->month].' '.$d->year.'م';
     $cur = $quote['currency'];
     $money = fn ($n) => number_format((float) $n, ((float) $n == (int) $n) ? 0 : 2);
     $pct = fn ($n) => rtrim(rtrim(number_format((float) $n, 2), '0'), '.');
@@ -124,6 +125,9 @@
         .totals tr.grand td:last-child { border-radius: 2mm 0 0 2mm; }
 
         .pay { margin-top: 3mm; display: grid; grid-template-columns: 1.15fr 1fr; gap: 4mm; align-items: start; }
+        /* عمود الاستحقاق يحتاج عرضاً أكبر — نضع الجدول بعرض كامل والبيانات البنكية تحته */
+        .pay.with-due { grid-template-columns: 1fr; gap: 3mm; }
+        .pay.with-due .bank { max-width: 92mm; }
         table.pay-table { width: 100%; border-collapse: collapse; }
         table.pay-table th {
             background: var(--band); color: #fff; font-size: 8pt; font-weight: 600;
@@ -150,6 +154,13 @@
 
         .foot { margin-top: auto; padding-top: 4.5mm; }
         .foot-note { font-size: 7.2pt; color: var(--faint); line-height: 1.65; border-top: 1px solid var(--line); padding-top: 3mm; }
+        .run-foot {
+            display: none; position: fixed; inset-inline: 0; bottom: 0; height: 9mm;
+            align-items: center; justify-content: space-between; gap: 4mm;
+            padding: 0 12mm; font-size: 7pt; color: var(--faint);
+            border-top: 1px solid var(--line-soft); background: #fff;
+        }
+        .run-foot b { color: var(--muted); font-weight: 600; letter-spacing: .4px; }
         .foot-bar {
             margin-top: 3mm; padding-top: 2.6mm; border-top: 2px solid var(--band);
             display: flex; align-items: center; justify-content: space-between; gap: 6mm; font-size: 7.8pt; color: var(--muted);
@@ -175,46 +186,23 @@
         .tb-ghost { background: #fff; color: var(--muted); border-color: var(--line); }
         .tb-btn .ic { width: 17px; height: 17px; }
 
-        /* مستويات كثافة تُطبَّق تلقائياً عند طول المحتوى لضمان صفحة واحدة */
-        .fit-1 table.items td { padding: 1.9mm 4mm; font-size: 8.4pt; }
-        .fit-1 .parties, .fit-1 .terms { margin-top: 4mm; }
-        .fit-1 .section-title { margin-top: 4.5mm; }
-        .fit-1 .totals td { padding: 1.7mm 5mm; }
-        .fit-2 .sheet { padding: 9mm 11mm 7.5mm; }
-        .fit-2 .head-title h1 { font-size: 18pt; }
-        .fit-2 table.items td { padding: 1.5mm 3.6mm; font-size: 8pt; line-height: 1.5; }
-        .fit-2 table.items th { padding: 1.8mm 3.6mm; }
-        .fit-2 td.it small { font-size: 7.4pt; }
-        .fit-1 tr.phase td { padding: 1.5mm 4mm; }
-        .fit-2 tr.phase td { padding: 1.2mm 3.6mm; }
-        .fit-2 tr.phase .ph-name { font-size: 8pt; }
-        .fit-1 .pay, .fit-1 .terms { margin-top: 3mm; }
-        .fit-1 table.pay-table td { padding: 1.6mm 4mm; }
-        .fit-2 .pay { margin-top: 2.4mm; }
-        .fit-2 table.pay-table td { padding: 1.3mm 3.6mm; font-size: 8pt; }
-        .fit-2 table.pay-table th { padding: 1.5mm 3.6mm; }
-        .fit-2 .bank { padding: 2.4mm 4mm; }
-        .fit-2 .bank .brow { font-size: 7.6pt; line-height: 1.65; }
-        .fit-2 .parties, .fit-2 .terms { margin-top: 3.4mm; }
-        .fit-2 .section-title { margin-top: 3.8mm; }
-        .fit-2 .party-body { padding: 2.4mm 4.5mm; gap: .9mm; }
-        .fit-2 .refbar-qr .qr { width: 16mm; height: 16mm; }
-        .fit-2 .totals td { padding: 1.5mm 5mm; font-size: 8.6pt; }
-        .fit-2 .term-box p { font-size: 7.6pt; }
-        .fit-2 .foot-note { font-size: 6.9pt; padding-top: 2.4mm; }
-
         @media print {
-            @page { size: A4; margin: 0; }
+            /* هامش سفلي لكل صفحة يسكنه الشريط الجاري أسفلها */
+            @page { size: A4; margin: 0 0 13mm; }
             html, body { background: #fff; padding: 0; margin: 0; }
             .toolbar { display: none !important; }
-            .sheet { width: 210mm; min-height: 297mm; box-shadow: none; margin: 0; }
+            .sheet { width: 210mm; min-height: 0; box-shadow: none; margin: 0; padding-bottom: 4mm; }
             * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
 
-            /* عرض طويل جداً لا يسعه التصغير: تُطبع صفحة ثانية مرتّبة لا مقطوعة */
+            /* المستند يمتد على ما يلزم من الصفحات — والانتقال بينها يبقى مرتّباً */
             table.items thead, table.pay-table thead { display: table-header-group; }
             table.items tr, table.pay-table tr { break-inside: avoid; }
             .section-title { break-after: avoid; }
-            .totals, .bank, .term-box, section.pay { break-inside: avoid; }
+            .totals, .bank, .term-box, .refbar, .party, footer.foot { break-inside: avoid; }
+            .parties, section.pay, .terms { break-inside: auto; }
+
+            /* شريط جارٍ يتكرر أسفل كل صفحة مطبوعة يحمل الرقم المرجعي */
+            .run-foot { display: flex !important; }
         }
         @media screen and (max-width: 230mm) {
             body { padding: 14px 8px 40px; }
@@ -411,14 +399,14 @@
             الدفعات وطريقة السداد
             <span class="en">PAYMENT TERMS</span>
         </div>
-        <section class="pay">
+        @php $hasDue = collect($quote['payments'])->contains(fn ($p) => (bool) $p['due']); @endphp
+        <section @class(['pay', 'with-due' => $hasDue])>
             @if ($quote['payments'])
-                @php $hasDue = collect($quote['payments'])->contains(fn ($p) => (bool) $p['due']); @endphp
                 <table class="pay-table">
                     <thead>
                         <tr>
                             <th>الدفعة</th>
-                            @if ($hasDue)<th style="width:30mm">الاستحقاق</th>@endif
+                            @if ($hasDue)<th style="width:24mm">الاستحقاق</th>@endif
                             <th style="width:16mm;text-align:center">النسبة</th>
                             <th style="width:26mm">القيمة</th>
                         </tr>
@@ -431,7 +419,7 @@
                                     @if ($pay['note'])<small>{{ $pay['note'] }}</small>@endif
                                 </td>
                                 @if ($hasDue)
-                                    <td class="due">{{ $pay['due'] ? $fmt($pay['due']) : '—' }}</td>
+                                    <td class="due">{{ $pay['due'] ? $fmtShort($pay['due']) : '—' }}</td>
                                 @endif
                                 <td class="num">{{ $pct($pay['percent']) }}%</td>
                                 <td class="amt">{{ $money($pay['amount']) }} {{ $cur }}</td>
@@ -492,80 +480,11 @@
     </footer>
 </article>
 
-<script>
-/* ضبط الكثافة تلقائياً ليبقى العرض صفحة A4 واحدة مهما كثرت البنود */
-(function () {
-    'use strict';
-    var PAGE_PX = 297 * (96 / 25.4);
-    var MIN_ZOOM = 0.62; // أقل من ذلك يصبح النص غير مريح للقراءة
-    var sheet = document.querySelector('.sheet');
-    if (!sheet) return;
+{{-- شريط جارٍ يتكرر أسفل كل صفحة عند الطباعة (مخفي على الشاشة) --}}
+<div class="run-foot" aria-hidden="true">
+    <span>وريد لتقنية المعلومات · {{ $contactEmail }}</span>
+    <b>عرض سعر · {{ $sr->reference }}</b>
+</div>
 
-    function naturalHeight() {
-        var prev = sheet.style.minHeight;
-        sheet.style.minHeight = '0';
-        var h = sheet.scrollHeight;
-        sheet.style.minHeight = prev;
-        return h;
-    }
-
-    function clearScale() {
-        sheet.style.zoom = '';
-        sheet.style.width = '';
-        sheet.style.minHeight = '';
-    }
-
-    /** تطبيق تصغير متناسب مع تعويض العرض والارتفاع ليبقى المقاس المطبوع A4 */
-    function applyScale(z) {
-        sheet.style.zoom = z;
-        sheet.style.width = 'calc(210mm / ' + z + ')';
-        sheet.style.minHeight = 'calc(297mm / ' + z + ')';
-    }
-
-    /**
-     * أصغر تصغير يكفي — لا أكثر.
-     * تعويض العرض (210mm / z) يوسّع السطور فينكمش الارتفاع، فحساب z من ارتفاع
-     * التخطيط الضيّق يبالغ في التصغير. لذلك نبحث ثنائياً ونقيس بعد كل محاولة.
-     */
-    function scaleToFit() {
-        var lo = MIN_ZOOM, hi = 1, best = MIN_ZOOM;
-
-        for (var i = 0; i < 12; i++) {
-            var z = (lo + hi) / 2;
-            applyScale(z);
-
-            if (naturalHeight() * z <= PAGE_PX - 2) {
-                best = z;
-                lo = z;
-            } else {
-                hi = z;
-            }
-        }
-
-        applyScale(best);
-    }
-
-    function fit() {
-        document.body.classList.remove('fit-1', 'fit-2');
-        clearScale();
-        if (naturalHeight() <= PAGE_PX) return;
-
-        document.body.classList.add('fit-1');
-        if (naturalHeight() <= PAGE_PX) return;
-
-        document.body.classList.remove('fit-1');
-        document.body.classList.add('fit-2');
-        if (naturalHeight() <= PAGE_PX) return;
-
-        // ما زال المحتوى أطول من الصفحة: تصغير متناسب كملاذ أخير
-        scaleToFit();
-    }
-
-    if (document.fonts && document.fonts.ready) document.fonts.ready.then(fit);
-    fit();
-    window.addEventListener('beforeprint', fit);
-    window.addEventListener('resize', fit);
-})();
-</script>
 </body>
 </html>

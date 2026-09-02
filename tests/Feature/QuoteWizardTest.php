@@ -622,10 +622,13 @@ it('prints the delivery schedule and payment due dates in the proposal', functio
     $this->get('/quote/hajar-salama/proposal')
         ->assertOk()
         ->assertSee('الجدول الزمني للتسليم')
+        // الجدول الزمني بالصيغة الكاملة، وعمود الاستحقاق الضيّق بصيغة مختصرة
         ->assertSee('الخميس، 15 أكتوبر 2026م')
         ->assertSee('الإثنين، 30 نوفمبر 2026م')
-        ->assertSee('الخميس، 1 أكتوبر 2026م')
-        ->assertSee('مواعيد التسليم موضّحة في الجدول الزمني أعلاه');
+        ->assertSee('<td class="due">1 أكتوبر 2026م</td>', false)
+        ->assertSee('مواعيد التسليم موضّحة في الجدول الزمني أعلاه')
+        // شريط جارٍ يحمل الرقم المرجعي أسفل كل صفحة مطبوعة
+        ->assertSee('عرض سعر · '.$sr->fresh()->reference);
 });
 
 it('falls back to the legacy timeline text when no schedule is set', function () {
