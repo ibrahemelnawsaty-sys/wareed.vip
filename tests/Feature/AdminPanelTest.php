@@ -136,13 +136,20 @@ it('يحفظ عرض السعر دون إرسال بريد عند الطلب', fu
         // الضريبة 14% افتراضياً فلا يحتاج المستخدم لكتابتها كل مرة
         ->assertSet('draft.vat_percent', (float) QuoteController::DEFAULT_VAT_PERCENT)
         ->set('draft.items.0.name', 'تجهيز المتجر')
+        ->set('draft.items.0.unit', 'باقة')
         ->set('draft.items.0.price', 9000)
         ->call('issueQuote', false);
 
     $quote = QuoteController::quoteOf($sr->fresh());
     expect($quote['subtotal'])->toBe(9000.0)
         ->and($quote['vat'])->toBe(1260.0)
-        ->and($quote['total'])->toBe(10260.0);
+        ->and($quote['total'])->toBe(10260.0)
+        ->and($quote['items'][0]['unit'])->toBe('باقة');
+
+    // الوحدة تعود كما هي عند إعادة فتح المحرّر
+    Livewire\Livewire::test(QuoteRequests::class)
+        ->call('openQuote', $sr->id)
+        ->assertSet('draft.items.0.unit', 'باقة');
     // إشعارات استلام الطلب تُرسل عند إنشائه؛ المهم ألّا يُرسل بريد عرض السعر
     Mail::assertNotSent(QuoteProposalIssued::class);
 });

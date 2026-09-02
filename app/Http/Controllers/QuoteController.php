@@ -423,6 +423,8 @@ class QuoteController extends Controller
                 // ملاحظة البند: نوع الاشتراك أو أي توضيح يظهر بجانب الاسم
                 'note' => trim((string) ($i['note'] ?? '')),
                 'qty' => $qty,
+                // وحدة القياس تظهر بجانب الكمية: شهر، سنة، صفحة، منتج…
+                'unit' => trim((string) ($i['unit'] ?? '')),
                 'price' => $price,
                 // بند مجاني: يُعرض «مجاناً» ولا يضيف شيئاً للإجمالي
                 'free' => $free || $price <= 0,

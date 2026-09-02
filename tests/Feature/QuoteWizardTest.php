@@ -532,6 +532,33 @@ it('shows the item note as a badge in the proposal', function () {
     $this->get('/quote/hajar-salama/proposal')->assertOk()->assertSee('اشتراك سنوي');
 });
 
+it('shows the unit next to the quantity in the proposal', function () {
+    Mail::fake();
+    submitInvite()->assertOk();
+    $sr = ServiceRequest::sole();
+
+    $sr->update(['payload' => array_merge((array) $sr->payload, [
+        '_flow' => ['stage' => 'awaiting_approval'],
+        '_quote' => [
+            'items' => [
+                ['name' => 'استضافة وسيرفر', 'qty' => 12, 'unit' => 'شهر', 'price' => 500],
+                ['name' => 'تجهيز المتجر', 'qty' => 1, 'price' => 18000],
+            ],
+            'discount' => 0, 'vat_percent' => 0, 'currency' => 'ج.م',
+            'valid_days' => 30, 'issued_at' => now()->toIso8601String(),
+        ],
+    ])]);
+
+    $items = QuoteController::quoteOf($sr->fresh())['items'];
+    expect($items[0]['unit'])->toBe('شهر')
+        // بند بلا وحدة يبقى بالكمية وحدها
+        ->and($items[1]['unit'])->toBe('');
+
+    $this->get('/quote/hajar-salama/proposal')
+        ->assertOk()
+        ->assertSee('<small>شهر</small>', false);
+});
+
 it('prints the legal identifiers on the proposal header', function () {
     Mail::fake();
     Setting::set('tax_number', '774-094-117', 'legal');

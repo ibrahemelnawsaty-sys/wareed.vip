@@ -222,7 +222,7 @@ class QuoteRequests extends Page
 
         $this->draft['items'][] = [
             'phase' => (string) ($last['phase'] ?? ''),
-            'name' => '', 'desc' => '', 'note' => '', 'qty' => 1, 'price' => 0, 'free' => false,
+            'name' => '', 'desc' => '', 'note' => '', 'qty' => 1, 'unit' => '', 'price' => 0, 'free' => false,
         ];
     }
 
@@ -274,6 +274,7 @@ class QuoteRequests extends Page
             'desc' => (string) ($i['desc'] ?? ''),
             'note' => (string) ($i['note'] ?? ''),
             'qty' => max(1, (int) ($i['qty'] ?? 1)),
+            'unit' => (string) ($i['unit'] ?? ''),
             'price' => max(0, (float) ($i['price'] ?? 0)),
             'free' => (bool) ($i['free'] ?? false),
         ];
@@ -354,6 +355,7 @@ class QuoteRequests extends Page
                 'desc' => trim((string) ($i['desc'] ?? '')),
                 'note' => trim((string) ($i['note'] ?? '')),
                 'qty' => max(1, (int) ($i['qty'] ?? 1)),
+                'unit' => trim((string) ($i['unit'] ?? '')),
                 'price' => ($i['free'] ?? false) ? 0.0 : max(0, (float) ($i['price'] ?? 0)),
                 'free' => (bool) ($i['free'] ?? false),
             ], $items),

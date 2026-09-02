@@ -95,7 +95,8 @@
         td.n { width: 9mm; color: var(--faint); font-size: 8pt; }
         td.it b { font-weight: 700; }
         td.it small { display: block; color: var(--muted); font-size: 7.8pt; line-height: 1.5; margin-top: .6mm; }
-        td.num { width: 16mm; text-align: center; font-variant-numeric: tabular-nums; }
+        td.num { width: 20mm; text-align: center; font-variant-numeric: tabular-nums; }
+        td.num small { display: block; color: var(--muted); font-size: 7.4pt; font-weight: 600; margin-top: .4mm; }
         td.amt { width: 26mm; text-align: start; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
         td.amt .free { color: #0d9488; font-weight: 700; }
         tr.phase td { background: #eef2fb !important; padding: 1.8mm 4mm; border-bottom: 1px solid var(--line); }
@@ -311,7 +312,7 @@
             <tr>
                 <th style="width:9mm">م</th>
                 <th>البند</th>
-                <th style="width:16mm;text-align:center">الكمية</th>
+                <th style="width:20mm;text-align:center">الكمية</th>
                 <th style="width:26mm">سعر الوحدة</th>
                 <th style="width:26mm">الإجمالي</th>
             </tr>
@@ -344,7 +345,10 @@
                             @if ($item['note'])<span class="tag-note">{{ $item['note'] }}</span>@endif
                             @if ($item['desc'])<small>{{ $item['desc'] }}</small>@endif
                         </td>
-                        <td class="num">{{ $item['qty'] }}</td>
+                        <td class="num">
+                            {{ $item['qty'] }}
+                            @if ($item['unit'])<small>{{ $item['unit'] }}</small>@endif
+                        </td>
                         <td class="amt">
                             @if ($item['free'])<span class="free">مجاناً</span>@else{{ $money($item['price']) }} {{ $cur }}@endif
                         </td>

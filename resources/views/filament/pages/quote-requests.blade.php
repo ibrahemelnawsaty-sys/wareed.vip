@@ -70,7 +70,8 @@
         .wq-editor h3 { font-size: .95rem; font-weight: 700; margin-bottom: .15rem; }
         .wq-editor .sub { font-size: .78rem; color: rgb(107 114 128); margin-bottom: .9rem; }
         .wq-items { display: flex; flex-direction: column; gap: .5rem; }
-        .wq-item { display: grid; grid-template-columns: 1.75rem 8rem 1fr 1fr 8rem 4.5rem 7rem 4rem 2rem; gap: .5rem; align-items: start; border-radius: .55rem; }
+        .wq-item { display: grid; grid-template-columns: 1.75rem 8rem 1fr 1fr 8rem 8.5rem 7rem 4rem 2rem; gap: .5rem; align-items: start; border-radius: .55rem; }
+        .wq-qty { display: grid; grid-template-columns: 3.4rem 1fr; gap: .3rem; }
         .wq-free { display: inline-flex; align-items: center; gap: .3rem; font-size: .75rem; font-weight: 600; color: rgb(21 128 61); cursor: pointer; user-select: none; }
 
         /* إعادة ترتيب البنود: مقبض سحب على الشاشات الكبيرة وأزرار سهمين على الجوال */
@@ -140,7 +141,7 @@
         .dark .wq-del { background: rgba(239,68,68,.12); border-color: rgba(239,68,68,.3); color: rgb(252 165 165); }
 
         @media (max-width: 1400px) {
-            .wq-item { grid-template-columns: 1.75rem 7rem 1fr 1fr 4.5rem 6.5rem 3.5rem 2rem; }
+            .wq-item { grid-template-columns: 1.75rem 7rem 1fr 1fr 8rem 6.5rem 3.5rem 2rem; }
             .wq-item .wq-note-col { grid-column: 3 / -1; }
         }
         @media (max-width: 900px) {
@@ -355,7 +356,7 @@
                         <p class="sub">
                             البنود مقترحة من الخدمات التي اختارها العميل. عدّلها وأضف الأسعار.
                             اكتب اسم <b>المرحلة</b> لتجميع بنودها معاً في العرض، وعلّم <b>مجاني</b> لأي بند يظهر بـ«مجاناً»،
-                            واستخدم <b>ملاحظة / اشتراك</b> لتوضيح مثل «اشتراك سنوي».
+                            واستخدم <b>ملاحظة / اشتراك</b> لتوضيح مثل «اشتراك سنوي»، و<b>الوحدة</b> لتظهر الكمية هكذا: «12 شهر».
                             رتّب البنود بسحب المقبض <b>⠿</b> لأعلى أو لأسفل — والترتيب هنا هو ترتيب ظهورها في العرض.
                             وعند الإصدار يظهر العرض للعميل في صفحة طلبه ويصله بريد من {{ setting('contact_email', 'info@wareed.vip') }}.
                         </p>
@@ -365,6 +366,12 @@
                                 <option value="{{ $ph }}"></option>
                             @endforeach
                         </datalist>
+                        <datalist id="wq-units">
+                            @foreach (['شهر', 'سنة', 'صفحة', 'منتج', 'ساعة', 'يوم', 'مستخدم', 'لغة', 'باقة', 'جلسة', 'بوابة'] as $un)
+                                <option value="{{ $un }}"></option>
+                            @endforeach
+                        </datalist>
+
                         <datalist id="wq-notes">
                             @foreach (['اشتراك سنوي', 'اشتراك شهري', 'دفعة واحدة', 'تجديد سنوي', 'مجاني للسنة الأولى'] as $nt)
                                 <option value="{{ $nt }}"></option>
@@ -423,9 +430,13 @@
                                                wire:model.live.debounce.400ms="draft.items.{{ $i }}.note">
                                     </div>
                                     <div>
-                                        @if ($i === 0)<label class="wq-lbl">الكمية</label>@endif
-                                        <input class="wq-in num" type="number" min="1" step="1"
-                                               wire:model.live.debounce.400ms="draft.items.{{ $i }}.qty">
+                                        @if ($i === 0)<label class="wq-lbl">الكمية / الوحدة</label>@endif
+                                        <div class="wq-qty">
+                                            <input class="wq-in num" type="number" min="1" step="1"
+                                                   wire:model.live.debounce.400ms="draft.items.{{ $i }}.qty">
+                                            <input class="wq-in" type="text" placeholder="وحدة" list="wq-units"
+                                                   wire:model.live.debounce.400ms="draft.items.{{ $i }}.unit">
+                                        </div>
                                     </div>
                                     <div>
                                         @if ($i === 0)<label class="wq-lbl">سعر الوحدة</label>@endif
