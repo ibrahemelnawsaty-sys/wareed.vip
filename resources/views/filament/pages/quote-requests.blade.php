@@ -70,7 +70,11 @@
         .wq-editor h3 { font-size: .95rem; font-weight: 700; margin-bottom: .15rem; }
         .wq-editor .sub { font-size: .78rem; color: rgb(107 114 128); margin-bottom: .9rem; }
         .wq-items { display: flex; flex-direction: column; gap: .5rem; }
-        .wq-item { display: grid; grid-template-columns: 1fr 1fr 5rem 8rem 2rem; gap: .5rem; align-items: start; }
+        .wq-item { display: grid; grid-template-columns: 8rem 1fr 1fr 8rem 4.5rem 7rem 4rem 2rem; gap: .5rem; align-items: start; }
+        .wq-free { margin-top: 1.15rem; display: inline-flex; align-items: center; gap: .3rem; font-size: .75rem; font-weight: 600; color: rgb(21 128 61); cursor: pointer; user-select: none; }
+        .wq-free input { width: 1rem; height: 1rem; accent-color: rgb(22 163 74); cursor: pointer; }
+        .wq-in:disabled { background: rgb(243 244 246); color: rgb(156 163 175); cursor: not-allowed; }
+        .dark .wq-in:disabled { background: rgba(255,255,255,.06); }
         .wq-item .idx { display: none; }
         .wq-lbl { display: block; font-size: .7rem; color: rgb(107 114 128); margin-bottom: .15rem; }
         .wq-in {
@@ -89,6 +93,17 @@
         .wq-sum span { font-size: .8rem; color: rgb(107 114 128); }
         .wq-sum b { color: rgb(17 24 39); font-variant-numeric: tabular-nums; }
         .wq-sum .grand { margin-inline-start: auto; font-size: 1.05rem; font-weight: 700; color: rgb(37 99 235); }
+        .wq-pay { margin-top: .9rem; padding: .75rem 1rem; border-radius: .6rem; background: #fff; border: 1px solid rgb(229 231 235); }
+        .wq-pay-head { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; margin-bottom: .55rem; font-size: .85rem; }
+        .wq-pay-note { font-size: .76rem; color: rgb(107 114 128); }
+        .wq-pay-head .fi-btn { margin-inline-start: auto; }
+        .wq-good { color: rgb(21 128 61); }
+        .wq-bad { color: rgb(202 138 4); }
+        .wq-pay-row { display: grid; grid-template-columns: 1fr 1fr 5rem 9rem 2rem; gap: .5rem; align-items: center; margin-bottom: .4rem; }
+        .wq-pay-amt { font-size: .85rem; font-weight: 700; color: rgb(37 99 235); font-variant-numeric: tabular-nums; text-align: center; }
+        .dark .wq-pay { background: rgb(17 24 39); border-color: rgba(255,255,255,.1); }
+        @media (max-width: 900px) { .wq-pay-row { grid-template-columns: 1fr 1fr; } }
+
         .wq-editor-actions { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .9rem; }
         .wq-editor-actions .end { margin-inline-start: auto; display: flex; gap: .5rem; }
         .wq-quote-badge { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; padding: .7rem 1rem; border-top: 1px solid rgb(243 244 246); background: rgb(240 253 244); }
@@ -102,10 +117,12 @@
         .dark .wq-quote-badge { background: rgba(34,197,94,.1); border-color: rgba(255,255,255,.08); }
         .dark .wq-del { background: rgba(239,68,68,.12); border-color: rgba(239,68,68,.3); color: rgb(252 165 165); }
 
+        @media (max-width: 1400px) { .wq-item { grid-template-columns: 7rem 1fr 1fr 4.5rem 6.5rem 3.5rem 2rem; } .wq-item .wq-note-col { grid-column: 2 / -1; } }
         @media (max-width: 900px) {
             .wq-item { grid-template-columns: 1fr 1fr; }
+            .wq-item .wq-note-col { grid-column: auto; }
             .wq-opts { grid-template-columns: repeat(2, 1fr); }
-            .wq-del { margin-top: 0; }
+            .wq-del, .wq-free { margin-top: 0; }
         }
 
         .dark .wq-stat, .dark .wq-card { background: rgb(17 24 39); border-color: rgba(255,255,255,.1); }
@@ -143,6 +160,9 @@
             >{{ $label }}</x-filament::button>
         @endforeach
         <span class="wq-hint">يُعرض حتى 100 طلب — الأحدث أولاً</span>
+        <x-filament::button wire:click="sendTestEmail" size="sm" color="gray" icon="heroicon-o-envelope">
+            اختبار البريد
+        </x-filament::button>
     </div>
 
     {{-- الطلبات --}}
@@ -302,13 +322,33 @@
                     <div class="wq-editor">
                         <h3>إصدار عرض السعر — {{ $r['reference'] }}</h3>
                         <p class="sub">
-                            البنود مقترحة من الخدمات التي اختارها العميل. عدّلها وأضف الأسعار،
+                            البنود مقترحة من الخدمات التي اختارها العميل. عدّلها وأضف الأسعار.
+                            اكتب اسم <b>المرحلة</b> لتجميع بنودها معاً في العرض، وعلّم <b>مجاني</b> لأي بند يظهر بـ«مجاناً»،
+                            واستخدم <b>ملاحظة / اشتراك</b> لتوضيح مثل «اشتراك سنوي».
                             وعند الإصدار يظهر العرض للعميل في صفحة طلبه ويصله بريد من {{ setting('contact_email', 'info@wareed.vip') }}.
                         </p>
 
+                        <datalist id="wq-phases-{{ $r['id'] }}">
+                            @foreach (['المرحلة الأولى', 'المرحلة الثانية', 'المرحلة الثالثة'] as $ph)
+                                <option value="{{ $ph }}"></option>
+                            @endforeach
+                        </datalist>
+                        <datalist id="wq-notes">
+                            @foreach (['اشتراك سنوي', 'اشتراك شهري', 'دفعة واحدة', 'تجديد سنوي', 'مجاني للسنة الأولى'] as $nt)
+                                <option value="{{ $nt }}"></option>
+                            @endforeach
+                        </datalist>
+
                         <div class="wq-items">
                             @foreach ($draft['items'] ?? [] as $i => $item)
+                                @php $isFree = (bool) ($item['free'] ?? false); @endphp
                                 <div class="wq-item" wire:key="item-{{ $r['id'] }}-{{ $i }}">
+                                    <div>
+                                        @if ($i === 0)<label class="wq-lbl">المرحلة</label>@endif
+                                        <input class="wq-in" type="text" placeholder="المرحلة الأولى"
+                                               list="wq-phases-{{ $r['id'] }}"
+                                               wire:model.live.debounce.400ms="draft.items.{{ $i }}.phase">
+                                    </div>
                                     <div>
                                         @if ($i === 0)<label class="wq-lbl">البند</label>@endif
                                         <input class="wq-in" type="text" placeholder="اسم البند"
@@ -319,6 +359,12 @@
                                         <input class="wq-in" type="text" placeholder="تفاصيل تُطمئن العميل"
                                                wire:model.live.debounce.400ms="draft.items.{{ $i }}.desc">
                                     </div>
+                                    <div class="wq-note-col">
+                                        @if ($i === 0)<label class="wq-lbl">ملاحظة / اشتراك</label>@endif
+                                        <input class="wq-in" type="text" placeholder="اشتراك سنوي"
+                                               list="wq-notes"
+                                               wire:model.live.debounce.400ms="draft.items.{{ $i }}.note">
+                                    </div>
                                     <div>
                                         @if ($i === 0)<label class="wq-lbl">الكمية</label>@endif
                                         <input class="wq-in num" type="number" min="1" step="1"
@@ -326,9 +372,12 @@
                                     </div>
                                     <div>
                                         @if ($i === 0)<label class="wq-lbl">سعر الوحدة</label>@endif
-                                        <input class="wq-in num" type="number" min="0" step="any"
+                                        <input class="wq-in num" type="number" min="0" step="any" @disabled($isFree)
                                                wire:model.live.debounce.400ms="draft.items.{{ $i }}.price">
                                     </div>
+                                    <label class="wq-free" title="بند مجاني — يظهر «مجاناً» في العرض">
+                                        <input type="checkbox" @checked($isFree) wire:click="toggleFree({{ $i }})"> مجاني
+                                    </label>
                                     <button type="button" class="wq-del" wire:click="removeItem({{ $i }})" title="حذف البند">×</button>
                                 </div>
                             @endforeach
@@ -367,6 +416,40 @@
                             <label class="wq-lbl">ملاحظات تظهر في العرض (اختياري)</label>
                             <input class="wq-in" type="text" placeholder="أي شرط أو ملاحظة تريد إظهارها للعميل"
                                    wire:model.live.debounce.400ms="draft.notes">
+                        </div>
+
+                        <div class="wq-pay">
+                            <div class="wq-pay-head">
+                                <b>الدفعات</b>
+                                <span class="wq-pay-note">
+                                    النسبة من الإجمالي والقيمة تُحسب تلقائياً
+                                    @php $pp = $t['payments_percent']; @endphp
+                                    @if ($pp > 0)
+                                        — مجموع النسب:
+                                        <b @class(['wq-bad' => abs($pp - 100) > 0.01, 'wq-good' => abs($pp - 100) <= 0.01])>
+                                            {{ rtrim(rtrim(number_format($pp, 2), '0'), '.') }}%
+                                        </b>
+                                    @endif
+                                </span>
+                                <x-filament::button wire:click="addPayment" size="sm" color="gray" icon="heroicon-o-plus">
+                                    إضافة دفعة
+                                </x-filament::button>
+                            </div>
+
+                            @foreach ($draft['payments'] ?? [] as $pi => $pay)
+                                <div class="wq-pay-row" wire:key="pay-{{ $r['id'] }}-{{ $pi }}">
+                                    <input class="wq-in" type="text" placeholder="اسم الدفعة"
+                                           wire:model.live.debounce.400ms="draft.payments.{{ $pi }}.label">
+                                    <input class="wq-in" type="text" placeholder="ملاحظة (اختياري)"
+                                           wire:model.live.debounce.400ms="draft.payments.{{ $pi }}.note">
+                                    <input class="wq-in num" type="number" min="0" max="100" step="any" placeholder="%"
+                                           wire:model.live.debounce.400ms="draft.payments.{{ $pi }}.percent">
+                                    <span class="wq-pay-amt">
+                                        {{ number_format($t['payments'][$pi]['amount'] ?? 0, 2) }} {{ $t['currency'] }}
+                                    </span>
+                                    <button type="button" class="wq-del" style="margin-top:0" wire:click="removePayment({{ $pi }})" title="حذف الدفعة">×</button>
+                                </div>
+                            @endforeach
                         </div>
 
                         <div class="wq-sum">

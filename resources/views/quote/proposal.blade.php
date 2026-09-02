@@ -10,6 +10,9 @@
     $money = fn ($n) => number_format((float) $n, ((float) $n == (int) $n) ? 0 : 2);
     $contactEmail = setting('contact_email', 'info@wareed.vip');
     $contactPhone = setting('contact_phone', '+201055789056');
+    $legalName = setting('legal_name');
+    $taxNumber = setting('tax_number');
+    $commercialRegister = setting('commercial_register');
 @endphp
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -94,6 +97,17 @@
         td.it small { display: block; color: var(--muted); font-size: 7.8pt; line-height: 1.5; margin-top: .6mm; }
         td.num { width: 16mm; text-align: center; font-variant-numeric: tabular-nums; }
         td.amt { width: 26mm; text-align: start; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+        td.amt .free { color: #0d9488; font-weight: 700; }
+        tr.phase td { background: #eef2fb !important; padding: 1.8mm 4mm; border-bottom: 1px solid var(--line); }
+        tr.phase .ph-row { display: flex; align-items: center; justify-content: space-between; gap: 4mm; }
+        tr.phase .ph-name { font-size: 8.6pt; font-weight: 700; color: var(--ink); position: relative; padding-inline-start: 3mm; }
+        tr.phase .ph-name::before { content: ""; position: absolute; inset-inline-start: 0; top: .6mm; width: 1mm; height: 3.4mm; border-radius: 1px; background: var(--grad); }
+        tr.phase .ph-sum { font-size: 8pt; font-weight: 700; color: var(--muted); font-variant-numeric: tabular-nums; }
+        .tag-note {
+            display: inline-block; margin-inline-start: 2mm; padding: .3mm 2.2mm; border-radius: 99px;
+            font-size: 6.8pt; font-weight: 700; color: var(--blue);
+            background: rgba(37, 99, 235, .09); border: 1px solid rgba(37, 99, 235, .25);
+        }
 
         .totals { margin-top: 4mm; display: flex; justify-content: flex-start; }
         .totals table { width: 88mm; border-collapse: collapse; }
@@ -106,6 +120,24 @@
         }
         .totals tr.grand td:first-child { color: #fff; border-radius: 0 2mm 2mm 0; }
         .totals tr.grand td:last-child { border-radius: 2mm 0 0 2mm; }
+
+        .pay { margin-top: 3mm; display: grid; grid-template-columns: 1.15fr 1fr; gap: 4mm; align-items: start; }
+        table.pay-table { width: 100%; border-collapse: collapse; }
+        table.pay-table th {
+            background: var(--band); color: #fff; font-size: 8pt; font-weight: 600;
+            padding: 1.8mm 4mm; text-align: start;
+        }
+        table.pay-table td { padding: 2mm 4mm; font-size: 8.6pt; border-bottom: 1px solid var(--line-soft); }
+        table.pay-table tr:nth-child(even) td { background: #fafbfe; }
+        table.pay-table td b { font-weight: 700; }
+        table.pay-table td small { display: block; color: var(--muted); font-size: 7.6pt; margin-top: .4mm; }
+        table.pay-table td.num { text-align: center; font-weight: 700; font-variant-numeric: tabular-nums; }
+        table.pay-table td.amt { text-align: start; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+        .bank { border: 1px solid rgba(37, 99, 235, .3); border-radius: 3mm; padding: 3mm 5mm; background: linear-gradient(150deg, rgba(59,130,246,.06), rgba(45,212,191,.04)); }
+        .bank h4 { font-size: 8.4pt; font-weight: 700; margin-bottom: 1.6mm; }
+        .bank .brow { display: flex; gap: 2mm; font-size: 8pt; color: var(--muted); line-height: 1.75; }
+        .bank .brow span { flex: 0 0 18mm; color: var(--faint); }
+        .bank .brow b { color: var(--ink); font-weight: 600; overflow-wrap: anywhere; }
 
         .terms { margin-top: 5mm; display: grid; grid-template-columns: 1fr 1fr; gap: 4mm; }
         .term-box { border: 1px solid var(--line); border-radius: 3mm; padding: 3mm 5mm; }
@@ -149,6 +181,16 @@
         .fit-2 table.items td { padding: 1.5mm 3.6mm; font-size: 8pt; line-height: 1.5; }
         .fit-2 table.items th { padding: 1.8mm 3.6mm; }
         .fit-2 td.it small { font-size: 7.4pt; }
+        .fit-1 tr.phase td { padding: 1.5mm 4mm; }
+        .fit-2 tr.phase td { padding: 1.2mm 3.6mm; }
+        .fit-2 tr.phase .ph-name { font-size: 8pt; }
+        .fit-1 .pay, .fit-1 .terms { margin-top: 3mm; }
+        .fit-1 table.pay-table td { padding: 1.6mm 4mm; }
+        .fit-2 .pay { margin-top: 2.4mm; }
+        .fit-2 table.pay-table td { padding: 1.3mm 3.6mm; font-size: 8pt; }
+        .fit-2 table.pay-table th { padding: 1.5mm 3.6mm; }
+        .fit-2 .bank { padding: 2.4mm 4mm; }
+        .fit-2 .bank .brow { font-size: 7.6pt; line-height: 1.65; }
         .fit-2 .parties, .fit-2 .terms { margin-top: 3.4mm; }
         .fit-2 .section-title { margin-top: 3.8mm; }
         .fit-2 .party-body { padding: 2.4mm 4.5mm; gap: .9mm; }
@@ -167,7 +209,7 @@
         @media screen and (max-width: 230mm) {
             body { padding: 14px 8px 40px; }
             .sheet { width: 100%; min-height: auto; padding: 9mm 7mm; }
-            .parties, .terms { grid-template-columns: 1fr; }
+            .parties, .terms, .pay { grid-template-columns: 1fr; }
             .refbar { flex-wrap: wrap; }
             .refbar-meta, .refbar-qr { border-inline-start: 0; border-top: 1px solid var(--line); }
             .totals table { width: 100%; }
@@ -199,10 +241,15 @@
         <div class="head-org">
             <div class="org-lines">
                 <div class="name">وريد</div>
-                <div class="tag">منصتك التقنية المتكاملة</div>
+                <div class="tag">{{ $legalName ?: 'منصتك التقنية المتكاملة' }}</div>
+                @if ($taxNumber)
+                    <div>الرقم الضريبي: <span dir="ltr">{{ $taxNumber }}</span></div>
+                @endif
+                @if ($commercialRegister)
+                    <div>السجل التجاري: <span dir="ltr">{{ $commercialRegister }}</span></div>
+                @endif
                 <div>البريد: <span dir="ltr">{{ $contactEmail }}</span></div>
                 <div>الهاتف: <span dir="ltr">{{ $contactPhone }}</span></div>
-                <div>الموقع: <span dir="ltr">wareed.vip</span></div>
             </div>
             <svg class="mark" viewBox="0 0 40 40" fill="none" aria-hidden="true">
                 <defs><linearGradient id="pm" x1="0" y1="0" x2="1" y2="1">
@@ -270,17 +317,42 @@
             </tr>
         </thead>
         <tbody>
-            @foreach ($quote['items'] as $i => $item)
-                <tr>
-                    <td class="n">{{ $i + 1 }}</td>
-                    <td class="it">
-                        <b>{{ $item['name'] }}</b>
-                        @if ($item['desc'])<small>{{ $item['desc'] }}</small>@endif
-                    </td>
-                    <td class="num">{{ $item['qty'] }}</td>
-                    <td class="amt">{{ $money($item['price']) }} {{ $cur }}</td>
-                    <td class="amt">{{ $money($item['total']) }} {{ $cur }}</td>
-                </tr>
+            @php $n = 0; @endphp
+            @foreach ($quote['phases'] as $phase)
+                @if ($quote['has_phases'])
+                    <tr class="phase">
+                        <td colspan="5">
+                            <div class="ph-row">
+                                <span class="ph-name">{{ $phase['name'] ?: 'بنود إضافية' }}</span>
+                                <span class="ph-sum">
+                                    @if ($phase['total'] > 0)
+                                        {{ $money($phase['total']) }} {{ $cur }}
+                                    @else
+                                        مجاناً
+                                    @endif
+                                </span>
+                            </div>
+                        </td>
+                    </tr>
+                @endif
+
+                @foreach ($phase['items'] as $item)
+                    <tr>
+                        <td class="n">{{ ++$n }}</td>
+                        <td class="it">
+                            <b>{{ $item['name'] }}</b>
+                            @if ($item['note'])<span class="tag-note">{{ $item['note'] }}</span>@endif
+                            @if ($item['desc'])<small>{{ $item['desc'] }}</small>@endif
+                        </td>
+                        <td class="num">{{ $item['qty'] }}</td>
+                        <td class="amt">
+                            @if ($item['free'])<span class="free">مجاناً</span>@else{{ $money($item['price']) }} {{ $cur }}@endif
+                        </td>
+                        <td class="amt">
+                            @if ($item['free'])<span class="free">مجاناً</span>@else{{ $money($item['total']) }} {{ $cur }}@endif
+                        </td>
+                    </tr>
+                @endforeach
             @endforeach
         </tbody>
     </table>
@@ -297,6 +369,45 @@
             <tr class="grand"><td>الإجمالي المستحق</td><td>{{ $money($quote['total']) }} {{ $cur }}</td></tr>
         </table>
     </div>
+
+    @if ($quote['payments'] || $bank['has'])
+        <div class="section-title">
+            الدفعات وطريقة السداد
+            <span class="en">PAYMENT TERMS</span>
+        </div>
+        <section class="pay">
+            @if ($quote['payments'])
+                <table class="pay-table">
+                    <thead>
+                        <tr><th>الدفعة</th><th style="width:16mm;text-align:center">النسبة</th><th style="width:26mm">القيمة</th></tr>
+                    </thead>
+                    <tbody>
+                        @foreach ($quote['payments'] as $pay)
+                            <tr>
+                                <td>
+                                    <b>{{ $pay['label'] }}</b>
+                                    @if ($pay['note'])<small>{{ $pay['note'] }}</small>@endif
+                                </td>
+                                <td class="num">{{ rtrim(rtrim(number_format($pay['percent'], 2), '0'), '.') }}%</td>
+                                <td class="amt">{{ $money($pay['amount']) }} {{ $cur }}</td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            @endif
+
+            @if ($bank['has'])
+                <div class="bank">
+                    <h4>بيانات التحويل البنكي</h4>
+                    @if ($bank['bank'])<div class="brow"><span>البنك</span><b>{{ $bank['bank'] }}</b></div>@endif
+                    @if ($bank['holder'])<div class="brow"><span>اسم الحساب</span><b>{{ $bank['holder'] }}</b></div>@endif
+                    @if ($bank['account'])<div class="brow"><span>رقم الحساب</span><b dir="ltr">{{ $bank['account'] }}</b></div>@endif
+                    @if ($bank['iban'])<div class="brow"><span>IBAN</span><b dir="ltr">{{ $bank['iban'] }}</b></div>@endif
+                    @if ($bank['swift'])<div class="brow"><span>SWIFT</span><b dir="ltr">{{ $bank['swift'] }}</b></div>@endif
+                </div>
+            @endif
+        </section>
+    @endif
 
     <section class="terms">
         <div class="term-box">
@@ -337,6 +448,7 @@
 (function () {
     'use strict';
     var PAGE_PX = 297 * (96 / 25.4);
+    var MIN_ZOOM = 0.62; // أقل من ذلك يصبح النص غير مريح للقراءة
     var sheet = document.querySelector('.sheet');
     if (!sheet) return;
 
@@ -347,14 +459,38 @@
         sheet.style.minHeight = prev;
         return h;
     }
+
+    function clearScale() {
+        sheet.style.zoom = '';
+        sheet.style.width = '';
+        sheet.style.minHeight = '';
+    }
+
+    /** تصغير متناسب مع تعويض العرض والارتفاع ليبقى المقاس المطبوع A4 */
+    function scaleToFit(height) {
+        var z = Math.max(MIN_ZOOM, (PAGE_PX - 2) / height);
+        sheet.style.zoom = z;
+        sheet.style.width = 'calc(210mm / ' + z + ')';
+        sheet.style.minHeight = 'calc(297mm / ' + z + ')';
+    }
+
     function fit() {
         document.body.classList.remove('fit-1', 'fit-2');
+        clearScale();
         if (naturalHeight() <= PAGE_PX) return;
+
         document.body.classList.add('fit-1');
         if (naturalHeight() <= PAGE_PX) return;
+
         document.body.classList.remove('fit-1');
         document.body.classList.add('fit-2');
+        var h = naturalHeight();
+        if (h <= PAGE_PX) return;
+
+        // ما زال المحتوى أطول من الصفحة: تصغير متناسب كملاذ أخير
+        scaleToFit(h);
     }
+
     if (document.fonts && document.fonts.ready) document.fonts.ready.then(fit);
     fit();
     window.addEventListener('beforeprint', fit);

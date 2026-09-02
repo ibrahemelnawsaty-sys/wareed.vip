@@ -50,6 +50,11 @@ class DatabaseSeeder extends Seeder
             ['contact_email', 'info@wareed.vip', 'contact'],
             ['contact_whatsapp', '201055789056', 'contact'],
             ['contact_address', ['ar' => 'نعمل عن بُعد حول العالم', 'en' => 'We work remotely, worldwide'], 'contact'],
+            // بيانات قانونية تظهر في عرض السعر والمستندات — قابلة للتحرير من لوحة الإعدادات
+            ['legal_name', 'وريد لتقنية المعلومات', 'legal'],
+            ['tax_number', '774-094-117', 'legal'],
+            ['commercial_register', '295283', 'legal'],
+            ['legal_address', '٤ عمارات العبور — صلاح سالم — مصر الجديدة — القاهرة', 'legal'],
             ['social_facebook', 'https://facebook.com', 'social'],
             ['social_instagram', 'https://instagram.com', 'social'],
             ['social_linkedin', 'https://linkedin.com', 'social'],
