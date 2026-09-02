@@ -243,6 +243,27 @@ class QuoteRequests extends Page
         $this->draft['items'] = array_values($this->draft['items']);
     }
 
+    /** إعادة ترتيب البنود بالسحب أو بأزرار/مفاتيح الأسهم — الترتيب هنا هو ترتيب العرض. */
+    public function moveItem(int $from, int $to): void
+    {
+        $items = array_values($this->draft['items'] ?? []);
+        $last = count($items) - 1;
+
+        if ($last < 1 || $from < 0 || $from > $last) {
+            return;
+        }
+
+        $to = max(0, min($last, $to));
+
+        if ($from === $to) {
+            return;
+        }
+
+        array_splice($items, $to, 0, array_splice($items, $from, 1));
+
+        $this->draft['items'] = $items;
+    }
+
     /** بنود مقترحة مبنية على الخدمات التي اختارها العميل في النموذج. */
     /** توحيد بنية البند القادم من عرض محفوظ أو من مسوّدة قديمة. */
     private function normaliseItem(array $i): array

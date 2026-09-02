@@ -70,8 +70,30 @@
         .wq-editor h3 { font-size: .95rem; font-weight: 700; margin-bottom: .15rem; }
         .wq-editor .sub { font-size: .78rem; color: rgb(107 114 128); margin-bottom: .9rem; }
         .wq-items { display: flex; flex-direction: column; gap: .5rem; }
-        .wq-item { display: grid; grid-template-columns: 8rem 1fr 1fr 8rem 4.5rem 7rem 4rem 2rem; gap: .5rem; align-items: start; }
-        .wq-free { margin-top: 1.15rem; display: inline-flex; align-items: center; gap: .3rem; font-size: .75rem; font-weight: 600; color: rgb(21 128 61); cursor: pointer; user-select: none; }
+        .wq-item { display: grid; grid-template-columns: 1.75rem 8rem 1fr 1fr 8rem 4.5rem 7rem 4rem 2rem; gap: .5rem; align-items: start; border-radius: .55rem; }
+        .wq-free { display: inline-flex; align-items: center; gap: .3rem; font-size: .75rem; font-weight: 600; color: rgb(21 128 61); cursor: pointer; user-select: none; }
+
+        /* إعادة ترتيب البنود: مقبض سحب على الشاشات الكبيرة وأزرار سهمين على الجوال */
+        .wq-move { display: flex; align-items: center; gap: .3rem; }
+        .wq-grip {
+            width: 1.75rem; height: 2rem; border-radius: .5rem; cursor: grab; touch-action: none;
+            border: 1px solid rgb(229 231 235); background: rgb(249 250 251); color: rgb(107 114 128);
+            display: flex; align-items: center; justify-content: center; line-height: 1; font-size: .95rem;
+        }
+        .wq-grip:hover { background: rgb(239 246 255); border-color: rgb(191 219 254); color: rgb(37 99 235); }
+        .wq-grip:focus-visible { outline: 2px solid rgba(37,99,235,.45); outline-offset: 1px; }
+        .wq-grip:active { cursor: grabbing; }
+        .wq-move-n, .wq-move-btns { display: none; }
+        .wq-nudge {
+            width: 1.9rem; height: 1.9rem; border-radius: .45rem; cursor: pointer; line-height: 1; font-size: .9rem;
+            border: 1px solid rgb(229 231 235); background: #fff; color: rgb(55 65 81);
+        }
+        .wq-nudge:disabled { opacity: .35; cursor: not-allowed; }
+        .wq-item.is-drag { opacity: .4; }
+        .wq-item.is-over { outline: 2px dashed rgb(37 99 235); outline-offset: 3px; }
+        .wq-item.has-lbl .wq-move, .wq-item.has-lbl .wq-free, .wq-item.has-lbl .wq-del { margin-top: 1.15rem; }
+        .dark .wq-grip, .dark .wq-nudge { background: rgb(17 24 39); border-color: rgba(255,255,255,.15); color: rgb(209 213 219); }
+        .dark .wq-grip:hover { background: rgba(37,99,235,.18); border-color: rgba(147,197,253,.4); color: rgb(191 219 254); }
         .wq-free input { width: 1rem; height: 1rem; accent-color: rgb(22 163 74); cursor: pointer; }
         .wq-in:disabled { background: rgb(243 244 246); color: rgb(156 163 175); cursor: not-allowed; }
         .dark .wq-in:disabled { background: rgba(255,255,255,.06); }
@@ -84,7 +106,7 @@
         .wq-in:focus { outline: 2px solid rgba(37,99,235,.35); outline-offset: 1px; border-color: rgb(37 99 235); }
         .wq-in.num { text-align: center; font-variant-numeric: tabular-nums; }
         .wq-del {
-            margin-top: 1.15rem; width: 2rem; height: 2rem; border-radius: .5rem; cursor: pointer;
+            width: 2rem; height: 2rem; border-radius: .5rem; cursor: pointer;
             border: 1px solid rgb(254 202 202); background: rgb(254 242 242); color: rgb(185 28 28); font-size: 1rem; line-height: 1;
         }
         .wq-del:hover { background: rgb(254 226 226); }
@@ -117,12 +139,21 @@
         .dark .wq-quote-badge { background: rgba(34,197,94,.1); border-color: rgba(255,255,255,.08); }
         .dark .wq-del { background: rgba(239,68,68,.12); border-color: rgba(239,68,68,.3); color: rgb(252 165 165); }
 
-        @media (max-width: 1400px) { .wq-item { grid-template-columns: 7rem 1fr 1fr 4.5rem 6.5rem 3.5rem 2rem; } .wq-item .wq-note-col { grid-column: 2 / -1; } }
+        @media (max-width: 1400px) {
+            .wq-item { grid-template-columns: 1.75rem 7rem 1fr 1fr 4.5rem 6.5rem 3.5rem 2rem; }
+            .wq-item .wq-note-col { grid-column: 3 / -1; }
+        }
         @media (max-width: 900px) {
-            .wq-item { grid-template-columns: 1fr 1fr; }
+            .wq-item { grid-template-columns: 1fr 1fr; padding-top: .35rem; border-top: 1px dashed rgb(229 231 235); }
             .wq-item .wq-note-col { grid-column: auto; }
             .wq-opts { grid-template-columns: repeat(2, 1fr); }
-            .wq-del, .wq-free { margin-top: 0; }
+            .wq-item.has-lbl .wq-move, .wq-item.has-lbl .wq-free, .wq-item.has-lbl .wq-del { margin-top: 0; }
+            /* السحب لا يعمل باللمس — نستبدله بسهمين واضحين */
+            .wq-item .wq-move { grid-column: 1 / -1; justify-content: space-between; }
+            .wq-grip { display: none; }
+            .wq-move-n { display: inline-flex; font-size: .75rem; font-weight: 700; color: rgb(107 114 128); }
+            .wq-move-btns { display: inline-flex; gap: .3rem; }
+            .dark .wq-item { border-color: rgba(255,255,255,.1); }
         }
 
         .dark .wq-stat, .dark .wq-card { background: rgb(17 24 39); border-color: rgba(255,255,255,.1); }
@@ -325,6 +356,7 @@
                             البنود مقترحة من الخدمات التي اختارها العميل. عدّلها وأضف الأسعار.
                             اكتب اسم <b>المرحلة</b> لتجميع بنودها معاً في العرض، وعلّم <b>مجاني</b> لأي بند يظهر بـ«مجاناً»،
                             واستخدم <b>ملاحظة / اشتراك</b> لتوضيح مثل «اشتراك سنوي».
+                            رتّب البنود بسحب المقبض <b>⠿</b> لأعلى أو لأسفل — والترتيب هنا هو ترتيب ظهورها في العرض.
                             وعند الإصدار يظهر العرض للعميل في صفحة طلبه ويصله بريد من {{ setting('contact_email', 'info@wareed.vip') }}.
                         </p>
 
@@ -339,10 +371,35 @@
                             @endforeach
                         </datalist>
 
-                        <div class="wq-items">
+                        @php $lastItem = count($draft['items'] ?? []) - 1; @endphp
+                        <div class="wq-items" x-data="{ from: null, over: null }">
                             @foreach ($draft['items'] ?? [] as $i => $item)
                                 @php $isFree = (bool) ($item['free'] ?? false); @endphp
-                                <div class="wq-item" wire:key="item-{{ $r['id'] }}-{{ $i }}">
+                                <div @class(['wq-item', 'has-lbl' => $i === 0]) wire:key="item-{{ $r['id'] }}-{{ $i }}"
+                                     x-bind:class="{ 'is-drag': from === {{ $i }}, 'is-over': from !== null && from !== {{ $i }} && over === {{ $i }} }"
+                                     x-on:dragstart="if ($event.target !== $el) return; from = {{ $i }};
+                                                     $event.dataTransfer.effectAllowed = 'move';
+                                                     $event.dataTransfer.setData('text/plain', '{{ $i }}')"
+                                     x-on:dragover="if (from !== null) { $event.preventDefault(); over = {{ $i }} }"
+                                     x-on:dragleave="if (over === {{ $i }}) over = null"
+                                     x-on:drop="if (from === null) return; $event.preventDefault();
+                                                if (from !== {{ $i }}) $wire.moveItem(from, {{ $i }}); from = null; over = null"
+                                     x-on:dragend="$el.draggable = false; from = null; over = null">
+                                    <div class="wq-move">
+                                        <button type="button" class="wq-grip" aria-label="إعادة ترتيب البند {{ $i + 1 }}"
+                                                title="اسحب لإعادة الترتيب — أو ركّز عليه واستخدم سهمي ↑ ↓"
+                                                x-on:mousedown="$el.closest('.wq-item').draggable = true"
+                                                x-on:mouseup="$el.closest('.wq-item').draggable = false"
+                                                x-on:keydown.arrow-up.prevent="$wire.moveItem({{ $i }}, {{ $i - 1 }})"
+                                                x-on:keydown.arrow-down.prevent="$wire.moveItem({{ $i }}, {{ $i + 1 }})">⠿</button>
+                                        <span class="wq-move-n">البند {{ $i + 1 }}</span>
+                                        <span class="wq-move-btns">
+                                            <button type="button" class="wq-nudge" title="تحريك لأعلى" @disabled($i === 0)
+                                                    wire:click="moveItem({{ $i }}, {{ $i - 1 }})">↑</button>
+                                            <button type="button" class="wq-nudge" title="تحريك لأسفل" @disabled($i === $lastItem)
+                                                    wire:click="moveItem({{ $i }}, {{ $i + 1 }})">↓</button>
+                                        </span>
+                                    </div>
                                     <div>
                                         @if ($i === 0)<label class="wq-lbl">المرحلة</label>@endif
                                         <input class="wq-in" type="text" placeholder="المرحلة الأولى"
