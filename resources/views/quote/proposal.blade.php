@@ -8,6 +8,7 @@
     $fmt = fn ($d) => $days[$d->format('l')].'، '.$d->day.' '.$months[(int) $d->month].' '.$d->year.'م';
     $cur = $quote['currency'];
     $money = fn ($n) => number_format((float) $n, ((float) $n == (int) $n) ? 0 : 2);
+    $pct = fn ($n) => rtrim(rtrim(number_format((float) $n, 2), '0'), '.');
     $contactEmail = setting('contact_email', 'info@wareed.vip');
     $contactPhone = setting('contact_phone', '+201055789056');
     $legalName = setting('legal_name');
@@ -95,7 +96,8 @@
         td.n { width: 9mm; color: var(--faint); font-size: 8pt; }
         td.it b { font-weight: 700; }
         td.it small { display: block; color: var(--muted); font-size: 7.8pt; line-height: 1.5; margin-top: .6mm; }
-        td.num { width: 16mm; text-align: center; font-variant-numeric: tabular-nums; }
+        td.num { width: 20mm; text-align: center; font-variant-numeric: tabular-nums; }
+        td.num small { display: block; color: var(--muted); font-size: 7.4pt; font-weight: 600; margin-top: .4mm; }
         td.amt { width: 26mm; text-align: start; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
         td.amt .free { color: #0d9488; font-weight: 700; }
         tr.phase td { background: #eef2fb !important; padding: 1.8mm 4mm; border-bottom: 1px solid var(--line); }
@@ -311,7 +313,7 @@
             <tr>
                 <th style="width:9mm">م</th>
                 <th>البند</th>
-                <th style="width:16mm;text-align:center">الكمية</th>
+                <th style="width:20mm;text-align:center">الكمية</th>
                 <th style="width:26mm">سعر الوحدة</th>
                 <th style="width:26mm">الإجمالي</th>
             </tr>
@@ -344,7 +346,10 @@
                             @if ($item['note'])<span class="tag-note">{{ $item['note'] }}</span>@endif
                             @if ($item['desc'])<small>{{ $item['desc'] }}</small>@endif
                         </td>
-                        <td class="num">{{ $item['qty'] }}</td>
+                        <td class="num">
+                            {{ $item['qty'] }}
+                            @if ($item['unit'])<small>{{ $item['unit'] }}</small>@endif
+                        </td>
                         <td class="amt">
                             @if ($item['free'])<span class="free">مجاناً</span>@else{{ $money($item['price']) }} {{ $cur }}@endif
                         </td>
@@ -361,10 +366,10 @@
         <table>
             <tr><td>الإجمالي قبل الخصم</td><td>{{ $money($quote['subtotal']) }} {{ $cur }}</td></tr>
             @if ($quote['discount'] > 0)
-                <tr><td>الخصم</td><td>− {{ $money($quote['discount']) }} {{ $cur }}</td></tr>
+                <tr><td>الخصم ({{ $pct($quote['discount_percent']) }}%)</td><td>− {{ $money($quote['discount']) }} {{ $cur }}</td></tr>
             @endif
             @if ($quote['vat_percent'] > 0)
-                <tr><td>ضريبة القيمة المضافة ({{ rtrim(rtrim(number_format($quote['vat_percent'], 2), '0'), '.') }}%)</td><td>{{ $money($quote['vat']) }} {{ $cur }}</td></tr>
+                <tr><td>ضريبة القيمة المضافة ({{ $pct($quote['vat_percent']) }}%)</td><td>{{ $money($quote['vat']) }} {{ $cur }}</td></tr>
             @endif
             <tr class="grand"><td>الإجمالي المستحق</td><td>{{ $money($quote['total']) }} {{ $cur }}</td></tr>
         </table>

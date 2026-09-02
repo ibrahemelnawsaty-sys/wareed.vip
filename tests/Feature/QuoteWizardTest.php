@@ -314,7 +314,33 @@ it('has no quote until one is issued', function () {
     $this->get('/quote/hajar-salama/proposal')->assertNotFound();
 });
 
-it('computes quote totals with discount and vat', function () {
+it('computes quote totals with a percentage discount and vat', function () {
+    Mail::fake();
+    submitInvite()->assertOk();
+    $sr = ServiceRequest::sole();
+
+    $sr->update(['payload' => array_merge((array) $sr->payload, ['_quote' => [
+        'items' => [
+            ['name' => 'تجهيز المتجر', 'qty' => 1, 'price' => 20000],
+            ['name' => 'تصوير المنتجات', 'qty' => 3, 'price' => 1000],
+        ],
+        'discount_percent' => 10, 'vat_percent' => 14, 'currency' => 'ج.م',
+        'valid_days' => 30, 'issued_at' => now()->toIso8601String(),
+    ]])]);
+
+    $quote = QuoteController::quoteOf($sr->fresh());
+
+    // 10% من 23,000 = 2,300 ← الوعاء الضريبي 20,700 ← ضريبة 2,898
+    expect($quote['subtotal'])->toBe(23000.0)
+        ->and($quote['discount_percent'])->toBe(10.0)
+        ->and($quote['discount'])->toBe(2300.0)
+        ->and($quote['vat'])->toBe(2898.0)
+        ->and($quote['total'])->toBe(23598.0);
+
+    $this->get('/quote/hajar-salama/proposal')->assertOk()->assertSee('الخصم (10%)');
+});
+
+it('keeps quotes issued before the percentage discount working', function () {
     Mail::fake();
     submitInvite()->assertOk();
     $sr = ServiceRequest::sole();
@@ -330,8 +356,10 @@ it('computes quote totals with discount and vat', function () {
 
     $quote = QuoteController::quoteOf($sr->fresh());
 
+    // العرض القديم يحمل قيمة خصم مباشرة — تبقى كما هي وتُشتقّ نسبتها للعرض فقط
     expect($quote['subtotal'])->toBe(23000.0)
         ->and($quote['discount'])->toBe(3000.0)
+        ->and($quote['discount_percent'])->toBe(13.04)
         ->and($quote['vat'])->toBe(2800.0)
         ->and($quote['total'])->toBe(22800.0)
         ->and($quote['items'][1]['total'])->toBe(3000.0);
@@ -530,6 +558,33 @@ it('shows the item note as a badge in the proposal', function () {
     expect(QuoteController::quoteOf($sr->fresh())['items'][0]['note'])->toBe('اشتراك سنوي');
 
     $this->get('/quote/hajar-salama/proposal')->assertOk()->assertSee('اشتراك سنوي');
+});
+
+it('shows the unit next to the quantity in the proposal', function () {
+    Mail::fake();
+    submitInvite()->assertOk();
+    $sr = ServiceRequest::sole();
+
+    $sr->update(['payload' => array_merge((array) $sr->payload, [
+        '_flow' => ['stage' => 'awaiting_approval'],
+        '_quote' => [
+            'items' => [
+                ['name' => 'استضافة وسيرفر', 'qty' => 12, 'unit' => 'شهر', 'price' => 500],
+                ['name' => 'تجهيز المتجر', 'qty' => 1, 'price' => 18000],
+            ],
+            'discount' => 0, 'vat_percent' => 0, 'currency' => 'ج.م',
+            'valid_days' => 30, 'issued_at' => now()->toIso8601String(),
+        ],
+    ])]);
+
+    $items = QuoteController::quoteOf($sr->fresh())['items'];
+    expect($items[0]['unit'])->toBe('شهر')
+        // بند بلا وحدة يبقى بالكمية وحدها
+        ->and($items[1]['unit'])->toBe('');
+
+    $this->get('/quote/hajar-salama/proposal')
+        ->assertOk()
+        ->assertSee('<small>شهر</small>', false);
 });
 
 it('prints the legal identifiers on the proposal header', function () {

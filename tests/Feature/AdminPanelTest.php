@@ -136,13 +136,20 @@ it('يحفظ عرض السعر دون إرسال بريد عند الطلب', fu
         // الضريبة 14% افتراضياً فلا يحتاج المستخدم لكتابتها كل مرة
         ->assertSet('draft.vat_percent', (float) QuoteController::DEFAULT_VAT_PERCENT)
         ->set('draft.items.0.name', 'تجهيز المتجر')
+        ->set('draft.items.0.unit', 'باقة')
         ->set('draft.items.0.price', 9000)
         ->call('issueQuote', false);
 
     $quote = QuoteController::quoteOf($sr->fresh());
     expect($quote['subtotal'])->toBe(9000.0)
         ->and($quote['vat'])->toBe(1260.0)
-        ->and($quote['total'])->toBe(10260.0);
+        ->and($quote['total'])->toBe(10260.0)
+        ->and($quote['items'][0]['unit'])->toBe('باقة');
+
+    // الوحدة تعود كما هي عند إعادة فتح المحرّر
+    Livewire\Livewire::test(QuoteRequests::class)
+        ->call('openQuote', $sr->id)
+        ->assertSet('draft.items.0.unit', 'باقة');
     // إشعارات استلام الطلب تُرسل عند إنشائه؛ المهم ألّا يُرسل بريد عرض السعر
     Mail::assertNotSent(QuoteProposalIssued::class);
 });
@@ -322,24 +329,66 @@ it('يعيد ترتيب بنود عرض السعر بالسحب أو بالأس�
 
     $names = fn () => array_column($page->get('draft.items'), 'name');
 
-    // سحب البند الأخير إلى أول القائمة
+    // إفلات البند الأخير فوق أول بند = الفراغ رقم 0
     $page->call('moveItem', 2, 0);
     expect($names())->toBe(['ج', 'أ', 'ب']);
 
-    // تحريك البند خطوة واحدة لأسفل
-    $page->call('moveItem', 0, 1);
+    // إفلات «ج» تحت «أ» = الفراغ رقم 2 — إدراج بين البندين لا تبديل معهما
+    $page->call('moveItem', 0, 2);
     expect($names())->toBe(['أ', 'ج', 'ب']);
 
-    // وجهة خارج النطاق تُقصَر على آخر موضع
+    // فراغ خارج النطاق يُقصَر على ما بعد آخر بند
     $page->call('moveItem', 0, 99);
     expect($names())->toBe(['ج', 'ب', 'أ']);
 
-    // مصدر غير موجود أو نقل إلى الموضع نفسه لا يغيّر شيئاً
-    $page->call('moveItem', 7, 0)->call('moveItem', 1, 1);
+    // الفراغان الملاصقان للبند نفسه لا يحرّكانه، والمصدر غير الموجود يُتجاهل
+    $page->call('moveItem', 1, 1)->call('moveItem', 1, 2)->call('moveItem', 7, 0);
     expect($names())->toBe(['ج', 'ب', 'أ']);
 
     // الترتيب الجديد هو ترتيب البنود في العرض الصادر
     $page->call('issueQuote', false);
     expect(array_column(QuoteController::quoteOf($sr->fresh())['items'], 'name'))
         ->toBe(['ج', 'ب', 'أ']);
+});
+
+it('يحسب الخصم كنسبة من الإجمالي ويشتقّها للعروض القديمة', function () {
+    Mail::fake();
+    $this->actingAs(adminUser());
+
+    $sr = ServiceRequest::create([
+        'service_type' => 'ecommerce', 'name' => 'عميل', 'phone' => '—',
+        'status' => 'new', 'source' => 'quote_form', 'payload' => [],
+    ]);
+
+    Livewire\Livewire::test(QuoteRequests::class)
+        ->call('openQuote', $sr->id)
+        ->set('draft.items', [['phase' => '', 'name' => 'تجهيز المتجر', 'desc' => '', 'note' => '',
+            'qty' => 1, 'unit' => '', 'price' => 20000, 'free' => false]])
+        ->set('draft.discount_percent', 25)
+        ->set('draft.vat_percent', 14)
+        // القيمة تُحسب لحظياً في ملخّص المحرّر قبل الإصدار
+        ->assertSet('draft.discount_percent', 25)
+        ->call('issueQuote', false);
+
+    $quote = QuoteController::quoteOf($sr->fresh());
+    expect($quote['discount_percent'])->toBe(25.0)
+        ->and($quote['discount'])->toBe(5000.0)
+        ->and($quote['vat'])->toBe(2100.0)
+        ->and($quote['total'])->toBe(17100.0);
+
+    // النسبة تعود كما هي عند إعادة فتح المحرّر
+    Livewire\Livewire::test(QuoteRequests::class)
+        ->call('openQuote', $sr->id)
+        ->assertSet('draft.discount_percent', 25.0);
+
+    // عرض قديم مخزّن بقيمة خصم مباشرة يُفتح بنسبته المكافئة
+    $sr->update(['payload' => array_merge((array) $sr->payload, ['_quote' => [
+        'items' => [['name' => 'تجهيز المتجر', 'qty' => 1, 'price' => 20000]],
+        'discount' => 4000, 'vat_percent' => 14, 'currency' => 'ج.م',
+        'valid_days' => 30, 'issued_at' => now()->toIso8601String(),
+    ]])]);
+
+    Livewire\Livewire::test(QuoteRequests::class)
+        ->call('openQuote', $sr->id)
+        ->assertSet('draft.discount_percent', 20.0);
 });

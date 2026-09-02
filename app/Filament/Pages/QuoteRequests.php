@@ -176,13 +176,15 @@ class QuoteRequests extends Page
     {
         $sr = static::baseQuery()->whereKey($id)->firstOrFail();
         $saved = ((array) $sr->payload)['_quote'] ?? null;
+        // نقرأ النسبة من العرض المحسوب كي تُشتقّ تلقائياً للعروض القديمة المخزّنة بقيمة خصم مباشرة
+        $computed = QuoteController::quoteOf($sr);
 
         $this->editingId = $id;
         $this->draft = [
             'items' => ! empty($saved['items'])
                 ? array_map(fn ($i) => $this->normaliseItem((array) $i), array_values($saved['items']))
                 : $this->suggestedItems($sr),
-            'discount' => (float) ($saved['discount'] ?? 0),
+            'discount_percent' => (float) ($computed['discount_percent'] ?? 0),
             'vat_percent' => (float) ($saved['vat_percent'] ?? QuoteController::DEFAULT_VAT_PERCENT),
             'currency' => (string) ($saved['currency'] ?? 'ج.م'),
             'valid_days' => (int) ($saved['valid_days'] ?? 30),
@@ -222,7 +224,7 @@ class QuoteRequests extends Page
 
         $this->draft['items'][] = [
             'phase' => (string) ($last['phase'] ?? ''),
-            'name' => '', 'desc' => '', 'note' => '', 'qty' => 1, 'price' => 0, 'free' => false,
+            'name' => '', 'desc' => '', 'note' => '', 'qty' => 1, 'unit' => '', 'price' => 0, 'free' => false,
         ];
     }
 
@@ -243,23 +245,30 @@ class QuoteRequests extends Page
         $this->draft['items'] = array_values($this->draft['items']);
     }
 
-    /** إعادة ترتيب البنود بالسحب أو بأزرار/مفاتيح الأسهم — الترتيب هنا هو ترتيب العرض. */
+    /**
+     * نقل بند إلى موضع إدراج بين البنود — لا تبديل مكان مع بند آخر.
+     * $to هو رقم الفراغ في الترتيب الأصلي: 0 قبل أول بند، وcount بعد آخر بند،
+     * فإسقاط البند فوق بند ما يعني الفراغ الذي قبله، وتحته يعني الذي بعده.
+     */
     public function moveItem(int $from, int $to): void
     {
         $items = array_values($this->draft['items'] ?? []);
-        $last = count($items) - 1;
+        $count = count($items);
 
-        if ($last < 1 || $from < 0 || $from > $last) {
+        if ($count < 2 || $from < 0 || $from >= $count) {
             return;
         }
 
-        $to = max(0, min($last, $to));
+        $to = max(0, min($count, $to));
 
-        if ($from === $to) {
+        // الفراغ الملاصق للبند نفسه من الجهتين لا يحرّكه
+        if ($to === $from || $to === $from + 1) {
             return;
         }
 
-        array_splice($items, $to, 0, array_splice($items, $from, 1));
+        $moved = array_splice($items, $from, 1);
+        // بعد اقتطاع البند تنزاح الفراغات التي تليه خطوة واحدة
+        array_splice($items, $to > $from ? $to - 1 : $to, 0, $moved);
 
         $this->draft['items'] = $items;
     }
@@ -274,6 +283,7 @@ class QuoteRequests extends Page
             'desc' => (string) ($i['desc'] ?? ''),
             'note' => (string) ($i['note'] ?? ''),
             'qty' => max(1, (int) ($i['qty'] ?? 1)),
+            'unit' => (string) ($i['unit'] ?? ''),
             'price' => max(0, (float) ($i['price'] ?? 0)),
             'free' => (bool) ($i['free'] ?? false),
         ];
@@ -304,7 +314,8 @@ class QuoteRequests extends Page
             $subtotal += max(1, (int) ($item['qty'] ?? 1)) * max(0, (float) ($item['price'] ?? 0));
         }
 
-        $discount = min(max(0, (float) ($this->draft['discount'] ?? 0)), $subtotal);
+        $discountPercent = max(0, min(100, (float) ($this->draft['discount_percent'] ?? 0)));
+        $discount = round($subtotal * $discountPercent / 100, 2);
         $afterDiscount = $subtotal - $discount;
         $vat = round($afterDiscount * max(0, (float) ($this->draft['vat_percent'] ?? 0)) / 100, 2);
 
@@ -319,6 +330,7 @@ class QuoteRequests extends Page
         return [
             'subtotal' => $subtotal,
             'discount' => $discount,
+            'discount_percent' => $discountPercent,
             'vat' => $vat,
             'total' => $total,
             'currency' => $this->draft['currency'] ?? 'ج.م',
@@ -354,10 +366,11 @@ class QuoteRequests extends Page
                 'desc' => trim((string) ($i['desc'] ?? '')),
                 'note' => trim((string) ($i['note'] ?? '')),
                 'qty' => max(1, (int) ($i['qty'] ?? 1)),
+                'unit' => trim((string) ($i['unit'] ?? '')),
                 'price' => ($i['free'] ?? false) ? 0.0 : max(0, (float) ($i['price'] ?? 0)),
                 'free' => (bool) ($i['free'] ?? false),
             ], $items),
-            'discount' => max(0, (float) ($this->draft['discount'] ?? 0)),
+            'discount_percent' => max(0, min(100, (float) ($this->draft['discount_percent'] ?? 0))),
             'vat_percent' => max(0, (float) ($this->draft['vat_percent'] ?? 0)),
             'currency' => trim((string) ($this->draft['currency'] ?? 'ج.م')) ?: 'ج.م',
             'valid_days' => max(1, (int) ($this->draft['valid_days'] ?? 30)),

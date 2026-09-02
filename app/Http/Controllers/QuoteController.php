@@ -423,6 +423,8 @@ class QuoteController extends Controller
                 // ملاحظة البند: نوع الاشتراك أو أي توضيح يظهر بجانب الاسم
                 'note' => trim((string) ($i['note'] ?? '')),
                 'qty' => $qty,
+                // وحدة القياس تظهر بجانب الكمية: شهر، سنة، صفحة، منتج…
+                'unit' => trim((string) ($i['unit'] ?? '')),
                 'price' => $price,
                 // بند مجاني: يُعرض «مجاناً» ولا يضيف شيئاً للإجمالي
                 'free' => $free || $price <= 0,
@@ -442,7 +444,17 @@ class QuoteController extends Controller
         $hasPhases = count($phases) > 1 || ($phases[0]['name'] ?? '') !== '';
 
         $subtotal = array_sum(array_column($items, 'total'));
-        $discount = min(max(0, (float) ($q['discount'] ?? 0)), $subtotal);
+
+        // الخصم نسبة من الإجمالي تُحسب قيمتها تلقائياً.
+        // العروض الصادرة قبل هذا التغيير تحمل قيمة مباشرة، فنشتقّ نسبتها كي تُعرض بالشكل نفسه.
+        if (isset($q['discount_percent'])) {
+            $discountPercent = max(0, min(100, (float) $q['discount_percent']));
+            $discount = round($subtotal * $discountPercent / 100, 2);
+        } else {
+            $discount = min(max(0, (float) ($q['discount'] ?? 0)), $subtotal);
+            $discountPercent = $subtotal > 0 ? round($discount / $subtotal * 100, 2) : 0.0;
+        }
+
         $afterDiscount = $subtotal - $discount;
         $vatPercent = max(0, (float) ($q['vat_percent'] ?? 0));
         $vat = round($afterDiscount * $vatPercent / 100, 2);
@@ -474,6 +486,7 @@ class QuoteController extends Controller
             'has_phases' => $hasPhases,
             'subtotal' => $subtotal,
             'discount' => $discount,
+            'discount_percent' => $discountPercent,
             'vat_percent' => $vatPercent,
             'vat' => $vat,
             'total' => $total,

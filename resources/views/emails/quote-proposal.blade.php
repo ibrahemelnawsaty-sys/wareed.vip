@@ -35,7 +35,7 @@
         @foreach ($quote['items'] as $item)
             <tr>
                 <td style="padding:9px 12px;border-bottom:1px solid #eef2fa;font-size:13px;color:#0d1830;">
-                    {{ $item['name'] }}@if ($item['qty'] > 1) <span style="color:#8493b5;">× {{ $item['qty'] }}</span>@endif
+                    {{ $item['name'] }}@if ($item['qty'] > 1 || $item['unit']) <span style="color:#8493b5;">× {{ trim($item['qty'].' '.$item['unit']) }}</span>@endif
                     @if ($item['note'])<span style="color:#2563eb;font-size:11px;"> — {{ $item['note'] }}</span>@endif
                 </td>
                 <td align="left" style="padding:9px 12px;border-bottom:1px solid #eef2fa;font-size:13px;font-weight:bold;color:{{ $item['free'] ? '#0d9488' : '#0d1830' }};">
