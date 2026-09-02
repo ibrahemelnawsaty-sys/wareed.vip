@@ -70,7 +70,7 @@
         .wq-editor h3 { font-size: .95rem; font-weight: 700; margin-bottom: .15rem; }
         .wq-editor .sub { font-size: .78rem; color: rgb(107 114 128); margin-bottom: .9rem; }
         .wq-items { display: flex; flex-direction: column; gap: .5rem; }
-        .wq-item { display: grid; grid-template-columns: 1.75rem 8rem 1fr 1fr 8rem 8.5rem 7rem 4rem 2rem; gap: .5rem; align-items: start; border-radius: .55rem; }
+        .wq-item { display: grid; grid-template-columns: 1.75rem 8rem 1fr 1fr 8rem 8.5rem 7rem 4rem 2rem; gap: .5rem; align-items: start; border-radius: .55rem; border-block: 2px solid transparent; }
         .wq-qty { display: grid; grid-template-columns: 3.4rem 1fr; gap: .3rem; }
         .wq-free { display: inline-flex; align-items: center; gap: .3rem; font-size: .75rem; font-weight: 600; color: rgb(21 128 61); cursor: pointer; user-select: none; }
 
@@ -91,7 +91,9 @@
         }
         .wq-nudge:disabled { opacity: .35; cursor: not-allowed; }
         .wq-item.is-drag { opacity: .4; }
-        .wq-item.is-over { outline: 2px dashed rgb(37 99 235); outline-offset: 3px; }
+        /* خط الإدراج: يبيّن الفراغ الذي سيستقر فيه البند — فوق الصف أو تحته */
+        .wq-item.ins-before { border-top-color: rgb(37 99 235); }
+        .wq-item.ins-after { border-bottom-color: rgb(37 99 235); }
         .wq-item.has-lbl .wq-move, .wq-item.has-lbl .wq-free, .wq-item.has-lbl .wq-del { margin-top: 1.15rem; }
         .dark .wq-grip, .dark .wq-nudge { background: rgb(17 24 39); border-color: rgba(255,255,255,.15); color: rgb(209 213 219); }
         .dark .wq-grip:hover { background: rgba(37,99,235,.18); border-color: rgba(147,197,253,.4); color: rgb(191 219 254); }
@@ -145,7 +147,7 @@
             .wq-item .wq-note-col { grid-column: 3 / -1; }
         }
         @media (max-width: 900px) {
-            .wq-item { grid-template-columns: 1fr 1fr; padding-top: .35rem; border-top: 1px dashed rgb(229 231 235); }
+            .wq-item { grid-template-columns: 1fr 1fr; padding-top: .35rem; border-top: 2px dashed rgb(229 231 235); }
             .wq-item .wq-note-col { grid-column: auto; }
             .wq-opts { grid-template-columns: repeat(2, 1fr); }
             .wq-item.has-lbl .wq-move, .wq-item.has-lbl .wq-free, .wq-item.has-lbl .wq-del { margin-top: 0; }
@@ -357,7 +359,8 @@
                             البنود مقترحة من الخدمات التي اختارها العميل. عدّلها وأضف الأسعار.
                             اكتب اسم <b>المرحلة</b> لتجميع بنودها معاً في العرض، وعلّم <b>مجاني</b> لأي بند يظهر بـ«مجاناً»،
                             واستخدم <b>ملاحظة / اشتراك</b> لتوضيح مثل «اشتراك سنوي»، و<b>الوحدة</b> لتظهر الكمية هكذا: «12 شهر».
-                            رتّب البنود بسحب المقبض <b>⠿</b> لأعلى أو لأسفل — والترتيب هنا هو ترتيب ظهورها في العرض.
+                            رتّب البنود بسحب المقبض <b>⠿</b> وأفلته فوق البند الذي تريده أو تحته — الخط الأزرق
+                            يبيّن مكان استقراره، والترتيب هنا هو ترتيب ظهورها في العرض.
                             وعند الإصدار يظهر العرض للعميل في صفحة طلبه ويصله بريد من {{ setting('contact_email', 'info@wareed.vip') }}.
                         </p>
 
@@ -379,18 +382,30 @@
                         </datalist>
 
                         @php $lastItem = count($draft['items'] ?? []) - 1; @endphp
-                        <div class="wq-items" x-data="{ from: null, over: null }">
+                        <div class="wq-items"
+                             x-data="{
+                                 from: null,
+                                 over: null,
+                                 line(slot) { return this.from !== null && this.over === slot
+                                     && slot !== this.from && slot !== this.from + 1 },
+                             }"
+                             x-on:dragleave="if (! $el.contains($event.relatedTarget)) over = null">
                             @foreach ($draft['items'] ?? [] as $i => $item)
                                 @php $isFree = (bool) ($item['free'] ?? false); @endphp
                                 <div @class(['wq-item', 'has-lbl' => $i === 0]) wire:key="item-{{ $r['id'] }}-{{ $i }}"
-                                     x-bind:class="{ 'is-drag': from === {{ $i }}, 'is-over': from !== null && from !== {{ $i }} && over === {{ $i }} }"
+                                     x-bind:class="{
+                                         'is-drag': from === {{ $i }},
+                                         'ins-before': line({{ $i }}),
+                                         'ins-after': {{ $i === $lastItem ? 'true' : 'false' }} && line({{ $lastItem + 1 }}),
+                                     }"
                                      x-on:dragstart="if ($event.target !== $el) return; from = {{ $i }};
                                                      $event.dataTransfer.effectAllowed = 'move';
                                                      $event.dataTransfer.setData('text/plain', '{{ $i }}')"
-                                     x-on:dragover="if (from !== null) { $event.preventDefault(); over = {{ $i }} }"
-                                     x-on:dragleave="if (over === {{ $i }}) over = null"
+                                     x-on:dragover="if (from === null) return; $event.preventDefault();
+                                                    const box = $el.getBoundingClientRect();
+                                                    over = ($event.clientY - box.top) > box.height / 2 ? {{ $i + 1 }} : {{ $i }}"
                                      x-on:drop="if (from === null) return; $event.preventDefault();
-                                                if (from !== {{ $i }}) $wire.moveItem(from, {{ $i }}); from = null; over = null"
+                                                if (over !== null) $wire.moveItem(from, over); from = null; over = null"
                                      x-on:dragend="$el.draggable = false; from = null; over = null">
                                     <div class="wq-move">
                                         <button type="button" class="wq-grip" aria-label="إعادة ترتيب البند {{ $i + 1 }}"
@@ -398,13 +413,13 @@
                                                 x-on:mousedown="$el.closest('.wq-item').draggable = true"
                                                 x-on:mouseup="$el.closest('.wq-item').draggable = false"
                                                 x-on:keydown.arrow-up.prevent="$wire.moveItem({{ $i }}, {{ $i - 1 }})"
-                                                x-on:keydown.arrow-down.prevent="$wire.moveItem({{ $i }}, {{ $i + 1 }})">⠿</button>
+                                                x-on:keydown.arrow-down.prevent="$wire.moveItem({{ $i }}, {{ $i + 2 }})">⠿</button>
                                         <span class="wq-move-n">البند {{ $i + 1 }}</span>
                                         <span class="wq-move-btns">
                                             <button type="button" class="wq-nudge" title="تحريك لأعلى" @disabled($i === 0)
                                                     wire:click="moveItem({{ $i }}, {{ $i - 1 }})">↑</button>
                                             <button type="button" class="wq-nudge" title="تحريك لأسفل" @disabled($i === $lastItem)
-                                                    wire:click="moveItem({{ $i }}, {{ $i + 1 }})">↓</button>
+                                                    wire:click="moveItem({{ $i }}, {{ $i + 2 }})">↓</button>
                                         </span>
                                     </div>
                                     <div>

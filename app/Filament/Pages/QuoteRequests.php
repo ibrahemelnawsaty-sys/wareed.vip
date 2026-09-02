@@ -245,23 +245,30 @@ class QuoteRequests extends Page
         $this->draft['items'] = array_values($this->draft['items']);
     }
 
-    /** إعادة ترتيب البنود بالسحب أو بأزرار/مفاتيح الأسهم — الترتيب هنا هو ترتيب العرض. */
+    /**
+     * نقل بند إلى موضع إدراج بين البنود — لا تبديل مكان مع بند آخر.
+     * $to هو رقم الفراغ في الترتيب الأصلي: 0 قبل أول بند، وcount بعد آخر بند،
+     * فإسقاط البند فوق بند ما يعني الفراغ الذي قبله، وتحته يعني الذي بعده.
+     */
     public function moveItem(int $from, int $to): void
     {
         $items = array_values($this->draft['items'] ?? []);
-        $last = count($items) - 1;
+        $count = count($items);
 
-        if ($last < 1 || $from < 0 || $from > $last) {
+        if ($count < 2 || $from < 0 || $from >= $count) {
             return;
         }
 
-        $to = max(0, min($last, $to));
+        $to = max(0, min($count, $to));
 
-        if ($from === $to) {
+        // الفراغ الملاصق للبند نفسه من الجهتين لا يحرّكه
+        if ($to === $from || $to === $from + 1) {
             return;
         }
 
-        array_splice($items, $to, 0, array_splice($items, $from, 1));
+        $moved = array_splice($items, $from, 1);
+        // بعد اقتطاع البند تنزاح الفراغات التي تليه خطوة واحدة
+        array_splice($items, $to > $from ? $to - 1 : $to, 0, $moved);
 
         $this->draft['items'] = $items;
     }
