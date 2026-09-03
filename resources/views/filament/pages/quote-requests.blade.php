@@ -129,6 +129,14 @@
         .wq-extra-row { display: grid; grid-template-columns: 1fr 1fr 8rem 8.5rem 7rem 2rem; gap: .5rem; align-items: start; margin-bottom: .4rem; }
         .wq-extra-row .wq-del { margin-top: 0; }
         .wq-extra-row.has-lbl .wq-del { margin-top: 1.15rem; }
+        .wq-note-row { display: grid; grid-template-columns: 1.6rem 1fr 2rem; gap: .5rem; align-items: center; margin-bottom: .4rem; }
+        .wq-note-row .wq-del { margin-top: 0; }
+        .wq-note-n { display: inline-flex; align-items: center; justify-content: center; width: 1.6rem; height: 1.6rem;
+                     border-radius: 50%; font-size: .74rem; font-weight: 700;
+                     background: rgb(243 244 246); color: rgb(107 114 128); }
+        .dark .wq-note-n { background: rgba(255,255,255,.08); color: rgb(209 213 219); }
+        .wq-extra-opts { display: grid; grid-template-columns: repeat(3, 1fr); gap: .5rem; margin-top: .8rem; }
+        @media (max-width: 900px) { .wq-extra-opts { grid-template-columns: 1fr 1fr; } }
         .wq-extra-sum { margin-top: .55rem; font-size: .82rem; color: rgb(107 114 128); }
         .wq-extra-sum b { color: rgb(37 99 235); font-variant-numeric: tabular-nums; }
         .wq-stage-row { display: grid; grid-template-columns: 1fr 11rem 11rem 2rem; gap: .5rem; align-items: start; margin-bottom: .4rem; }
@@ -541,10 +549,26 @@
                             </div>
                         </div>
 
-                        <div style="margin-top:.9rem">
-                            <label class="wq-lbl">ملاحظات تظهر في العرض (اختياري)</label>
-                            <input class="wq-in" type="text" placeholder="أي شرط أو ملاحظة تريد إظهارها للعميل"
-                                   wire:model.live.debounce.400ms="draft.notes">
+                        <div class="wq-pay">
+                            <div class="wq-pay-head">
+                                <b>ملاحظات تظهر في العرض</b>
+                                <span class="wq-pay-note">تُطبع مرقّمة في العرض بترتيب إضافتها</span>
+                                <x-filament::button wire:click="addNote" size="xs" color="gray" icon="heroicon-o-plus">
+                                    إضافة ملاحظة
+                                </x-filament::button>
+                            </div>
+
+                            @forelse ($draft['notes'] ?? [] as $ni => $note)
+                                <div class="wq-note-row" wire:key="note-{{ $r['id'] }}-{{ $ni }}">
+                                    <span class="wq-note-n">{{ $ni + 1 }}</span>
+                                    <input class="wq-in" type="text" placeholder="أي شرط أو ملاحظة تريد إظهارها للعميل"
+                                           wire:model.live.debounce.400ms="draft.notes.{{ $ni }}">
+                                    <button type="button" class="wq-del"
+                                            wire:click="removeNote({{ $ni }})" title="حذف الملاحظة">×</button>
+                                </div>
+                            @empty
+                                <p class="wq-empty-hint">لا ملاحظات — اضغط «إضافة ملاحظة» لإظهار شروط أو تنبيهات للعميل.</p>
+                            @endforelse
                         </div>
 
                         <div class="wq-pay">
@@ -596,12 +620,34 @@
                                 <p class="wq-empty-hint">لا بنود اختيارية — اضغط «إضافة بند اختياري» لعرض خدمات إضافية على العميل.</p>
                             @endforelse
 
-                            @if ($t['extras_total'] > 0)
-                                <p class="wq-extra-sum">
-                                    إجمالي الخدمات الاختيارية لو طلبها العميل:
-                                    <b>{{ number_format($t['extras_total'], 2) }} {{ $t['currency'] }}</b>
-                                    <span class="wq-pay-note">— خارج الإجمالي المستحق</span>
-                                </p>
+                            @if ($draft['extras'] ?? [])
+                                <div class="wq-extra-opts">
+                                    <div>
+                                        <label class="wq-lbl">خصم الباقات %</label>
+                                        <input class="wq-in num" type="number" min="0" max="100" step="any"
+                                               wire:model.live.debounce.400ms="draft.extras_discount_percent">
+                                    </div>
+                                    <div>
+                                        <label class="wq-lbl">ضريبة الباقات %</label>
+                                        <input class="wq-in num" type="number" min="0" step="any"
+                                               wire:model.live.debounce.400ms="draft.extras_vat_percent">
+                                    </div>
+                                    <div>
+                                        <label class="wq-lbl">العملة</label>
+                                        <input class="wq-in num" type="text" value="{{ $t['currency'] }}" disabled
+                                               title="العملة مشتركة مع العرض الأساسي — تُغيَّر من خانة العملة أعلاه">
+                                    </div>
+                                </div>
+
+                                <div class="wq-sum" style="margin-top:.7rem">
+                                    <span>الإجمالي قبل الخصم: <b>{{ number_format($t['extras_subtotal'], 2) }}</b></span>
+                                    <span>الخصم: <b>{{ number_format($t['extras_discount'], 2) }}</b></span>
+                                    <span>الضريبة: <b>{{ number_format($t['extras_vat'], 2) }}</b></span>
+                                    <span class="grand">
+                                        الإجمالي لو طلبها: {{ number_format($t['extras_total'], 2) }} {{ $t['currency'] }}
+                                    </span>
+                                </div>
+                                <p class="wq-extra-sum"><span class="wq-pay-note">هذه الإجماليات خارج الإجمالي المستحق تماماً.</span></p>
                             @endif
                         </div>
 

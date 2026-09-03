@@ -853,6 +853,76 @@ it('does not start execution when the client asks for a discount or declines', f
     }
 });
 
+it('numbers multiple notes and keeps a legacy single note working', function () {
+    Mail::fake();
+    submitInvite()->assertOk();
+    $sr = ServiceRequest::sole();
+
+    $base = [
+        'items' => [['name' => 'تجهيز المتجر', 'qty' => 1, 'price' => 20000]],
+        'vat_percent' => 0, 'currency' => 'ج.م', 'valid_days' => 30,
+        'issued_at' => now()->toIso8601String(),
+    ];
+
+    $sr->update(['payload' => array_merge((array) $sr->payload, ['_quote' => $base + ['notes' => [
+        'الأسعار لا تشمل رسوم بوابات الدفع.',
+        '  ',
+        'مدة الدعم المجاني ثلاثون يوماً من التسليم.',
+    ]]])]);
+
+    // الفراغات تُهمَل ويبقى الترتيب كما أُدخل
+    expect(QuoteController::quoteOf($sr->fresh())['notes'])->toBe([
+        'الأسعار لا تشمل رسوم بوابات الدفع.',
+        'مدة الدعم المجاني ثلاثون يوماً من التسليم.',
+    ]);
+
+    $this->get('/quote/hajar-salama/proposal')
+        ->assertOk()
+        ->assertSee('<ol class="note-list">', false)
+        ->assertSee('مدة الدعم المجاني ثلاثون يوماً من التسليم.');
+
+    // عرض قديم يحمل ملاحظة نصية واحدة يُقرأ كعنصر واحد
+    $sr->update(['payload' => array_merge((array) $sr->payload, [
+        '_quote' => $base + ['notes' => 'ملاحظة قديمة واحدة.'],
+    ])]);
+
+    expect(QuoteController::quoteOf($sr->fresh())['notes'])->toBe(['ملاحظة قديمة واحدة.']);
+});
+
+it('applies a separate discount and vat to the optional add-ons', function () {
+    Mail::fake();
+    submitInvite()->assertOk();
+    $sr = ServiceRequest::sole();
+
+    $sr->update(['payload' => array_merge((array) $sr->payload, [
+        '_flow' => ['stage' => 'awaiting_approval'],
+        '_quote' => [
+            'items' => [['name' => 'تجهيز المتجر', 'qty' => 1, 'price' => 20000]],
+            'extras' => [['name' => 'تطبيق جوال', 'qty' => 1, 'price' => 40000]],
+            'extras_discount_percent' => 25,
+            'extras_vat_percent' => 14,
+            'discount_percent' => 0, 'vat_percent' => 10, 'currency' => 'ج.م',
+            'valid_days' => 30, 'issued_at' => now()->toIso8601String(),
+        ],
+    ])]);
+
+    $quote = QuoteController::quoteOf($sr->fresh());
+
+    // 40,000 − 25% = 30,000 ← ضريبة 14% = 4,200 ← الإجمالي 34,200
+    expect($quote['extras_subtotal'])->toBe(40000.0)
+        ->and($quote['extras_discount'])->toBe(10000.0)
+        ->and($quote['extras_vat'])->toBe(4200.0)
+        ->and($quote['extras_total'])->toBe(34200.0)
+        // ولا شيء من ذلك يمسّ المستحق: 20,000 + 10% = 22,000
+        ->and($quote['total'])->toBe(22000.0);
+
+    $this->get('/quote/hajar-salama/proposal')
+        ->assertOk()
+        ->assertSee('الخصم (25%)')
+        ->assertSee('ضريبة القيمة المضافة (14%)')
+        ->assertSee('الإجمالي لو طُلبت جميعها');
+});
+
 it('prints the legal identifiers on the proposal header', function () {
     Mail::fake();
     Setting::set('tax_number', '774-094-117', 'legal');

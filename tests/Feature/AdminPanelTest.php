@@ -459,7 +459,9 @@ it('يضيف بنوداً اختيارية تُعرض للاطلاع ولا تد
         ->set('draft.items', [['phase' => '', 'name' => 'تجهيز المتجر', 'desc' => '', 'note' => '',
             'qty' => 1, 'unit' => '', 'price' => 20000, 'free' => false]])
         ->set('draft.discount_percent', 0)
-        ->set('draft.vat_percent', 0);
+        ->set('draft.vat_percent', 0)
+        // خصم الباقات وضريبتها لهما اختبارهما الخاص؛ هنا نقيس العزل عن المستحق فقط
+        ->set('draft.extras_vat_percent', 0);
 
     $page->call('addExtra')->call('addExtra')->call('addExtra');
     expect($page->get('draft.extras'))->toHaveCount(3);
@@ -527,6 +529,78 @@ it('يرسل بريد كل مرحلة للعميل مع الزر الذي ينق
         StageMessage::class,
         fn ($mail) => str_contains($mail->subjectLine, 'بدأنا تنفيذ متجرك') && $mail->summaryOf !== null
     );
+});
+
+it('يضيف ملاحظات متعدّدة ويحذفها ويحفظها مرقّمة', function () {
+    Mail::fake();
+    $this->actingAs(adminUser());
+
+    $sr = ServiceRequest::create([
+        'service_type' => 'ecommerce', 'name' => 'عميل', 'phone' => '—',
+        'status' => 'new', 'source' => 'quote_form', 'payload' => [],
+    ]);
+
+    $page = Livewire\Livewire::test(QuoteRequests::class)
+        ->call('openQuote', $sr->id)
+        ->set('draft.items.0.name', 'تجهيز المتجر')
+        ->set('draft.items.0.price', 20000);
+
+    $page->call('addNote')->call('addNote')->call('addNote');
+    expect($page->get('draft.notes'))->toHaveCount(3);
+
+    $page->set('draft.notes.0', 'الملاحظة الأولى')
+        ->set('draft.notes.1', 'الملاحظة الثانية')
+        ->set('draft.notes.2', 'الملاحظة الثالثة')
+        ->call('removeNote', 1)
+        ->call('issueQuote', false);
+
+    // الملاحظة المحذوفة تختفي ويبقى الترتيب سليماً
+    expect(QuoteController::quoteOf($sr->fresh())['notes'])
+        ->toBe(['الملاحظة الأولى', 'الملاحظة الثالثة']);
+
+    Livewire\Livewire::test(QuoteRequests::class)
+        ->call('openQuote', $sr->id)
+        ->assertSet('draft.notes.1', 'الملاحظة الثالثة');
+});
+
+it('يحسب خصم الباقات الاختيارية وضريبتها بمعزل عن المستحق', function () {
+    Mail::fake();
+    $this->actingAs(adminUser());
+
+    $sr = ServiceRequest::create([
+        'service_type' => 'ecommerce', 'name' => 'عميل', 'phone' => '—',
+        'status' => 'new', 'source' => 'quote_form', 'payload' => [],
+    ]);
+
+    $page = Livewire\Livewire::test(QuoteRequests::class)
+        ->call('openQuote', $sr->id)
+        ->set('draft.items', [['phase' => '', 'name' => 'تجهيز المتجر', 'desc' => '', 'note' => '',
+            'qty' => 1, 'unit' => '', 'price' => 20000, 'free' => false]])
+        ->set('draft.discount_percent', 0)
+        ->set('draft.vat_percent', 10);
+
+    // ضريبة الباقات تُملأ افتراضياً من ضريبة العرض عند أول فتح
+    expect((float) $page->get('draft.extras_vat_percent'))
+        ->toBe((float) QuoteController::DEFAULT_VAT_PERCENT);
+
+    $page->call('addExtra')
+        ->set('draft.extras.0.name', 'تطبيق جوال')
+        ->set('draft.extras.0.price', 40000)
+        ->set('draft.extras_discount_percent', 25)
+        ->set('draft.extras_vat_percent', 14);
+
+    $totals = $page->get('draftTotals');
+    expect($totals['extras_subtotal'])->toBe(40000.0)
+        ->and($totals['extras_discount'])->toBe(10000.0)
+        ->and($totals['extras_vat'])->toBe(4200.0)
+        ->and($totals['extras_total'])->toBe(34200.0)
+        ->and($totals['total'])->toBe(22000.0);
+
+    $page->call('issueQuote', false);
+
+    $quote = QuoteController::quoteOf($sr->fresh());
+    expect($quote['extras_total'])->toBe(34200.0)
+        ->and($quote['total'])->toBe(22000.0);
 });
 
 it('لا يرسل بريد المرحلة لطلب بلا بريد إلكتروني', function () {

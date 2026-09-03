@@ -543,6 +543,14 @@ class QuoteController extends Controller
             fn ($s) => $s['phase'] !== '' || $s['start'] || $s['end'],
         ));
 
+        // إجماليات الباقات الاختيارية بخصمها وضريبتها الخاصة، ومنفصلة تماماً عن الإجمالي المستحق
+        $extrasSubtotal = array_sum(array_column($extras, 'total'));
+        $extrasDiscountPercent = max(0, min(100, (float) ($q['extras_discount_percent'] ?? 0)));
+        $extrasDiscount = round($extrasSubtotal * $extrasDiscountPercent / 100, 2);
+        $extrasAfterDiscount = $extrasSubtotal - $extrasDiscount;
+        $extrasVatPercent = max(0, (float) ($q['extras_vat_percent'] ?? 0));
+        $extrasVat = round($extrasAfterDiscount * $extrasVatPercent / 100, 2);
+
         $deliveryAt = collect($schedule)->pluck('end')->filter()->max();
 
         $issuedAt = isset($q['issued_at']) ? Carbon::parse($q['issued_at']) : now();
@@ -554,7 +562,12 @@ class QuoteController extends Controller
             'phases' => $phases,
             'has_phases' => $hasPhases,
             'extras' => $extras,
-            'extras_total' => array_sum(array_column($extras, 'total')),
+            'extras_subtotal' => $extrasSubtotal,
+            'extras_discount_percent' => $extrasDiscountPercent,
+            'extras_discount' => $extrasDiscount,
+            'extras_vat_percent' => $extrasVatPercent,
+            'extras_vat' => $extrasVat,
+            'extras_total' => $extrasAfterDiscount + $extrasVat,
             'schedule' => $schedule,
             'delivery_at' => $deliveryAt,
             'subtotal' => $subtotal,
@@ -565,7 +578,11 @@ class QuoteController extends Controller
             'total' => $total,
             'currency' => (string) ($q['currency'] ?? 'ج.م'),
             'timeline' => (string) ($q['timeline'] ?? ''),
-            'notes' => (string) ($q['notes'] ?? ''),
+            // ملاحظات متعدّدة تُرقَّم في العرض — والعروض القديمة تحمل نصاً واحداً
+            'notes' => array_values(array_filter(array_map(
+                fn ($n) => trim((string) $n),
+                is_array($q['notes'] ?? null) ? $q['notes'] : [$q['notes'] ?? ''],
+            ))),
             'valid_days' => max(1, (int) ($q['valid_days'] ?? 30)),
             'issued_at' => $issuedAt,
             'valid_until' => $issuedAt->copy()->addDays(max(1, (int) ($q['valid_days'] ?? 30))),
