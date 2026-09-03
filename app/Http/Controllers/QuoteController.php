@@ -485,16 +485,18 @@ class QuoteController extends Controller
             fn ($p) => trim((string) ($p['label'] ?? '')) !== '' && (float) ($p['percent'] ?? 0) > 0
         )));
 
-        // الجدول الزمني: كل مرحلة وموعد تسليمها — يحلّ محل نص «مدة التنفيذ» الحر
+        // الجدول الزمني: كل مرحلة وتاريخا بدئها ونهايتها — يحلّ محل نص «مدة التنفيذ» الحر.
+        // العروض المحفوظة بتاريخ واحد (date) تُقرأ نهايةً للمرحلة.
         $schedule = array_values(array_filter(
             array_map(fn ($s) => [
                 'phase' => trim((string) ($s['phase'] ?? '')),
-                'date' => self::parseDate($s['date'] ?? null),
+                'start' => self::parseDate($s['start'] ?? null),
+                'end' => self::parseDate($s['end'] ?? $s['date'] ?? null),
             ], (array) ($q['schedule'] ?? [])),
-            fn ($s) => $s['phase'] !== '' || $s['date'],
+            fn ($s) => $s['phase'] !== '' || $s['start'] || $s['end'],
         ));
 
-        $deliveryAt = collect($schedule)->pluck('date')->filter()->max();
+        $deliveryAt = collect($schedule)->pluck('end')->filter()->max();
 
         $issuedAt = isset($q['issued_at']) ? Carbon::parse($q['issued_at']) : now();
 

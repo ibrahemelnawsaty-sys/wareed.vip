@@ -380,14 +380,20 @@
         </div>
         <table class="pay-table sched">
             <thead>
-                <tr><th style="width:9mm">م</th><th>المرحلة</th><th style="width:46mm">تاريخ التسليم</th></tr>
+                <tr>
+                    <th style="width:9mm">م</th>
+                    <th>المرحلة</th>
+                    <th style="width:34mm">تاريخ البدء</th>
+                    <th style="width:34mm">تاريخ النهاية</th>
+                </tr>
             </thead>
             <tbody>
                 @foreach ($quote['schedule'] as $stageNo => $stage)
                     <tr>
                         <td class="n">{{ $stageNo + 1 }}</td>
                         <td><b>{{ $stage['phase'] ?: 'مرحلة' }}</b></td>
-                        <td class="amt">{{ $stage['date'] ? $fmt($stage['date']) : 'يُحدَّد لاحقاً' }}</td>
+                        <td class="due">{{ $stage['start'] ? $fmtShort($stage['start']) : '—' }}</td>
+                        <td class="due">{{ $stage['end'] ? $fmtShort($stage['end']) : 'يُحدَّد لاحقاً' }}</td>
                     </tr>
                 @endforeach
             </tbody>
@@ -448,7 +454,7 @@
             <p>
                 هذا العرض صالح لمدة {{ $quote['valid_days'] }} يوماً من تاريخ إصداره.
                 @if ($quote['schedule'])
-                    مواعيد التسليم موضّحة في الجدول الزمني أعلاه وتبدأ من تاريخ اعتماد العرض.
+                    مواعيد بدء المراحل وتسليمها موضّحة في الجدول الزمني أعلاه.
                 @elseif ($quote['timeline'])
                     تبدأ مدة التنفيذ ({{ $quote['timeline'] }}) من تاريخ اعتماد العرض.
                 @endif

@@ -126,14 +126,16 @@
         .wq-bad { color: rgb(202 138 4); }
         .wq-pay-row { display: grid; grid-template-columns: 1fr 1fr 9.5rem 4.5rem 8.5rem 2rem; gap: .5rem; align-items: center; margin-bottom: .4rem; }
         .wq-date { font-variant-numeric: tabular-nums; }
-        .wq-stage-row { display: grid; grid-template-columns: 1fr 11rem 2rem; gap: .5rem; align-items: center; margin-bottom: .4rem; }
+        .wq-stage-row { display: grid; grid-template-columns: 1fr 11rem 11rem 2rem; gap: .5rem; align-items: start; margin-bottom: .4rem; }
+        .wq-stage-row .wq-del { margin-top: 0; }
+        .wq-stage-row.has-lbl .wq-del { margin-top: 1.15rem; }
         .wq-empty-hint { font-size: .78rem; color: rgb(156 163 175); padding: .35rem 0; }
         .wq-pay-amt { font-size: .85rem; font-weight: 700; color: rgb(37 99 235); font-variant-numeric: tabular-nums; text-align: center; }
         .dark .wq-pay { background: rgb(17 24 39); border-color: rgba(255,255,255,.1); }
         @media (max-width: 900px) {
             .wq-pay-row { grid-template-columns: 1fr 1fr; }
-            .wq-stage-row { grid-template-columns: 1fr 2rem; }
-            .wq-stage-row .wq-date { grid-column: 1 / -1; }
+            .wq-stage-row { grid-template-columns: 1fr 1fr; }
+            .wq-stage-row.has-lbl .wq-del { margin-top: 0; }
         }
 
         .wq-editor-actions { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .9rem; }
@@ -515,8 +517,8 @@
                             <div class="wq-pay-head">
                                 <b>الجدول الزمني للتسليم</b>
                                 <span class="wq-pay-note">
-                                    مراحل التنفيذ وموعد تسليم كل مرحلة — تظهر كجدول في العرض،
-                                    وآخر موعد فيها يُعرض كمدة التنفيذ.
+                                    مراحل التنفيذ وتاريخا بدء كل مرحلة ونهايتها — تظهر كجدول في العرض،
+                                    وآخر تاريخ نهاية فيها يُعرض كموعد التسليم.
                                 </span>
                                 <x-filament::button wire:click="addStage" size="xs" color="gray" icon="heroicon-o-plus">
                                     إضافة مرحلة
@@ -524,12 +526,23 @@
                             </div>
 
                             @forelse ($draft['schedule'] ?? [] as $si => $stage)
-                                <div class="wq-stage-row" wire:key="stage-{{ $r['id'] }}-{{ $si }}">
-                                    <input class="wq-in" type="text" placeholder="اسم المرحلة" list="wq-phases-{{ $r['id'] }}"
-                                           wire:model.live.debounce.400ms="draft.schedule.{{ $si }}.phase">
-                                    <input class="wq-in wq-date" type="date" title="تاريخ التسليم"
-                                           wire:model.live="draft.schedule.{{ $si }}.date">
-                                    <button type="button" class="wq-del" style="margin-top:0"
+                                <div @class(['wq-stage-row', 'has-lbl' => $si === 0]) wire:key="stage-{{ $r['id'] }}-{{ $si }}">
+                                    <div>
+                                        @if ($si === 0)<label class="wq-lbl">المرحلة</label>@endif
+                                        <input class="wq-in" type="text" placeholder="اسم المرحلة" list="wq-phases-{{ $r['id'] }}"
+                                               wire:model.live.debounce.400ms="draft.schedule.{{ $si }}.phase">
+                                    </div>
+                                    <div>
+                                        @if ($si === 0)<label class="wq-lbl">من (بدء المرحلة)</label>@endif
+                                        <input class="wq-in wq-date" type="date" title="تاريخ بدء المرحلة"
+                                               wire:model.live="draft.schedule.{{ $si }}.start">
+                                    </div>
+                                    <div>
+                                        @if ($si === 0)<label class="wq-lbl">إلى (نهاية المرحلة)</label>@endif
+                                        <input class="wq-in wq-date" type="date" title="تاريخ نهاية المرحلة وتسليمها"
+                                               wire:model.live="draft.schedule.{{ $si }}.end">
+                                    </div>
+                                    <button type="button" class="wq-del"
                                             wire:click="removeStage({{ $si }})" title="حذف المرحلة">×</button>
                                 </div>
                             @empty

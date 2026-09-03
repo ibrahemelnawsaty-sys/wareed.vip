@@ -193,7 +193,9 @@ class QuoteRequests extends Page
             'notes' => (string) ($saved['notes'] ?? ''),
             'schedule' => array_map(fn ($t) => [
                 'phase' => (string) ($t['phase'] ?? ''),
-                'date' => (string) ($t['date'] ?? ''),
+                'start' => (string) ($t['start'] ?? ''),
+                // مراحل حُفظت بتاريخ واحد قبل إضافة تاريخ البدء
+                'end' => (string) ($t['end'] ?? $t['date'] ?? ''),
             ], array_values((array) ($saved['schedule'] ?? []))),
             'payments' => ! empty($saved['payments'])
                 ? array_map(fn ($p) => [
@@ -229,7 +231,7 @@ class QuoteRequests extends Page
             ->unique()
             ->first(fn ($p) => ! in_array($p, $scheduled, true));
 
-        $this->draft['schedule'][] = ['phase' => (string) $next, 'date' => ''];
+        $this->draft['schedule'][] = ['phase' => (string) $next, 'start' => '', 'end' => ''];
     }
 
     public function removeStage(int $index): void
@@ -405,10 +407,13 @@ class QuoteRequests extends Page
             'notes' => trim((string) ($this->draft['notes'] ?? '')),
             'schedule' => array_values(array_map(fn ($t) => [
                 'phase' => trim((string) ($t['phase'] ?? '')),
-                'date' => trim((string) ($t['date'] ?? '')),
+                'start' => trim((string) ($t['start'] ?? '')),
+                'end' => trim((string) ($t['end'] ?? '')),
             ], array_filter(
                 $this->draft['schedule'] ?? [],
-                fn ($t) => trim((string) ($t['phase'] ?? '')) !== '' || trim((string) ($t['date'] ?? '')) !== ''
+                fn ($t) => trim((string) ($t['phase'] ?? '')) !== ''
+                    || trim((string) ($t['start'] ?? '')) !== ''
+                    || trim((string) ($t['end'] ?? '')) !== ''
             ))),
             'payments' => array_values(array_map(fn ($p) => [
                 'label' => trim((string) ($p['label'] ?? '')),

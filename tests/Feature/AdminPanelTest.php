@@ -422,20 +422,24 @@ it('يجدول مراحل التسليم ويحفظ تواريخ استحقاق 
     $page->call('removeStage', 2);
     expect($page->get('draft.schedule'))->toHaveCount(2);
 
-    $page->set('draft.schedule.0.date', '2026-10-15')
-        ->set('draft.schedule.1.date', '2026-11-30')
+    $page->set('draft.schedule.0.start', '2026-09-10')
+        ->set('draft.schedule.0.end', '2026-10-15')
+        ->set('draft.schedule.1.start', '2026-10-16')
+        ->set('draft.schedule.1.end', '2026-11-30')
         ->set('draft.payments.0.due', '2026-10-01')
         ->call('issueQuote', false);
 
     $quote = QuoteController::quoteOf($sr->fresh());
     expect($quote['schedule'])->toHaveCount(2)
         ->and($quote['schedule'][1]['phase'])->toBe('المرحلة الثانية')
+        ->and($quote['schedule'][1]['start']->toDateString())->toBe('2026-10-16')
         ->and($quote['delivery_at']->toDateString())->toBe('2026-11-30')
         ->and($quote['payments'][0]['due']->toDateString())->toBe('2026-10-01');
 
     // الجدول والتواريخ تعود كما هي عند إعادة فتح المحرّر
     Livewire\Livewire::test(QuoteRequests::class)
         ->call('openQuote', $sr->id)
-        ->assertSet('draft.schedule.1.date', '2026-11-30')
+        ->assertSet('draft.schedule.1.start', '2026-10-16')
+        ->assertSet('draft.schedule.1.end', '2026-11-30')
         ->assertSet('draft.payments.0.due', '2026-10-01');
 });

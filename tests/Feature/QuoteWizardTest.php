@@ -598,10 +598,11 @@ it('prints the delivery schedule and payment due dates in the proposal', functio
             'items' => [['name' => 'تجهيز المتجر', 'qty' => 1, 'price' => 20000]],
             'discount_percent' => 0, 'vat_percent' => 0, 'currency' => 'ج.م',
             'schedule' => [
-                ['phase' => 'المرحلة الأولى — التأسيس', 'date' => '2026-10-15'],
+                ['phase' => 'المرحلة الأولى — التأسيس', 'start' => '2026-09-10', 'end' => '2026-10-15'],
+                // مرحلة حُفظت قبل إضافة تاريخ البدء: تاريخها الواحد يُقرأ نهايةً
                 ['phase' => 'المرحلة الثانية — التشغيل', 'date' => '2026-11-30'],
                 // صف فارغ تماماً يُهمَل
-                ['phase' => '', 'date' => ''],
+                ['phase' => '', 'start' => '', 'end' => ''],
             ],
             'payments' => [
                 ['label' => 'دفعة مقدّمة', 'percent' => 50, 'due' => '2026-10-01'],
@@ -614,7 +615,12 @@ it('prints the delivery schedule and payment due dates in the proposal', functio
     $quote = QuoteController::quoteOf($sr->fresh());
 
     expect($quote['schedule'])->toHaveCount(2)
-        // موعد التسليم = آخر تاريخ في الجدول
+        ->and($quote['schedule'][0]['start']->toDateString())->toBe('2026-09-10')
+        ->and($quote['schedule'][0]['end']->toDateString())->toBe('2026-10-15')
+        // المرحلة القديمة: لا تاريخ بدء، ونهايتها من المفتاح القديم
+        ->and($quote['schedule'][1]['start'])->toBeNull()
+        ->and($quote['schedule'][1]['end']->toDateString())->toBe('2026-11-30')
+        // موعد التسليم = آخر تاريخ نهاية في الجدول
         ->and($quote['delivery_at']->toDateString())->toBe('2026-11-30')
         ->and($quote['payments'][0]['due']->toDateString())->toBe('2026-10-01')
         ->and($quote['payments'][1]['due'])->toBeNull();
@@ -622,11 +628,13 @@ it('prints the delivery schedule and payment due dates in the proposal', functio
     $this->get('/quote/hajar-salama/proposal')
         ->assertOk()
         ->assertSee('الجدول الزمني للتسليم')
-        // الجدول الزمني بالصيغة الكاملة، وعمود الاستحقاق الضيّق بصيغة مختصرة
-        ->assertSee('الخميس، 15 أكتوبر 2026م')
-        ->assertSee('الإثنين، 30 نوفمبر 2026م')
+        ->assertSee('<td class="due">10 سبتمبر 2026م</td>', false)
+        ->assertSee('<td class="due">15 أكتوبر 2026م</td>', false)
+        ->assertSee('<td class="due">30 نوفمبر 2026م</td>', false)
+        // المرحلة بلا تاريخ بدء تُطبع شرطة
+        ->assertSee('<td class="due">—</td>', false)
         ->assertSee('<td class="due">1 أكتوبر 2026م</td>', false)
-        ->assertSee('مواعيد التسليم موضّحة في الجدول الزمني أعلاه')
+        ->assertSee('مواعيد بدء المراحل وتسليمها موضّحة في الجدول الزمني أعلاه')
         // شريط جارٍ يحمل الرقم المرجعي أسفل كل صفحة مطبوعة
         ->assertSee('عرض سعر · '.$sr->fresh()->reference);
 });
