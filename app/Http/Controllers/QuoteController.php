@@ -570,6 +570,18 @@ class QuoteController extends Controller
         return $bank;
     }
 
+    /** الرابط الذي يتابع منه العميل طلبه: صفحته المخصّصة، أو مستند طلبه الموقّع. */
+    public static function statusUrl(ServiceRequest $sr): string
+    {
+        $invite = str_starts_with((string) $sr->source, 'quote_link:')
+            ? substr((string) $sr->source, strlen('quote_link:'))
+            : null;
+
+        return $invite !== null
+            ? route('quote.invite', $invite)
+            : URL::signedRoute('quote.document.signed', ['serviceRequest' => $sr->id]);
+    }
+
     /** رابط عرض السعر: مخصّص عبر الدعوة، أو موقّع للنموذج العام. */
     public static function proposalUrl(ServiceRequest $sr): string
     {
