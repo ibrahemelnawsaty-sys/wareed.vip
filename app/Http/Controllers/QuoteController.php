@@ -440,6 +440,25 @@ class QuoteController extends Controller
             ];
         }, array_values($q['items']));
 
+        // خدمات إضافية اختيارية: تُعرض للاطلاع ولا تدخل في أي إجمالي
+        $extras = array_values(array_filter(
+            array_map(function (array $e): array {
+                $qty = max(1, (int) ($e['qty'] ?? 1));
+                $price = max(0, (float) ($e['price'] ?? 0));
+
+                return [
+                    'name' => trim((string) ($e['name'] ?? '')),
+                    'desc' => trim((string) ($e['desc'] ?? '')),
+                    'note' => trim((string) ($e['note'] ?? '')),
+                    'qty' => $qty,
+                    'unit' => trim((string) ($e['unit'] ?? '')),
+                    'price' => $price,
+                    'total' => $qty * $price,
+                ];
+            }, (array) ($q['extras'] ?? [])),
+            fn ($e) => $e['name'] !== '',
+        ));
+
         // تجميع البنود في مراحل مسمّاة مع حفظ ترتيبها كما أدخلها المستخدم
         $phases = [];
         foreach ($items as $item) {
@@ -506,6 +525,8 @@ class QuoteController extends Controller
             'payments_percent' => array_sum(array_column($payments, 'percent')),
             'phases' => $phases,
             'has_phases' => $hasPhases,
+            'extras' => $extras,
+            'extras_total' => array_sum(array_column($extras, 'total')),
             'schedule' => $schedule,
             'delivery_at' => $deliveryAt,
             'subtotal' => $subtotal,

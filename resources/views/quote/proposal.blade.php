@@ -140,6 +140,18 @@
         table.pay-table td.num { text-align: center; font-weight: 700; font-variant-numeric: tabular-nums; }
         table.pay-table td.amt { text-align: start; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
         table.pay-table.sched { margin-top: 3mm; }
+        table.pay-table.opt th { background: #55638a; }
+        table.pay-table.opt td { color: var(--muted); }
+        table.pay-table.opt td b { color: var(--ink); }
+        table.pay-table.opt td small { display: block; color: var(--faint); font-size: 7.6pt; margin-top: .4mm; }
+        .opt-note { margin-top: 2.4mm; font-size: 8pt; color: var(--muted); line-height: 1.7; }
+        .opt-sum { margin-top: 2.4mm; font-size: 8.6pt; color: var(--muted); }
+        .opt-sum b { color: var(--ink); font-variant-numeric: tabular-nums; }
+        .opt-flag {
+            display: inline-block; margin-inline-start: 2.5mm; padding: .3mm 2.4mm; border-radius: 99px;
+            font-size: 6.8pt; font-weight: 700; color: #b45309;
+            background: rgba(245, 158, 11, .12); border: 1px solid rgba(245, 158, 11, .35);
+        }
         table.pay-table td.due { font-size: 8pt; font-weight: 600; color: var(--muted); white-space: nowrap; }
         .bank { border: 1px solid rgba(37, 99, 235, .3); border-radius: 3mm; padding: 3mm 5mm; background: linear-gradient(150deg, rgba(59,130,246,.06), rgba(45,212,191,.04)); }
         .bank h4 { font-size: 8.4pt; font-weight: 700; margin-bottom: 1.6mm; }
@@ -372,6 +384,51 @@
             <tr class="grand"><td>الإجمالي المستحق</td><td>{{ $money($quote['total']) }} {{ $cur }}</td></tr>
         </table>
     </div>
+
+    @if ($quote['extras'])
+        <div class="section-title">
+            خدمات إضافية اختيارية
+            <span class="en">OPTIONAL ADD-ONS</span>
+        </div>
+        <p class="opt-note">
+            بنود معروضة للاطلاع فقط ولم تُحتسب ضمن الإجمالي المستحق أعلاه.
+            يمكن إضافة أيٍّ منها لاحقاً بطلب منكم، ويُصدَر لها ملحق مستقل للعرض.
+        </p>
+        <table class="pay-table sched opt">
+            <thead>
+                <tr>
+                    <th style="width:9mm">م</th>
+                    <th>البند</th>
+                    <th style="width:20mm;text-align:center">الكمية</th>
+                    <th style="width:26mm">سعر الوحدة</th>
+                    <th style="width:26mm">الإجمالي</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach ($quote['extras'] as $extraNo => $extra)
+                    <tr>
+                        <td class="n">{{ $extraNo + 1 }}</td>
+                        <td>
+                            <b>{{ $extra['name'] }}</b>
+                            @if ($extra['note'])<span class="tag-note">{{ $extra['note'] }}</span>@endif
+                            @if ($extra['desc'])<small>{{ $extra['desc'] }}</small>@endif
+                        </td>
+                        <td class="num">
+                            {{ $extra['qty'] }}
+                            @if ($extra['unit'])<small>{{ $extra['unit'] }}</small>@endif
+                        </td>
+                        <td class="amt">{{ $money($extra['price']) }} {{ $cur }}</td>
+                        <td class="amt">{{ $money($extra['total']) }} {{ $cur }}</td>
+                    </tr>
+                @endforeach
+            </tbody>
+        </table>
+        <p class="opt-sum">
+            إجمالي الخدمات الاختيارية لو طُلبت جميعها:
+            <b>{{ $money($quote['extras_total']) }} {{ $cur }}</b>
+            <span class="opt-flag">غير مشمولة في الإجمالي المستحق</span>
+        </p>
+    @endif
 
     @if ($quote['schedule'])
         <div class="section-title">

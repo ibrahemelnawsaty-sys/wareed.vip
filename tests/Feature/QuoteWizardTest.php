@@ -661,6 +661,63 @@ it('falls back to the legacy timeline text when no schedule is set', function ()
         ->assertSee('تبدأ مدة التنفيذ (3 أسابيع) من تاريخ اعتماد العرض');
 });
 
+it('lists optional add-ons without adding them to the total', function () {
+    Mail::fake();
+    submitInvite()->assertOk();
+    $sr = ServiceRequest::sole();
+
+    $sr->update(['payload' => array_merge((array) $sr->payload, [
+        '_flow' => ['stage' => 'awaiting_approval'],
+        '_quote' => [
+            'items' => [['name' => 'تجهيز المتجر', 'qty' => 1, 'price' => 20000]],
+            'extras' => [
+                ['name' => 'تطبيق جوال', 'desc' => 'أندرويد و iOS', 'qty' => 1, 'unit' => 'باقة', 'price' => 35000],
+                ['name' => 'إدارة الإعلانات', 'note' => 'اشتراك شهري', 'qty' => 3, 'unit' => 'شهر', 'price' => 2500],
+                // بند بلا اسم يُهمَل
+                ['name' => '', 'price' => 9999],
+            ],
+            'discount_percent' => 0, 'vat_percent' => 10, 'currency' => 'ج.م',
+            'valid_days' => 30, 'issued_at' => now()->toIso8601String(),
+        ],
+    ])]);
+
+    $quote = QuoteController::quoteOf($sr->fresh());
+
+    expect($quote['extras'])->toHaveCount(2)
+        ->and($quote['extras'][1]['total'])->toBe(7500.0)
+        ->and($quote['extras_total'])->toBe(42500.0)
+        // الإجمالي المستحق يخصّ البنود الأساسية وحدها
+        ->and($quote['subtotal'])->toBe(20000.0)
+        ->and($quote['vat'])->toBe(2000.0)
+        ->and($quote['total'])->toBe(22000.0);
+
+    $this->get('/quote/hajar-salama/proposal')
+        ->assertOk()
+        ->assertSee('خدمات إضافية اختيارية')
+        ->assertSee('تطبيق جوال')
+        ->assertSee('غير مشمولة في الإجمالي المستحق')
+        ->assertSee('ولم تُحتسب ضمن الإجمالي المستحق أعلاه');
+});
+
+it('hides the optional add-ons section when there are none', function () {
+    Mail::fake();
+    submitInvite()->assertOk();
+    $sr = ServiceRequest::sole();
+
+    $sr->update(['payload' => array_merge((array) $sr->payload, [
+        '_flow' => ['stage' => 'awaiting_approval'],
+        '_quote' => [
+            'items' => [['name' => 'تجهيز المتجر', 'qty' => 1, 'price' => 20000]],
+            'discount_percent' => 0, 'vat_percent' => 0, 'currency' => 'ج.م',
+            'valid_days' => 30, 'issued_at' => now()->toIso8601String(),
+        ],
+    ])]);
+
+    expect(QuoteController::quoteOf($sr->fresh())['extras'])->toBe([]);
+
+    $this->get('/quote/hajar-salama/proposal')->assertOk()->assertDontSee('خدمات إضافية اختيارية');
+});
+
 it('prints the legal identifiers on the proposal header', function () {
     Mail::fake();
     Setting::set('tax_number', '774-094-117', 'legal');

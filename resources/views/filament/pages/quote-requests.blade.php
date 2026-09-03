@@ -126,6 +126,11 @@
         .wq-bad { color: rgb(202 138 4); }
         .wq-pay-row { display: grid; grid-template-columns: 1fr 1fr 9.5rem 4.5rem 8.5rem 2rem; gap: .5rem; align-items: center; margin-bottom: .4rem; }
         .wq-date { font-variant-numeric: tabular-nums; }
+        .wq-extra-row { display: grid; grid-template-columns: 1fr 1fr 8rem 8.5rem 7rem 2rem; gap: .5rem; align-items: start; margin-bottom: .4rem; }
+        .wq-extra-row .wq-del { margin-top: 0; }
+        .wq-extra-row.has-lbl .wq-del { margin-top: 1.15rem; }
+        .wq-extra-sum { margin-top: .55rem; font-size: .82rem; color: rgb(107 114 128); }
+        .wq-extra-sum b { color: rgb(37 99 235); font-variant-numeric: tabular-nums; }
         .wq-stage-row { display: grid; grid-template-columns: 1fr 11rem 11rem 2rem; gap: .5rem; align-items: start; margin-bottom: .4rem; }
         .wq-stage-row .wq-del { margin-top: 0; }
         .wq-stage-row.has-lbl .wq-del { margin-top: 1.15rem; }
@@ -134,6 +139,8 @@
         .dark .wq-pay { background: rgb(17 24 39); border-color: rgba(255,255,255,.1); }
         @media (max-width: 900px) {
             .wq-pay-row { grid-template-columns: 1fr 1fr; }
+            .wq-extra-row { grid-template-columns: 1fr 1fr; }
+            .wq-extra-row.has-lbl .wq-del { margin-top: 0; }
             .wq-stage-row { grid-template-columns: 1fr 1fr; }
             .wq-stage-row.has-lbl .wq-del { margin-top: 0; }
         }
@@ -511,6 +518,64 @@
                             <label class="wq-lbl">ملاحظات تظهر في العرض (اختياري)</label>
                             <input class="wq-in" type="text" placeholder="أي شرط أو ملاحظة تريد إظهارها للعميل"
                                    wire:model.live.debounce.400ms="draft.notes">
+                        </div>
+
+                        <div class="wq-pay">
+                            <div class="wq-pay-head">
+                                <b>خدمات إضافية اختيارية</b>
+                                <span class="wq-pay-note">
+                                    بنود تُعرض للعميل للاطلاع فقط — أسعارها <b>لا تدخل</b> في الإجمالي المستحق.
+                                </span>
+                                <x-filament::button wire:click="addExtra" size="xs" color="gray" icon="heroicon-o-plus">
+                                    إضافة بند اختياري
+                                </x-filament::button>
+                            </div>
+
+                            @forelse ($draft['extras'] ?? [] as $xi => $extra)
+                                <div @class(['wq-extra-row', 'has-lbl' => $xi === 0]) wire:key="extra-{{ $r['id'] }}-{{ $xi }}">
+                                    <div>
+                                        @if ($xi === 0)<label class="wq-lbl">البند</label>@endif
+                                        <input class="wq-in" type="text" placeholder="اسم الخدمة الاختيارية"
+                                               wire:model.live.debounce.400ms="draft.extras.{{ $xi }}.name">
+                                    </div>
+                                    <div>
+                                        @if ($xi === 0)<label class="wq-lbl">وصف مختصر (اختياري)</label>@endif
+                                        <input class="wq-in" type="text" placeholder="تفاصيل تُطمئن العميل"
+                                               wire:model.live.debounce.400ms="draft.extras.{{ $xi }}.desc">
+                                    </div>
+                                    <div>
+                                        @if ($xi === 0)<label class="wq-lbl">ملاحظة / اشتراك</label>@endif
+                                        <input class="wq-in" type="text" placeholder="اشتراك سنوي" list="wq-notes"
+                                               wire:model.live.debounce.400ms="draft.extras.{{ $xi }}.note">
+                                    </div>
+                                    <div>
+                                        @if ($xi === 0)<label class="wq-lbl">الكمية / الوحدة</label>@endif
+                                        <div class="wq-qty">
+                                            <input class="wq-in num" type="number" min="1" step="1"
+                                                   wire:model.live.debounce.400ms="draft.extras.{{ $xi }}.qty">
+                                            <input class="wq-in" type="text" placeholder="وحدة" list="wq-units"
+                                                   wire:model.live.debounce.400ms="draft.extras.{{ $xi }}.unit">
+                                        </div>
+                                    </div>
+                                    <div>
+                                        @if ($xi === 0)<label class="wq-lbl">سعر الوحدة</label>@endif
+                                        <input class="wq-in num" type="number" min="0" step="any"
+                                               wire:model.live.debounce.400ms="draft.extras.{{ $xi }}.price">
+                                    </div>
+                                    <button type="button" class="wq-del"
+                                            wire:click="removeExtra({{ $xi }})" title="حذف البند الاختياري">×</button>
+                                </div>
+                            @empty
+                                <p class="wq-empty-hint">لا بنود اختيارية — اضغط «إضافة بند اختياري» لعرض خدمات إضافية على العميل.</p>
+                            @endforelse
+
+                            @if ($t['extras_total'] > 0)
+                                <p class="wq-extra-sum">
+                                    إجمالي الخدمات الاختيارية لو طلبها العميل:
+                                    <b>{{ number_format($t['extras_total'], 2) }} {{ $t['currency'] }}</b>
+                                    <span class="wq-pay-note">— خارج الإجمالي المستحق</span>
+                                </p>
+                            @endif
                         </div>
 
                         <div class="wq-pay">
