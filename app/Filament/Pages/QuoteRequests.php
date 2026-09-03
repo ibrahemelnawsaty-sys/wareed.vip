@@ -134,7 +134,7 @@ class QuoteRequests extends Page
 
     /**
      * اختبار اتصال SMTP: يرسل بريداً تجريبياً لعنوان الاستقبال ويعرض سبب الفشل إن حدث.
-     * يغني عن التخمين عند ضبط بيانات البريد في .env على الخادم.
+     * يغني عن التخمين عند ضبط بيانات البريد الإلكتروني في .env على الخادم.
      */
     public function sendTestEmail(): void
     {
@@ -160,7 +160,7 @@ class QuoteRequests extends Page
             report($e);
 
             Notification::make()
-                ->title('فشل إرسال البريد')
+                ->title('فشل إرسال البريد الإلكتروني')
                 ->body('راجع إعدادات MAIL في ملف .env. السبب: '.mb_substr($e->getMessage(), 0, 220))
                 ->danger()
                 ->persistent()
@@ -426,7 +426,7 @@ class QuoteRequests extends Page
     }
 
     /**
-     * إصدار عرض السعر: يُحفظ في الطلب، تتغيّر حالته، ويُرسل للعميل بالبريد فوراً.
+     * إصدار عرض السعر: يُحفظ في الطلب، تتغيّر حالته، ويُرسل للعميل بالبريد الإلكتروني فوراً.
      * $send = false يحفظ العرض دون إرسال بريد (للمراجعة قبل الإرسال).
      */
     public function issueQuote(bool $send = true): void
@@ -514,15 +514,15 @@ class QuoteRequests extends Page
         $mailed = false;
 
         if ($send && filter_var($sr->email, FILTER_VALIDATE_EMAIL)) {
-            // الطلب محفوظ بالفعل؛ فشل البريد يُبلَّغ ولا يُسقط العملية (دستور §3)
+            // الطلب محفوظ بالفعل؛ فشل البريد الإلكتروني يُبلَّغ ولا يُسقط العملية (دستور §3)
             try {
                 Mail::to($sr->email)->send(new QuoteProposalIssued($sr->fresh()));
                 $mailed = true;
             } catch (\Throwable $e) {
                 report($e);
                 Notification::make()
-                    ->title('صدر العرض، لكن تعذّر إرسال البريد')
-                    ->body('راجع إعدادات البريد ثم أعد الإرسال.')
+                    ->title('صدر العرض، لكن تعذّر إرسال البريد الإلكتروني')
+                    ->body('راجع إعدادات البريد الإلكتروني ثم أعد الإرسال.')
                     ->warning()
                     ->send();
             }

@@ -29,7 +29,7 @@ class QuoteProposalIssued extends Mailable
         return new Envelope(
             from: new Address($from, 'وريد لتقنية المعلومات'),
             replyTo: [new Address($from, 'وريد لتقنية المعلومات')],
-            // العنوان قابل للتعديل من: لوحة التحكم ← قوالب البريد ← إرسال عرض السعر
+            // العنوان قابل للتعديل من: لوحة التحكم ← قوالب البريد الإلكتروني ← إرسال عرض السعر
             subject: MailTemplates::render(
                 MailTemplates::subject('proposal_sent'),
                 MailTemplates::variables($this->sr),

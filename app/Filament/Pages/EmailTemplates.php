@@ -12,7 +12,7 @@ use Filament\Support\Icons\Heroicon;
 use Illuminate\Support\Facades\Mail;
 
 /**
- * محرّر قوالب البريد المرسَل للعميل عبر مراحل الطلب:
+ * محرّر قوالب البريد الإلكتروني المرسَل للعميل عبر مراحل الطلب:
  * استعراض النص المقترح، تعديله، معاينته على طلب حقيقي، إرسال تجريبي، وإرساله للعميل.
  */
 class EmailTemplates extends Page
@@ -23,7 +23,7 @@ class EmailTemplates extends Page
 
     protected static string|\UnitEnum|null $navigationGroup = 'إدارة الموقع';
 
-    protected static ?string $navigationLabel = 'قوالب البريد';
+    protected static ?string $navigationLabel = 'قوالب البريد الإلكتروني';
 
     protected static ?int $navigationSort = 2;
 
@@ -39,7 +39,7 @@ class EmailTemplates extends Page
 
     public function getTitle(): string
     {
-        return 'قوالب البريد';
+        return 'قوالب البريد الإلكتروني';
     }
 
     public function mount(): void

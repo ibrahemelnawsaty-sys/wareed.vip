@@ -229,7 +229,7 @@
         @endforeach
         <span class="wq-hint">يُعرض حتى 100 طلب — الأحدث أولاً</span>
         <x-filament::button wire:click="sendTestEmail" size="sm" color="gray" icon="heroicon-o-envelope">
-            اختبار البريد
+            اختبار البريد الإلكتروني
         </x-filament::button>
     </div>
 
@@ -262,7 +262,7 @@
                     @foreach ([
                         ['العميل', $r['name'], false],
                         ['الموبايل', $r['phone'], true],
-                        ['البريد', $r['email'], true],
+                        ['البريد الإلكتروني', $r['email'], true],
                         ['المتجر', $r['company'], false],
                     ] as [$label, $value, $ltr])
                         <div>

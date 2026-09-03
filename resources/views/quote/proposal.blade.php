@@ -315,7 +315,7 @@
                 @if ($commercialRegister)
                     <div>السجل التجاري: <span dir="ltr">{{ $commercialRegister }}</span></div>
                 @endif
-                <div>البريد: <span dir="ltr">{{ $contactEmail }}</span></div>
+                <div>البريد الإلكتروني: <span dir="ltr">{{ $contactEmail }}</span></div>
                 <div>الهاتف: <span dir="ltr">{{ $contactPhone }}</span></div>
             </div>
             <svg class="mark" viewBox="0 0 40 40" fill="none" aria-hidden="true">
@@ -605,7 +605,7 @@
                         @endforeach
                     </ol>
                 @else
-                    لاعتماد العرض والبدء في التنفيذ يرجى التواصل معنا عبر البريد أو الهاتف الموضّحين أعلاه،
+                    لاعتماد العرض والبدء في التنفيذ يرجى التواصل معنا عبر البريد الإلكتروني أو الهاتف الموضّحين أعلاه،
                     مع ذكر الرقم المرجعي للطلب.
                 @endif
             </p>

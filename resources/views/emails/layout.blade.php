@@ -1,5 +1,5 @@
 {{--
-    قالب البريد الموحّد لوريد — وضع فاتح دائماً وجداول متداخلة لأوسع توافق مع عملاء البريد
+    قالب البريد الموحّد لوريد — وضع فاتح دائماً وجداول متداخلة لأوسع توافق مع عملاء البريد الإلكتروني
     (Gmail وOutlook لا يدعمان flex/grid ولا صور SVG، لذا: جداول وصورة PNG).
 --}}
 @php
@@ -76,7 +76,7 @@
                                style="font-size:12px;color:#55638a;">
                             @if ($mailAddress)
                                 <tr>
-                                    <td style="padding:1px 0;color:#8493b5;width:74px;">العنوان</td>
+                                    <td style="padding:1px 0;color:#8493b5;width:104px;">العنوان</td>
                                     <td style="padding:1px 0;">{{ $mailAddress }}</td>
                                 </tr>
                             @endif
@@ -89,7 +89,7 @@
                                 </td>
                             </tr>
                             <tr>
-                                <td style="padding:1px 0;color:#8493b5;">البريد</td>
+                                <td style="padding:1px 0;color:#8493b5;">البريد الإلكتروني</td>
                                 <td style="padding:1px 0;">
                                     <a href="mailto:{{ $mailEmail }}"
                                        style="color:#2563eb;text-decoration:none;" dir="ltr">{{ $mailEmail }}</a>
