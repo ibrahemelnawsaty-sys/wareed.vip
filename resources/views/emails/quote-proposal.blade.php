@@ -7,7 +7,7 @@
 
     <h2 style="margin:0 0 14px;font-size:20px;color:#0d1830;">عرض سعر متجرك الإلكتروني</h2>
 
-    {{-- المقدّمة قابلة للتعديل من: لوحة التحكم ← قوالب البريد ← إرسال عرض السعر --}}
+    {{-- المقدّمة قابلة للتعديل من: لوحة التحكم ← قوالب البريد الإلكتروني ← إرسال عرض السعر --}}
     {!! \App\Support\MailTemplates::html(\App\Support\MailTemplates::render(
         \App\Support\MailTemplates::body('proposal_sent'),
         \App\Support\MailTemplates::variables($sr),

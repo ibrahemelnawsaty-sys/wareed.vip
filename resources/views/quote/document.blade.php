@@ -228,7 +228,7 @@
                 @if ($tax = setting('tax_number'))
                     <div>الرقم الضريبي: <span dir="ltr">{{ $tax }}</span></div>
                 @endif
-                <div>البريد: <span dir="ltr">{{ $contactEmail }}</span></div>
+                <div>البريد الإلكتروني: <span dir="ltr">{{ $contactEmail }}</span></div>
                 <div>الهاتف: <span dir="ltr">{{ $contactPhone }}</span></div>
                 <div>الموقع: <span dir="ltr">wareed.vip</span></div>
             </div>

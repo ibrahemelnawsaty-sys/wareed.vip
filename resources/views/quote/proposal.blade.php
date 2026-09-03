@@ -144,9 +144,15 @@
         table.pay-table.opt td { color: var(--muted); }
         table.pay-table.opt td b { color: var(--ink); }
         table.pay-table.opt td small { display: block; color: var(--faint); font-size: 7.6pt; margin-top: .4mm; }
+        .note-list { margin: 0; padding-inline-start: 4.5mm; }
+        .note-list li { font-size: 8.2pt; color: var(--muted); line-height: 1.75; padding-inline-start: 1mm; }
+        .note-list li::marker { color: var(--blue); font-weight: 700; }
         .opt-note { margin-top: 2.4mm; font-size: 8pt; color: var(--muted); line-height: 1.7; }
-        .opt-sum { margin-top: 2.4mm; font-size: 8.6pt; color: var(--muted); }
-        .opt-sum b { color: var(--ink); font-variant-numeric: tabular-nums; }
+        .opt-totals { margin-top: 2.4mm; display: flex; align-items: center; gap: 3mm; flex-wrap: wrap; }
+        .opt-totals table { width: 78mm; border-collapse: collapse; }
+        .opt-totals td { padding: 1.4mm 4mm; font-size: 8.4pt; color: var(--muted); border-bottom: 1px solid var(--line-soft); }
+        .opt-totals td:last-child { text-align: start; font-weight: 700; color: var(--ink); font-variant-numeric: tabular-nums; white-space: nowrap; }
+        .opt-totals tr.opt-grand td { border-bottom: 0; background: #f2f5fc; font-weight: 700; color: var(--ink); }
         .opt-flag {
             display: inline-block; margin-inline-start: 2.5mm; padding: .3mm 2.4mm; border-radius: 99px;
             font-size: 6.8pt; font-weight: 700; color: #b45309;
@@ -309,7 +315,7 @@
                 @if ($commercialRegister)
                     <div>السجل التجاري: <span dir="ltr">{{ $commercialRegister }}</span></div>
                 @endif
-                <div>البريد: <span dir="ltr">{{ $contactEmail }}</span></div>
+                <div>البريد الإلكتروني: <span dir="ltr">{{ $contactEmail }}</span></div>
                 <div>الهاتف: <span dir="ltr">{{ $contactPhone }}</span></div>
             </div>
             <svg class="mark" viewBox="0 0 40 40" fill="none" aria-hidden="true">
@@ -474,11 +480,31 @@
                 @endforeach
             </tbody>
         </table>
-        <p class="opt-sum">
-            إجمالي الخدمات الاختيارية لو طُلبت جميعها:
-            <b>{{ $money($quote['extras_total']) }} {{ $cur }}</b>
+        <div class="opt-totals">
+            <table>
+                <tr>
+                    <td>الإجمالي قبل الخصم</td>
+                    <td>{{ $money($quote['extras_subtotal']) }} {{ $cur }}</td>
+                </tr>
+                @if ($quote['extras_discount'] > 0)
+                    <tr>
+                        <td>الخصم ({{ $pct($quote['extras_discount_percent']) }}%)</td>
+                        <td>− {{ $money($quote['extras_discount']) }} {{ $cur }}</td>
+                    </tr>
+                @endif
+                @if ($quote['extras_vat_percent'] > 0)
+                    <tr>
+                        <td>ضريبة القيمة المضافة ({{ $pct($quote['extras_vat_percent']) }}%)</td>
+                        <td>{{ $money($quote['extras_vat']) }} {{ $cur }}</td>
+                    </tr>
+                @endif
+                <tr class="opt-grand">
+                    <td>الإجمالي لو طُلبت جميعها</td>
+                    <td>{{ $money($quote['extras_total']) }} {{ $cur }}</td>
+                </tr>
+            </table>
             <span class="opt-flag">غير مشمولة في الإجمالي المستحق</span>
-        </p>
+        </div>
     @endif
 
     @if ($quote['schedule'])
@@ -573,9 +599,13 @@
             <h4>{{ $quote['notes'] ? 'ملاحظات' : 'الخطوة التالية' }}</h4>
             <p>
                 @if ($quote['notes'])
-                    {{ $quote['notes'] }}
+                    <ol class="note-list">
+                        @foreach ($quote['notes'] as $noteLine)
+                            <li>{{ $noteLine }}</li>
+                        @endforeach
+                    </ol>
                 @else
-                    لاعتماد العرض والبدء في التنفيذ يرجى التواصل معنا عبر البريد أو الهاتف الموضّحين أعلاه،
+                    لاعتماد العرض والبدء في التنفيذ يرجى التواصل معنا عبر البريد الإلكتروني أو الهاتف الموضّحين أعلاه،
                     مع ذكر الرقم المرجعي للطلب.
                 @endif
             </p>

@@ -134,7 +134,7 @@ class QuoteRequests extends Page
 
     /**
      * اختبار اتصال SMTP: يرسل بريداً تجريبياً لعنوان الاستقبال ويعرض سبب الفشل إن حدث.
-     * يغني عن التخمين عند ضبط بيانات البريد في .env على الخادم.
+     * يغني عن التخمين عند ضبط بيانات البريد الإلكتروني في .env على الخادم.
      */
     public function sendTestEmail(): void
     {
@@ -160,7 +160,7 @@ class QuoteRequests extends Page
             report($e);
 
             Notification::make()
-                ->title('فشل إرسال البريد')
+                ->title('فشل إرسال البريد الإلكتروني')
                 ->body('راجع إعدادات MAIL في ملف .env. السبب: '.mb_substr($e->getMessage(), 0, 220))
                 ->danger()
                 ->persistent()
@@ -192,7 +192,15 @@ class QuoteRequests extends Page
             'valid_days' => (int) ($saved['valid_days'] ?? 30),
             // نص «مدة التنفيذ» القديم لم يعد يُحرَّر — يُحمل كما هو كي لا تفقده العروض السابقة
             'timeline' => (string) ($saved['timeline'] ?? ''),
-            'notes' => (string) ($saved['notes'] ?? ''),
+            'notes' => array_values(array_filter(array_map(
+                fn ($n) => (string) $n,
+                is_array($saved['notes'] ?? null) ? $saved['notes'] : [$saved['notes'] ?? ''],
+            ))),
+            // عند أول فتح تُملأ ضريبة الباقات من ضريبة العرض الأساسي
+            'extras_discount_percent' => (float) ($saved['extras_discount_percent'] ?? 0),
+            'extras_vat_percent' => (float) ($saved['extras_vat_percent']
+                ?? $saved['vat_percent']
+                ?? QuoteController::DEFAULT_VAT_PERCENT),
             'extras' => array_map(fn ($e) => [
                 'name' => (string) ($e['name'] ?? ''),
                 'desc' => (string) ($e['desc'] ?? ''),
@@ -233,6 +241,17 @@ class QuoteRequests extends Page
     public function addExtra(): void
     {
         $this->draft['extras'][] = ['name' => '', 'desc' => '', 'note' => '', 'qty' => 1, 'unit' => '', 'price' => 0];
+    }
+
+    public function addNote(): void
+    {
+        $this->draft['notes'][] = '';
+    }
+
+    public function removeNote(int $index): void
+    {
+        unset($this->draft['notes'][$index]);
+        $this->draft['notes'] = array_values($this->draft['notes']);
     }
 
     public function removeExtra(int $index): void
@@ -378,16 +397,25 @@ class QuoteRequests extends Page
             'amount' => round($total * max(0, (float) ($p['percent'] ?? 0)) / 100, 2),
         ], $this->draft['payments'] ?? []);
 
-        // مجموع الخدمات الاختيارية يُعرض وحده ولا يمسّ الإجمالي المستحق
-        $extrasTotal = 0.0;
+        // إجماليات الخدمات الاختيارية تُعرض وحدها ولا تمسّ الإجمالي المستحق
+        $extrasSubtotal = 0.0;
         foreach ($this->draft['extras'] ?? [] as $extra) {
-            $extrasTotal += max(1, (int) ($extra['qty'] ?? 1)) * max(0, (float) ($extra['price'] ?? 0));
+            $extrasSubtotal += max(1, (int) ($extra['qty'] ?? 1)) * max(0, (float) ($extra['price'] ?? 0));
         }
+
+        $extrasDiscountPercent = max(0, min(100, (float) ($this->draft['extras_discount_percent'] ?? 0)));
+        $extrasDiscount = round($extrasSubtotal * $extrasDiscountPercent / 100, 2);
+        $extrasVatPercent = max(0, (float) ($this->draft['extras_vat_percent'] ?? 0));
+        $extrasVat = round(($extrasSubtotal - $extrasDiscount) * $extrasVatPercent / 100, 2);
+        $extrasTotal = $extrasSubtotal - $extrasDiscount + $extrasVat;
 
         return [
             'subtotal' => $subtotal,
             'discount' => $discount,
             'discount_percent' => $discountPercent,
+            'extras_subtotal' => $extrasSubtotal,
+            'extras_discount' => $extrasDiscount,
+            'extras_vat' => $extrasVat,
             'extras_total' => $extrasTotal,
             'vat' => $vat,
             'total' => $total,
@@ -398,7 +426,7 @@ class QuoteRequests extends Page
     }
 
     /**
-     * إصدار عرض السعر: يُحفظ في الطلب، تتغيّر حالته، ويُرسل للعميل بالبريد فوراً.
+     * إصدار عرض السعر: يُحفظ في الطلب، تتغيّر حالته، ويُرسل للعميل بالبريد الإلكتروني فوراً.
      * $send = false يحفظ العرض دون إرسال بريد (للمراجعة قبل الإرسال).
      */
     public function issueQuote(bool $send = true): void
@@ -433,7 +461,12 @@ class QuoteRequests extends Page
             'currency' => trim((string) ($this->draft['currency'] ?? 'ج.م')) ?: 'ج.م',
             'valid_days' => max(1, (int) ($this->draft['valid_days'] ?? 30)),
             'timeline' => trim((string) ($this->draft['timeline'] ?? '')),
-            'notes' => trim((string) ($this->draft['notes'] ?? '')),
+            'notes' => array_values(array_filter(array_map(
+                fn ($n) => trim((string) $n),
+                (array) ($this->draft['notes'] ?? []),
+            ))),
+            'extras_discount_percent' => max(0, min(100, (float) ($this->draft['extras_discount_percent'] ?? 0))),
+            'extras_vat_percent' => max(0, (float) ($this->draft['extras_vat_percent'] ?? 0)),
             'extras' => array_values(array_map(fn ($e) => [
                 'name' => trim((string) ($e['name'] ?? '')),
                 'desc' => trim((string) ($e['desc'] ?? '')),
@@ -481,15 +514,15 @@ class QuoteRequests extends Page
         $mailed = false;
 
         if ($send && filter_var($sr->email, FILTER_VALIDATE_EMAIL)) {
-            // الطلب محفوظ بالفعل؛ فشل البريد يُبلَّغ ولا يُسقط العملية (دستور §3)
+            // الطلب محفوظ بالفعل؛ فشل البريد الإلكتروني يُبلَّغ ولا يُسقط العملية (دستور §3)
             try {
                 Mail::to($sr->email)->send(new QuoteProposalIssued($sr->fresh()));
                 $mailed = true;
             } catch (\Throwable $e) {
                 report($e);
                 Notification::make()
-                    ->title('صدر العرض، لكن تعذّر إرسال البريد')
-                    ->body('راجع إعدادات البريد ثم أعد الإرسال.')
+                    ->title('صدر العرض، لكن تعذّر إرسال البريد الإلكتروني')
+                    ->body('راجع إعدادات البريد الإلكتروني ثم أعد الإرسال.')
                     ->warning()
                     ->send();
             }

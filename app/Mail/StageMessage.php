@@ -11,7 +11,7 @@ use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
 
 /**
- * رسالة مرحلة من مراحل الطلب، نصّها من قوالب البريد القابلة للتعديل من اللوحة.
+ * رسالة مرحلة من مراحل الطلب، نصّها من قوالب البريد الإلكتروني القابلة للتعديل من اللوحة.
  * المرسِل هو بريد وريد المعتمد في الإعدادات (info@wareed.vip).
  */
 class StageMessage extends Mailable

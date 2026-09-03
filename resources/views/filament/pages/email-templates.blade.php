@@ -1,5 +1,5 @@
 {{--
-    محرّر قوالب البريد: قائمة المراحل على اليمين، والقالب ومعاينته على اليسار.
+    محرّر قوالب البريد الإلكتروني: قائمة المراحل على اليمين، والقالب ومعاينته على اليسار.
     التنسيقات محلية لأن أصناف Tailwind من هذا الملف ليست ضمن CSS المُجمَّع لـ Filament.
 --}}
 <x-filament-panels::page>
@@ -66,7 +66,7 @@
         .mt-mail-foot .co { font-size: .82rem; font-weight: 700; color: #0d1830; margin-bottom: .45rem; }
         .mt-mail-foot table { width: 100%; font-size: .74rem; color: #55638a; border-collapse: collapse; }
         .mt-mail-foot td { padding: .06rem 0; vertical-align: top; }
-        .mt-mail-foot td:first-child { color: #8493b5; width: 4.6rem; }
+        .mt-mail-foot td:first-child { color: #8493b5; width: 6.5rem; }
         .mt-mail-foot a { color: #2563eb; text-decoration: none; }
         .mt-mail-foot .copy { border-top: 1px solid #e6ecf7; margin-top: .7rem; padding-top: .6rem;
                               font-size: .68rem; color: #9aa8c6; }
@@ -154,7 +154,7 @@
                         @if ($this->requestId)
                             <p class="mt-row" style="margin:.35rem 0 0">
                                 @if ($preview['to'])
-                                    <span class="mt-to">سيصل البريد إلى: {{ $preview['to'] }}</span>
+                                    <span class="mt-to">سيصل البريد الإلكتروني إلى: {{ $preview['to'] }}</span>
                                 @else
                                     <span class="mt-to none">هذا الطلب بلا بريد إلكتروني — الإرسال للعميل غير متاح.</span>
                                 @endif
@@ -181,7 +181,7 @@
                             <x-filament::button wire:click="sendToClient" size="sm" color="primary"
                                                 icon="heroicon-o-paper-airplane"
                                                 :disabled="! $preview['to']"
-                                                wire:confirm="سيُرسل البريد إلى العميل مباشرة. متابعة؟">
+                                                wire:confirm="سيُرسل البريد الإلكتروني إلى العميل مباشرة. متابعة؟">
                                 إرسال للعميل
                             </x-filament::button>
                         </div>
@@ -230,7 +230,7 @@
                                         <tr><td>العنوان</td><td>{{ $coAddress }}</td></tr>
                                     @endif
                                     <tr><td>الهاتف</td><td><a href="#" dir="ltr" onclick="return false"><b>{{ $coPhone }}</b></a></td></tr>
-                                    <tr><td>البريد</td><td><a href="#" dir="ltr" onclick="return false">{{ $coEmail }}</a></td></tr>
+                                    <tr><td>البريد الإلكتروني</td><td><a href="#" dir="ltr" onclick="return false">{{ $coEmail }}</a></td></tr>
                                     <tr><td>الموقع</td><td><a href="#" dir="ltr" onclick="return false">wareed.vip</a></td></tr>
                                     @if ($coTax || $coRegister)
                                         <tr>
