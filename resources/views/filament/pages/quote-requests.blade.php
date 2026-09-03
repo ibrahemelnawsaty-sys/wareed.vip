@@ -169,6 +169,9 @@
         .wq-quote-badge .amt { font-weight: 700; color: rgb(21 128 61); font-variant-numeric: tabular-nums; }
         .wq-quote-badge .meta { font-size: .78rem; color: rgb(107 114 128); }
 
+        .wq-views { display: flex; flex-wrap: wrap; gap: .5rem; padding: .55rem 1rem; border-top: 1px solid rgb(243 244 246); background: rgb(250 245 255); }
+        .wq-view-chip { display: inline-flex; align-items: center; gap: .35rem; font-size: .76rem; color: rgb(107 33 168); }
+
         .wq-reqs { padding: .7rem 1rem; border-top: 1px solid rgb(243 244 246); background: rgb(239 246 255); }
         .wq-reqs-title { display: flex; align-items: center; gap: .4rem; font-size: .78rem; font-weight: 700; color: rgb(30 64 175); margin-bottom: .5rem; }
         .wq-reqs-list { display: flex; flex-direction: column; gap: .35rem; }
@@ -186,6 +189,8 @@
         .dark .wq-sum { background: rgb(17 24 39); border-color: rgba(255,255,255,.1); }
         .dark .wq-sum b { color: #fff; }
         .dark .wq-quote-badge { background: rgba(34,197,94,.1); border-color: rgba(255,255,255,.08); }
+        .dark .wq-views { background: rgba(147,51,234,.12); border-color: rgba(255,255,255,.08); }
+        .dark .wq-view-chip { color: rgb(216 180 254); }
         .dark .wq-reqs { background: rgba(37,99,235,.1); border-color: rgba(255,255,255,.08); }
         .dark .wq-reqs-item { background: rgb(17 24 39); border-color: rgba(255,255,255,.12); }
         .dark .wq-reqs-item .ri-name { color: #fff; }
@@ -433,6 +438,23 @@
                                 size="sm" color="danger">حذف العرض</x-filament::button>
                         </div>
                     </div>
+
+                    @if ($r['views']['platform']['count'] || $r['views']['email']['count'])
+                        <div class="wq-views">
+                            @if ($r['views']['email']['count'])
+                                <span class="wq-view-chip">
+                                    <x-filament::icon icon="heroicon-o-envelope-open" style="width:.85rem;height:.85rem" />
+                                    فُتح البريد الإلكتروني {{ $r['views']['email']['count'] }} مرة — آخرها {{ $r['views']['email']['last']->format('Y/m/d — H:i') }}
+                                </span>
+                            @endif
+                            @if ($r['views']['platform']['count'])
+                                <span class="wq-view-chip">
+                                    <x-filament::icon icon="heroicon-o-eye" style="width:.85rem;height:.85rem" />
+                                    شوهد على المنصة {{ $r['views']['platform']['count'] }} مرة — آخرها {{ $r['views']['platform']['last']->format('Y/m/d — H:i') }}
+                                </span>
+                            @endif
+                        </div>
+                    @endif
 
                     @if (count($r['requirements']))
                         <div class="wq-reqs">

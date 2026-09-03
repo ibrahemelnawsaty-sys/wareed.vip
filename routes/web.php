@@ -41,6 +41,9 @@ Route::post('/quote/decision/{serviceRequest}', [QuoteController::class, 'decisi
 // رفع متطلبات المشروع بعد اعتماد العرض: ملفات الهوية البصرية وبيانات المنتجات وغيرها
 Route::post('/quote/requirements/{serviceRequest}', [QuoteController::class, 'requirementsSigned'])
     ->middleware(['signed', 'throttle:10,1'])->name('quote.requirements.signed');
+// بكسل تتبّع فتح بريد عرض السعر — مضمَّن كصورة شفافة 1×1 داخل قالب البريد
+Route::get('/quote/track/{serviceRequest}', [QuoteController::class, 'trackEmailOpen'])
+    ->middleware('signed')->name('quote.track');
 Route::get('/quote/{invite}', [QuoteController::class, 'show'])->name('quote.invite');
 Route::post('/quote/{invite}', [QuoteController::class, 'submit'])
     ->middleware('throttle:10,1')->name('quote.invite.submit');

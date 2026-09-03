@@ -950,6 +950,79 @@ it('requires at least one file to upload as project requirements', function () {
     expect(QuoteController::requirementsOf($sr->fresh()))->toBeEmpty();
 });
 
+it('records a platform view and notifies wareed only on the first visit', function () {
+    Mail::fake();
+    submitInvite()->assertOk();
+    $sr = ServiceRequest::sole();
+
+    $sr->update(['payload' => array_merge((array) $sr->payload, ['_quote' => [
+        'items' => [['name' => 'تجهيز المتجر', 'qty' => 1, 'price' => 20000]],
+        'vat_percent' => 0, 'currency' => 'ج.م', 'valid_days' => 30,
+        'issued_at' => now()->toIso8601String(),
+    ]])]);
+
+    $this->get('/quote/hajar-salama/proposal')->assertOk();
+
+    $views = QuoteController::viewsOf($sr->fresh());
+    expect($views['platform']['count'])->toBe(1)
+        ->and($views['platform']['first'])->not->toBeNull()
+        ->and($views['email']['count'])->toBe(0);
+
+    Mail::assertSent(
+        StageMessage::class,
+        fn ($mail) => $mail->hasTo(setting('contact_email', 'info@wareed.vip'))
+            && str_contains($mail->subjectLine, 'فتح العميل صفحة عرض السعر على المنصة لأول مرة')
+    );
+
+    // زيارة ثانية تُسجَّل هي الأخرى، لكن دون إرسال إشعار جديد يزعج الفريق
+    Mail::fake();
+    $this->get('/quote/hajar-salama/proposal')->assertOk();
+
+    expect(QuoteController::viewsOf($sr->fresh())['platform']['count'])->toBe(2);
+    Mail::assertNothingSent();
+});
+
+it('records an email open via the tracking pixel and returns a transparent image', function () {
+    Mail::fake();
+    submitInvite()->assertOk();
+    $sr = ServiceRequest::sole();
+
+    $sr->update(['payload' => array_merge((array) $sr->payload, ['_quote' => [
+        'items' => [['name' => 'تجهيز المتجر', 'qty' => 1, 'price' => 20000]],
+        'vat_percent' => 0, 'currency' => 'ج.م', 'valid_days' => 30,
+        'issued_at' => now()->toIso8601String(),
+    ]])]);
+
+    $url = QuoteController::trackingPixelUrl($sr->fresh());
+
+    $response = $this->get($url)->assertOk();
+    expect($response->headers->get('Content-Type'))->toBe('image/gif')
+        ->and(strlen($response->getContent()))->toBeGreaterThan(0);
+
+    $views = QuoteController::viewsOf($sr->fresh());
+    expect($views['email']['count'])->toBe(1)
+        ->and($views['platform']['count'])->toBe(0);
+
+    Mail::assertSent(
+        StageMessage::class,
+        fn ($mail) => $mail->hasTo(setting('contact_email', 'info@wareed.vip'))
+            && str_contains($mail->subjectLine, 'فتح العميل بريد عرض السعر لأول مرة')
+    );
+
+    // فتح ثانٍ (أو إعادة تحميل صورة البريد) يُسجَّل بلا تكرار الإشعار
+    Mail::fake();
+    $this->get($url)->assertOk();
+    expect(QuoteController::viewsOf($sr->fresh())['email']['count'])->toBe(2);
+    Mail::assertNothingSent();
+});
+
+it('rejects a tampered or missing tracking pixel signature', function () {
+    submitInvite()->assertOk();
+    $sr = ServiceRequest::sole();
+
+    $this->get('/quote/track/'.$sr->id)->assertForbidden();
+});
+
 it('does not start execution when the client asks for a discount or declines', function () {
     Mail::fake();
     submitInvite()->assertOk();

@@ -621,6 +621,8 @@ class QuoteController extends Controller
     {
         $quote = self::quoteOf($sr) ?? abort(404);
 
+        $this->recordView($sr, 'platform');
+
         return view('quote.proposal', [
             'sr' => $sr,
             'client' => $client,
@@ -939,6 +941,93 @@ class QuoteController extends Controller
         return $invite !== null
             ? route('quote.requirements', $invite)
             : URL::signedRoute('quote.requirements.signed', ['serviceRequest' => $sr->id]);
+    }
+
+    /** بكسل تتبّع شفاف 1×1 (GIF كلاسيكي) — الأصغر حجماً والأوسع توافقاً لرصد فتح البريد. */
+    private const TRACKING_PIXEL_B64 = 'R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAICTAEAOw==';
+
+    /** بكسل تتبّع فتح بريد عرض السعر — يُسجَّل الفتح ثم تُعاد صورة شفافة 1×1 لا تُخزَّن مؤقتاً. */
+    public function trackEmailOpen(ServiceRequest $serviceRequest)
+    {
+        $this->recordView($serviceRequest, 'email');
+
+        $pixel = base64_decode(self::TRACKING_PIXEL_B64);
+
+        return response($pixel, 200, [
+            'Content-Type' => 'image/gif',
+            'Content-Length' => (string) strlen($pixel),
+            'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
+            'Pragma' => 'no-cache',
+        ]);
+    }
+
+    /**
+     * تسجيل مشاهدة العرض عبر قناة (platform أو email)، وإشعار فريق وريد عند أول
+     * مشاهدة من كل قناة فقط — تجنّباً لإزعاج بريد عند كل تحديث للصفحة أو إعادة فتح.
+     * ملاحظة: فحص روابط أمن البريد أو زحف المعاينة (كتوليد معاينة رابط في واتساب)
+     * قد يُطلق مشاهدة زائفة أحياناً — أثر معروف لكل أنظمة تتبّع الفتح بلا استثناء.
+     */
+    private function recordView(ServiceRequest $sr, string $channel): void
+    {
+        $payload = (array) $sr->payload;
+        $views = (array) ($payload['_views'] ?? []);
+        $channelViews = (array) ($views[$channel] ?? []);
+        $isFirst = empty($channelViews);
+
+        $channelViews[] = now()->toIso8601String();
+        $views[$channel] = $channelViews;
+        $payload['_views'] = $views;
+        $sr->update(['payload' => $payload]);
+
+        if ($isFirst) {
+            $this->notifyView($sr->fresh(), $channel);
+        }
+    }
+
+    /** إشعار فريق وريد بأول مشاهدة للعرض من قناة بعينها — فشل الإرسال لا يُفقد التسجيل. */
+    private function notifyView(ServiceRequest $sr, string $channel): void
+    {
+        try {
+            $channelLabel = $channel === 'email' ? 'بريد عرض السعر' : 'صفحة عرض السعر على المنصة';
+
+            Mail::to((string) setting('contact_email', 'info@wareed.vip'))->send(new StageMessage(
+                subjectLine: 'فتح العميل '.$channelLabel.' لأول مرة — '.$sr->reference,
+                bodyText: 'فتح العميل '.$channelLabel.' لأول مرة.'."\n\n"
+                    .'العميل: '.$sr->name.($sr->company ? ' — '.$sr->company : '')
+                        .($sr->email ? ' · '.$sr->email : ''),
+                link: route('filament.admin.pages.quote-requests'),
+                linkLabel: 'فتح لوحة المتابعة',
+            ));
+        } catch (\Throwable $e) {
+            report($e);
+        }
+    }
+
+    /**
+     * سجلّ مشاهدات العرض: عدد المرات وأول وآخر مشاهدة لكل قناة (المنصة أو البريد الإلكتروني).
+     * تُخزَّن في payload['_views'] فلا تحتاج جدولاً ولا هجرة على الخادم.
+     */
+    public static function viewsOf(ServiceRequest $sr): array
+    {
+        $views = (array) (((array) $sr->payload)['_views'] ?? []);
+
+        $summarize = fn (string $channel) => array_values(array_filter(
+            array_map(fn ($v) => self::parseDate($v), (array) ($views[$channel] ?? []))
+        ));
+
+        $platform = $summarize('platform');
+        $email = $summarize('email');
+
+        return [
+            'platform' => ['count' => count($platform), 'first' => $platform[0] ?? null, 'last' => end($platform) ?: null],
+            'email' => ['count' => count($email), 'first' => $email[0] ?? null, 'last' => end($email) ?: null],
+        ];
+    }
+
+    /** رابط بكسل التتبّع المضمَّن في بريد عرض السعر — دائم بلا انتهاء صلاحية كبقية الروابط الموقّعة هنا. */
+    public static function trackingPixelUrl(ServiceRequest $sr): string
+    {
+        return URL::signedRoute('quote.track', ['serviceRequest' => $sr->id]);
     }
 
     /** قرار العميل المسجَّل على العرض، أو null إن لم يقرّر بعد. */

@@ -42,6 +42,8 @@ class QuoteProposalIssued extends Mailable
         return new Content(view: 'emails.quote-proposal', with: [
             'quote' => QuoteController::quoteOf($this->sr),
             'proposalUrl' => QuoteController::proposalUrl($this->sr),
+            // بكسل شفاف 1×1 لرصد فتح هذا البريد تحديداً — يظهر في لوحة المتابعة
+            'trackingUrl' => QuoteController::trackingPixelUrl($this->sr),
         ]);
     }
 }

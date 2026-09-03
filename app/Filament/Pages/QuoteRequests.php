@@ -111,6 +111,7 @@ class QuoteRequests extends Page
                     'proposal' => QuoteController::proposalUrl($sr),
                     'flow' => QuoteController::flowOf($sr),
                     'requirements' => QuoteController::requirementsOf($sr),
+                    'views' => QuoteController::viewsOf($sr),
                 ];
             })
             ->all();
