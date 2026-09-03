@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Mail\StageMessage;
 use App\Models\Service;
 use App\Models\ServiceRequest;
+use App\Support\MailTemplates;
 use Carbon\CarbonInterface;
 use chillerlan\QRCode\Common\EccLevel;
 use chillerlan\QRCode\Output\QROutputInterface;
@@ -638,9 +639,35 @@ class QuoteController extends Controller
             'note' => trim((string) ($data['note'] ?? '')),
             'at' => now()->toIso8601String(),
         ];
+
+        // الاعتماد ينقل الطلب تلقائياً إلى مرحلة التنفيذ،
+        // وموعد التسليم يُؤخذ من آخر مرحلة في الجدول الزمني إن وُجد.
+        if ($data['choice'] === 'approved') {
+            $deliveryAt = self::quoteOf($sr)['delivery_at'] ?? null;
+
+            $payload['_flow'] = array_merge($payload['_flow'] ?? [], array_filter([
+                'stage' => 'in_progress',
+                'approved_at' => now()->toIso8601String(),
+                'started_at' => now()->toIso8601String(),
+                'due_at' => $deliveryAt?->toIso8601String(),
+            ]));
+        }
+
         $sr->update(['payload' => $payload]);
 
-        $this->notifyDecision($sr, self::decisionOf($sr));
+        if ($data['choice'] === 'approved') {
+            $sr->update(['status' => 'won']);
+        }
+
+        $sr = $sr->fresh();
+        $decision = self::decisionOf($sr);
+
+        $this->notifyDecision($sr, $decision);
+
+        // العميل الذي اعتمد العرض يصله بريد بدء التنفيذ بكامل تفاصيله
+        if ($data['choice'] === 'approved') {
+            MailTemplates::sendStage($sr, 'in_progress', withSummary: true);
+        }
 
         return back()->with('decision_saved', true);
     }
@@ -653,14 +680,24 @@ class QuoteController extends Controller
         }
 
         try {
+            $quote = self::quoteOf($sr);
+            $money = fn ($n, $cur) => number_format((float) $n, ((float) $n == (int) $n) ? 0 : 2).' '.$cur;
+
             $lines = [
                 'سجّل العميل قراره على عرض السعر '.$sr->reference.'.',
                 'القرار: '.$decision['label'],
-                'العميل: '.$sr->name.($sr->company ? ' — '.$sr->company : ''),
+                'العميل: '.$sr->name.($sr->company ? ' — '.$sr->company : '')
+                    .($sr->email ? ' · '.$sr->email : '').($sr->phone && $sr->phone !== '—' ? ' · '.$sr->phone : ''),
+                'إجمالي العرض: '.($quote ? $money($quote['total'], $quote['currency']) : '—'),
             ];
 
             if ($decision['note'] !== '') {
                 $lines[] = 'ملاحظة العميل: '.$decision['note'];
+            }
+
+            if ($decision['choice'] === 'approved') {
+                $lines[] = 'نُقل الطلب تلقائياً إلى مرحلة «تنفيذ المتجر» وحالته صارت «مكسوب»، '
+                    .'ووصل العميل بريد بدء التنفيذ بكامل التفاصيل.';
             }
 
             Mail::to((string) setting('contact_email', 'info@wareed.vip'))->send(new StageMessage(
@@ -668,6 +705,8 @@ class QuoteController extends Controller
                 bodyText: implode("\n\n", $lines),
                 link: route('filament.admin.pages.quote-requests'),
                 linkLabel: 'فتح لوحة المتابعة',
+                // كافة تفاصيل العرض والجدول والدفعات مع الإشعار
+                summaryOf: $sr,
             ));
         } catch (\Throwable $e) {
             report($e);

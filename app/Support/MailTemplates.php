@@ -3,8 +3,10 @@
 namespace App\Support;
 
 use App\Http\Controllers\QuoteController;
+use App\Mail\StageMessage;
 use App\Models\ServiceRequest;
 use App\Models\Setting;
+use Illuminate\Support\Facades\Mail;
 
 /**
  * قوالب البريد المرسَلة للعميل عبر مراحل الطلب — من الاستلام حتى التسليم.
@@ -230,6 +232,34 @@ class MailTemplates
                 ?? ($quote['delivery_at'] ?? null)?->format('Y/m/d')
                 ?? 'سيُحدَّد لاحقاً',
         ];
+    }
+
+    /**
+     * إرسال بريد المرحلة إلى العميل — يُستدعى مع كل إجراء ينقل الطلب مرحلةً.
+     * يعيد false إن لم يكن للعميل بريد أو تعذّر الإرسال؛ والفشل لا يُعطّل الإجراء نفسه.
+     */
+    public static function sendStage(ServiceRequest $sr, string $stage, bool $withSummary = false): bool
+    {
+        if (! self::exists($stage) || ! filter_var((string) $sr->email, FILTER_VALIDATE_EMAIL)) {
+            return false;
+        }
+
+        $variables = self::variables($sr);
+
+        try {
+            Mail::to($sr->email)->send(new StageMessage(
+                subjectLine: self::render(self::subject($stage), $variables),
+                bodyText: self::render(self::body($stage), $variables),
+                link: $variables['{رابط_الطلب}'],
+                summaryOf: $withSummary ? $sr : null,
+            ));
+
+            return true;
+        } catch (\Throwable $e) {
+            report($e);
+
+            return false;
+        }
     }
 
     /** استبدال المتغيّرات داخل نص. */

@@ -2,6 +2,7 @@
 
 namespace App\Mail;
 
+use App\Models\ServiceRequest;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Address;
@@ -23,6 +24,8 @@ class StageMessage extends Mailable
         public string $bodyText,
         public ?string $link = null,
         public string $linkLabel = 'متابعة الطلب',
+        // إن مُرِّر طلب، أُلحق بالرسالة ملخّص عرضه وجدوله ودفعاته
+        public ?ServiceRequest $summaryOf = null,
     ) {}
 
     public function envelope(): Envelope

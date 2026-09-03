@@ -784,6 +784,75 @@ it('rejects an unknown decision and one on a request without a quote', function 
     expect(QuoteController::decisionOf($sr->fresh()))->toBeNull();
 });
 
+it('starts execution automatically when the client approves', function () {
+    Mail::fake();
+    submitInvite()->assertOk();
+    $sr = ServiceRequest::sole();
+
+    $sr->update(['payload' => array_merge((array) $sr->payload, [
+        '_flow' => ['stage' => 'awaiting_approval'],
+        '_quote' => [
+            'items' => [['name' => 'تجهيز المتجر', 'qty' => 1, 'price' => 20000]],
+            'schedule' => [['phase' => 'المرحلة الأولى', 'start' => '2026-09-10', 'end' => '2026-11-30']],
+            'payments' => [['label' => 'دفعة مقدّمة', 'percent' => 50, 'due' => '2026-10-01']],
+            'discount_percent' => 0, 'vat_percent' => 0, 'currency' => 'ج.م',
+            'valid_days' => 30, 'issued_at' => now()->toIso8601String(),
+        ],
+    ])]);
+
+    $this->post('/quote/hajar-salama/decision', ['choice' => 'approved'])->assertRedirect();
+
+    $sr = $sr->fresh();
+    $flow = QuoteController::flowOf($sr);
+
+    // المسار انتقل تلقائياً، وموعد التسليم من آخر مرحلة في الجدول
+    expect($flow['stage'])->toBe('in_progress')
+        ->and($flow['counting'])->toBeTrue()
+        ->and($flow['due_at']->toDateString())->toBe('2026-11-30')
+        ->and($flow['approved_at'])->not->toBeNull()
+        ->and($sr->status)->toBe('won');
+
+    // بريد بدء التنفيذ للعميل بكامل التفاصيل
+    Mail::assertSent(
+        StageMessage::class,
+        fn ($mail) => $mail->hasTo('hagersalma89@gmail.com')
+            && $mail->summaryOf !== null
+            && str_contains($mail->render(), 'تجهيز المتجر')
+            && str_contains($mail->render(), 'الجدول الزمني للتسليم')
+            && str_contains($mail->render(), 'الخطوات التالية')
+    );
+
+    // وإشعار وريد بكافة التفاصيل
+    Mail::assertSent(
+        StageMessage::class,
+        fn ($mail) => $mail->hasTo(setting('contact_email', 'info@wareed.vip'))
+            && str_contains($mail->bodyText, 'نُقل الطلب تلقائياً إلى مرحلة «تنفيذ المتجر»')
+            && $mail->summaryOf !== null
+    );
+});
+
+it('does not start execution when the client asks for a discount or declines', function () {
+    Mail::fake();
+    submitInvite()->assertOk();
+    $sr = ServiceRequest::sole();
+
+    $sr->update(['payload' => array_merge((array) $sr->payload, [
+        '_flow' => ['stage' => 'awaiting_approval'],
+        '_quote' => [
+            'items' => [['name' => 'تجهيز المتجر', 'qty' => 1, 'price' => 20000]],
+            'vat_percent' => 0, 'currency' => 'ج.م', 'valid_days' => 30,
+            'issued_at' => now()->toIso8601String(),
+        ],
+    ])]);
+
+    foreach (['discount', 'declined'] as $choice) {
+        $this->post('/quote/hajar-salama/decision', ['choice' => $choice])->assertRedirect();
+
+        expect(QuoteController::flowOf($sr->fresh())['stage'])->toBe('awaiting_approval')
+            ->and($sr->fresh()->status)->not->toBe('won');
+    }
+});
+
 it('prints the legal identifiers on the proposal header', function () {
     Mail::fake();
     Setting::set('tax_number', '774-094-117', 'legal');

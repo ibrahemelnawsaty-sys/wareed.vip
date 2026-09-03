@@ -3,6 +3,7 @@
 use App\Filament\Pages\QuoteRequests;
 use App\Http\Controllers\QuoteController;
 use App\Mail\QuoteProposalIssued;
+use App\Mail\StageMessage;
 use App\Models\ServiceRequest;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -488,4 +489,57 @@ it('يضيف بنوداً اختيارية تُعرض للاطلاع ولا تد
         ->call('openQuote', $sr->id)
         ->assertSet('draft.extras.1.unit', 'شهر')
         ->assertSet('draft.extras.1.price', 2500.0);
+});
+
+it('يرسل بريد كل مرحلة للعميل مع الزر الذي ينقلها', function () {
+    Mail::fake();
+    $this->actingAs(adminUser());
+
+    $sr = ServiceRequest::create([
+        'service_type' => 'ecommerce', 'name' => 'أ. هاجر سلامة', 'company' => 'متجر حواديت',
+        'phone' => '00201016031031', 'email' => 'hagersalma89@gmail.com',
+        'status' => 'new', 'source' => 'quote_link:hajar-salama',
+        'payload' => ['_quote' => [
+            'items' => [['name' => 'تجهيز المتجر', 'qty' => 1, 'price' => 20000]],
+            'vat_percent' => 0, 'currency' => 'ج.م', 'valid_days' => 30,
+            'issued_at' => now()->toIso8601String(),
+        ]],
+    ]);
+
+    $sentSubjects = fn () => collect(Mail::sent(StageMessage::class))
+        ->map(fn ($m) => $m->subjectLine)->all();
+
+    $page = Livewire\Livewire::test(QuoteRequests::class);
+
+    $page->set("flowInput.{$sr->id}.meeting_at", '2026-09-10T11:00')->call('setMeeting', $sr->id);
+    $page->call('meetingDone', $sr->id);
+    $page->set("flowInput.{$sr->id}.due_at", '2026-11-30')->call('startExecution', $sr->id);
+    $page->call('markDelivered', $sr->id);
+
+    $subjects = implode(' | ', $sentSubjects());
+    expect($subjects)->toContain('تأكيد موعد الاجتماع')
+        ->toContain('قيد التجهيز')
+        ->toContain('بدأنا تنفيذ متجرك')
+        ->toContain('تسليم متجرك');
+
+    // بريد بدء التنفيذ وحده يحمل ملخّص العرض الكامل
+    Mail::assertSent(
+        StageMessage::class,
+        fn ($mail) => str_contains($mail->subjectLine, 'بدأنا تنفيذ متجرك') && $mail->summaryOf !== null
+    );
+});
+
+it('لا يرسل بريد المرحلة لطلب بلا بريد إلكتروني', function () {
+    Mail::fake();
+    $this->actingAs(adminUser());
+
+    $sr = ServiceRequest::create([
+        'service_type' => 'ecommerce', 'name' => 'عميل', 'phone' => '—', 'email' => null,
+        'status' => 'new', 'source' => 'quote_form', 'payload' => [],
+    ]);
+
+    Livewire\Livewire::test(QuoteRequests::class)->call('markDelivered', $sr->id);
+
+    Mail::assertNotSent(StageMessage::class);
+    expect(QuoteController::flowOf($sr->fresh())['stage'])->toBe('delivered');
 });
