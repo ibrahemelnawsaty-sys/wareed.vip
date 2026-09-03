@@ -443,3 +443,49 @@ it('يجدول مراحل التسليم ويحفظ تواريخ استحقاق 
         ->assertSet('draft.schedule.1.end', '2026-11-30')
         ->assertSet('draft.payments.0.due', '2026-10-01');
 });
+
+it('يضيف بنوداً اختيارية تُعرض للاطلاع ولا تدخل في الإجمالي', function () {
+    Mail::fake();
+    $this->actingAs(adminUser());
+
+    $sr = ServiceRequest::create([
+        'service_type' => 'ecommerce', 'name' => 'عميل', 'phone' => '—',
+        'status' => 'new', 'source' => 'quote_form', 'payload' => [],
+    ]);
+
+    $page = Livewire\Livewire::test(QuoteRequests::class)
+        ->call('openQuote', $sr->id)
+        ->set('draft.items', [['phase' => '', 'name' => 'تجهيز المتجر', 'desc' => '', 'note' => '',
+            'qty' => 1, 'unit' => '', 'price' => 20000, 'free' => false]])
+        ->set('draft.discount_percent', 0)
+        ->set('draft.vat_percent', 0);
+
+    $page->call('addExtra')->call('addExtra')->call('addExtra');
+    expect($page->get('draft.extras'))->toHaveCount(3);
+
+    $page->call('removeExtra', 2)
+        ->set('draft.extras.0.name', 'تطبيق جوال')
+        ->set('draft.extras.0.price', 35000)
+        ->set('draft.extras.1.name', 'إدارة الإعلانات')
+        ->set('draft.extras.1.qty', 3)
+        ->set('draft.extras.1.unit', 'شهر')
+        ->set('draft.extras.1.price', 2500);
+
+    // الإجماليات اللحظية: المستحق للبنود الأساسية، والاختيارية على حدة
+    $totals = $page->get('draftTotals');
+    expect($totals['total'])->toBe(20000.0)
+        ->and($totals['extras_total'])->toBe(42500.0);
+
+    $page->call('issueQuote', false);
+
+    $quote = QuoteController::quoteOf($sr->fresh());
+    expect($quote['total'])->toBe(20000.0)
+        ->and($quote['extras'])->toHaveCount(2)
+        ->and($quote['extras_total'])->toBe(42500.0);
+
+    // البنود الاختيارية تعود كما هي عند إعادة فتح المحرّر
+    Livewire\Livewire::test(QuoteRequests::class)
+        ->call('openQuote', $sr->id)
+        ->assertSet('draft.extras.1.unit', 'شهر')
+        ->assertSet('draft.extras.1.price', 2500.0);
+});

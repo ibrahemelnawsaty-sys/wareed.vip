@@ -191,6 +191,14 @@ class QuoteRequests extends Page
             // نص «مدة التنفيذ» القديم لم يعد يُحرَّر — يُحمل كما هو كي لا تفقده العروض السابقة
             'timeline' => (string) ($saved['timeline'] ?? ''),
             'notes' => (string) ($saved['notes'] ?? ''),
+            'extras' => array_map(fn ($e) => [
+                'name' => (string) ($e['name'] ?? ''),
+                'desc' => (string) ($e['desc'] ?? ''),
+                'note' => (string) ($e['note'] ?? ''),
+                'qty' => max(1, (int) ($e['qty'] ?? 1)),
+                'unit' => (string) ($e['unit'] ?? ''),
+                'price' => max(0, (float) ($e['price'] ?? 0)),
+            ], array_values((array) ($saved['extras'] ?? []))),
             'schedule' => array_map(fn ($t) => [
                 'phase' => (string) ($t['phase'] ?? ''),
                 'start' => (string) ($t['start'] ?? ''),
@@ -217,6 +225,18 @@ class QuoteRequests extends Page
     {
         unset($this->draft['payments'][$index]);
         $this->draft['payments'] = array_values($this->draft['payments']);
+    }
+
+    /** بند اختياري جديد — يُعرض للعميل للاطلاع ولا يدخل في أي إجمالي. */
+    public function addExtra(): void
+    {
+        $this->draft['extras'][] = ['name' => '', 'desc' => '', 'note' => '', 'qty' => 1, 'unit' => '', 'price' => 0];
+    }
+
+    public function removeExtra(int $index): void
+    {
+        unset($this->draft['extras'][$index]);
+        $this->draft['extras'] = array_values($this->draft['extras']);
     }
 
     /** صف جديد في الجدول الزمني — يرث اسم مرحلة لم تُجدوَل بعد إن وُجدت. */
@@ -356,10 +376,17 @@ class QuoteRequests extends Page
             'amount' => round($total * max(0, (float) ($p['percent'] ?? 0)) / 100, 2),
         ], $this->draft['payments'] ?? []);
 
+        // مجموع الخدمات الاختيارية يُعرض وحده ولا يمسّ الإجمالي المستحق
+        $extrasTotal = 0.0;
+        foreach ($this->draft['extras'] ?? [] as $extra) {
+            $extrasTotal += max(1, (int) ($extra['qty'] ?? 1)) * max(0, (float) ($extra['price'] ?? 0));
+        }
+
         return [
             'subtotal' => $subtotal,
             'discount' => $discount,
             'discount_percent' => $discountPercent,
+            'extras_total' => $extrasTotal,
             'vat' => $vat,
             'total' => $total,
             'currency' => $this->draft['currency'] ?? 'ج.م',
@@ -405,6 +432,17 @@ class QuoteRequests extends Page
             'valid_days' => max(1, (int) ($this->draft['valid_days'] ?? 30)),
             'timeline' => trim((string) ($this->draft['timeline'] ?? '')),
             'notes' => trim((string) ($this->draft['notes'] ?? '')),
+            'extras' => array_values(array_map(fn ($e) => [
+                'name' => trim((string) ($e['name'] ?? '')),
+                'desc' => trim((string) ($e['desc'] ?? '')),
+                'note' => trim((string) ($e['note'] ?? '')),
+                'qty' => max(1, (int) ($e['qty'] ?? 1)),
+                'unit' => trim((string) ($e['unit'] ?? '')),
+                'price' => max(0, (float) ($e['price'] ?? 0)),
+            ], array_filter(
+                $this->draft['extras'] ?? [],
+                fn ($e) => trim((string) ($e['name'] ?? '')) !== ''
+            ))),
             'schedule' => array_values(array_map(fn ($t) => [
                 'phase' => trim((string) ($t['phase'] ?? '')),
                 'start' => trim((string) ($t['start'] ?? '')),
