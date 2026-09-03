@@ -4,6 +4,7 @@ use App\Filament\Pages\EmailTemplates;
 use App\Mail\QuoteProposalIssued;
 use App\Mail\StageMessage;
 use App\Models\ServiceRequest;
+use App\Models\Setting;
 use App\Models\User;
 use App\Support\MailTemplates;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -163,4 +164,29 @@ it('يأخذ بريد عرض السعر عنوانه ومقدّمته من ال�
 
     expect((new QuoteProposalIssued($sr))->envelope()->subject)->toBe('عرضك جاهز — متجر حواديت')
         ->and($rendered)->toContain('مرحباً أ. هاجر سلامة، تفضّل عرضك.');
+});
+
+it('يطبع شعار وريد وبيانات الشركة ورقم التواصل في كل رسالة', function () {
+    $this->actingAs(mailAdmin());
+
+    Setting::set('contact_phone', '01055789056', 'contact');
+    Setting::set('legal_name', 'وريد لتقنية المعلومات', 'legal');
+    Setting::set('tax_number', '774-094-117', 'legal');
+    Setting::set('commercial_register', '295283', 'legal');
+
+    $html = (new StageMessage('عنوان', 'نص الرسالة.', 'https://wareed.vip/quote'))->render();
+
+    expect($html)
+        // الشعار صورة PNG لأن SVG لا يُعرض في أغلب عملاء البريد
+        ->toContain('/images/wareed-mark.png')
+        ->toContain('01055789056')
+        // زر الدعوة يحمل نصه — الخصائص العامة كانت تطمس قيمة with() الافتراضية
+        ->toContain('متابعة الطلب')
+        ->toContain('وريد لتقنية المعلومات')
+        ->toContain('774-094-117')
+        ->toContain('295283')
+        ->toContain('wareed.vip')
+        // وضع فاتح مثبَّت حتى لا يقلبه عميل البريد
+        ->toContain('content="light"')
+        ->toContain('#ffffff');
 });
