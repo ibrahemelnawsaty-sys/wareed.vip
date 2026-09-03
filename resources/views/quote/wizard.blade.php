@@ -260,6 +260,8 @@
             transition: transform .22s, box-shadow .3s, background-position .4s, border-color .25s, opacity .2s;
         }
         .btn:disabled { opacity: .65; cursor: wait; transform: none !important; }
+        /* ‏display على .btn يغلب سمة hidden، فيظهر رابط المستند قبل جاهزيته وهو يشير إلى # */
+        .btn[hidden] { display: none; }
         .btn-primary { background: var(--grad); background-size: 150% 100%; background-position: 0% 0; color: #fff; box-shadow: var(--shadow-btn); }
         .btn-primary:hover { transform: translateY(-2px); background-position: 90% 0; box-shadow: 0 20px 44px -16px rgba(99, 102, 241, .65); }
         .btn-lg { padding: 15px 46px; font-size: 1.08rem; }

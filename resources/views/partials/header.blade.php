@@ -56,7 +56,7 @@
                 <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/></svg>
                 {{ $otherLoc === 'en' ? 'EN' : 'ع' }}
             </a>
-            <a href="{{ url('/services/ecommerce') }}" class="btn btn-gold hidden text-sm sm:inline-flex">{{ __('أنشئ متجرك') }}</a>
+            <a href="{{ url('/services/ecommerce') }}" class="btn btn-gold btn-nav text-sm">{{ __('أنشئ متجرك') }}</a>
             {{-- زر قائمة الموبايل --}}
             <button data-nav-toggle class="lg:hidden text-cloud-100" aria-label="{{ __('القائمة') }}">
                 <svg class="h-7 w-7" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg>

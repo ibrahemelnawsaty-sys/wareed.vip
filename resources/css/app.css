@@ -128,6 +128,11 @@ main { position: relative; z-index: 1; }
 .btn-ghost { background: rgba(255, 255, 255, 0.03); color: var(--blue-light); border: 1px solid rgba(96, 165, 250, 0.5); }
 .btn-ghost:hover { background: rgba(59, 130, 246, 0.12); transform: translateY(-2px); }
 .btn svg { width: 20px; height: 20px; }
+/* ‏.btn معرَّف خارج طبقات تايلويند فيغلب أدوات الإخفاء وسمة hidden نفسها — نعيد للإخفاء أولويته */
+.btn[hidden] { display: none; }
+/* زر الترويسة يظهر من الشاشات المتوسطة فأعلى؛ وعلى الجوّال مكانه قائمة الموبايل */
+.btn-nav { display: none; }
+@media (min-width: 640px) { .btn-nav { display: inline-flex; } }
 
 /* ===== أدوات مشتركة ===== */
 .text-gradient-gold {
@@ -260,6 +265,9 @@ main { position: relative; z-index: 1; }
 
 /* ===== الاستجابة ===== */
 @media (max-width: 980px) {
+    /* شبكة أمان: عنصر واحد يفلت بعرضه يكفي ليوسّع المتصفّح نافذة العرض على الجوّال
+       فتظهر الصفحة كلها مصغّرة ومزاحة — يُقصّ الفائض أفقياً بدل ذلك */
+    html, body { overflow-x: hidden; }
     .hero-grid { grid-template-columns: 1fr; text-align: center; }
     .hero p.lead { margin-inline: auto; }
     .hero-cta { justify-content: center; }
@@ -272,7 +280,18 @@ main { position: relative; z-index: 1; }
 }
 @media (max-width: 680px) {
     .services, .why, .steps, .foot-grid { grid-template-columns: 1fr; }
-    .stats-card { inset-inline-start: 50%; transform: translateX(50%); bottom: 0; }
+
+    /* على الجوّال يقود العنوان والدعوة للفعل، والرسم التقني يليهما لا يسبقهما */
+    .hero-visual { order: 0; min-height: 0; }
+
+    /* الرسم وبطاقة الأرقام يصيران تدفّقاً عادياً بدل التموضع المطلق،
+       فلا يمكن لأيّهما أن يتجاوز عرض الشاشة ويجبر المتصفّح على تصغير الصفحة كلها */
+    .net-stage { min-height: 0; display: flex; flex-direction: column; align-items: center; gap: 14px; }
+    .net-svg { position: static; height: 230px; }
+    .stats-card {
+        position: static; width: 100%; max-width: 340px;
+        justify-content: space-around; gap: 12px; padding: 14px 16px;
+    }
 }
 @media (prefers-reduced-motion: reduce) {
     *, ::before, ::after { animation: none !important; }
