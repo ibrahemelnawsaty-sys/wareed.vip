@@ -147,6 +147,16 @@
 
         .wq-editor-actions { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .9rem; }
         .wq-editor-actions .end { margin-inline-start: auto; display: flex; gap: .5rem; }
+        .wq-decision { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; padding: .7rem 1rem;
+                       border-top: 1px solid rgb(243 244 246); background: rgb(240 253 244); }
+        .wq-decision.is-discount { background: rgb(254 252 232); }
+        .wq-decision.is-declined { background: rgb(254 242 242); }
+        .wq-decision .note { font-size: .82rem; color: rgb(55 65 81); }
+        .wq-decision .meta { font-size: .76rem; color: rgb(107 114 128); margin-inline-start: auto; }
+        .dark .wq-decision { background: rgba(34,197,94,.1); border-color: rgba(255,255,255,.08); }
+        .dark .wq-decision.is-discount { background: rgba(234,179,8,.12); }
+        .dark .wq-decision.is-declined { background: rgba(239,68,68,.12); }
+        .dark .wq-decision .note { color: rgb(229 231 235); }
         .wq-quote-badge { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; padding: .7rem 1rem; border-top: 1px solid rgb(243 244 246); background: rgb(240 253 244); }
         .wq-quote-badge .amt { font-weight: 700; color: rgb(21 128 61); font-variant-numeric: tabular-nums; }
         .wq-quote-badge .meta { font-size: .78rem; color: rgb(107 114 128); }
@@ -344,6 +354,23 @@
                 </div>
 
                 @if ($r['quote'])
+                    @if ($r['decision'])
+                        @php
+                            $dColor = match ($r['decision']['choice']) {
+                                'approved' => 'success',
+                                'discount' => 'warning',
+                                default => 'danger',
+                            };
+                        @endphp
+                        <div @class(['wq-decision', 'is-'.$r['decision']['choice']])>
+                            <x-filament::badge :color="$dColor">قرار العميل: {{ $r['decision']['label'] }}</x-filament::badge>
+                            @if ($r['decision']['note'])
+                                <span class="note">«{{ $r['decision']['note'] }}»</span>
+                            @endif
+                            <span class="meta">{{ $r['decision']['at']?->format('Y/m/d — H:i') }}</span>
+                        </div>
+                    @endif
+
                     <div class="wq-quote-badge">
                         <x-filament::badge color="success">صدر عرض السعر</x-filament::badge>
                         <span class="amt">

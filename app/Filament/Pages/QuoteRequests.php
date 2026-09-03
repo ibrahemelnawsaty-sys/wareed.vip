@@ -106,6 +106,7 @@ class QuoteRequests extends Page
                         ? route('quote.document', $invite)
                         : URL::signedRoute('quote.document.signed', ['serviceRequest' => $sr->id]),
                     'quote' => QuoteController::quoteOf($sr),
+                    'decision' => QuoteController::decisionOf($sr),
                     'proposal' => QuoteController::proposalUrl($sr),
                     'flow' => QuoteController::flowOf($sr),
                 ];

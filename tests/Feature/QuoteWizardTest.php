@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\QuoteController;
 use App\Mail\ServiceRequestReceived;
+use App\Mail\StageMessage;
 use App\Models\Service;
 use App\Models\ServiceRequest;
 use App\Models\Setting;
@@ -716,6 +717,71 @@ it('hides the optional add-ons section when there are none', function () {
     expect(QuoteController::quoteOf($sr->fresh())['extras'])->toBe([]);
 
     $this->get('/quote/hajar-salama/proposal')->assertOk()->assertDontSee('خدمات إضافية اختيارية');
+});
+
+it('records the client decision from the proposal page', function () {
+    Mail::fake();
+    submitInvite()->assertOk();
+    $sr = ServiceRequest::sole();
+
+    $sr->update(['payload' => array_merge((array) $sr->payload, [
+        '_flow' => ['stage' => 'awaiting_approval'],
+        '_quote' => [
+            'items' => [['name' => 'تجهيز المتجر', 'qty' => 1, 'price' => 20000]],
+            'discount_percent' => 0, 'vat_percent' => 0, 'currency' => 'ج.م',
+            'valid_days' => 30, 'issued_at' => now()->toIso8601String(),
+        ],
+    ])]);
+
+    // الخيارات الثلاثة معروضة قبل أي قرار
+    expect(QuoteController::decisionOf($sr->fresh()))->toBeNull();
+    $this->get('/quote/hajar-salama/proposal')
+        ->assertOk()
+        ->assertSee('اعتماد العرض')
+        ->assertSee('طلب تخفيض')
+        ->assertSee('الاعتذار عن المتابعة');
+
+    $this->post('/quote/hajar-salama/decision', [
+        'choice' => 'discount',
+        'note' => 'ميزانيتي حتى 30,000 ج.م',
+    ])->assertRedirect();
+
+    $decision = QuoteController::decisionOf($sr->fresh());
+    expect($decision['choice'])->toBe('discount')
+        ->and($decision['label'])->toBe('طلب تخفيض')
+        ->and($decision['note'])->toBe('ميزانيتي حتى 30,000 ج.م')
+        ->and($decision['at'])->not->toBeNull();
+
+    // يصل الفريق إشعار بالقرار
+    Mail::assertSent(
+        StageMessage::class,
+        fn ($mail) => str_contains($mail->subjectLine, 'طلب تخفيض')
+            && str_contains($mail->bodyText, 'ميزانيتي حتى 30,000 ج.م')
+    );
+
+    // العميل يغيّر رأيه فيُستبدل القرار
+    $this->post('/quote/hajar-salama/decision', ['choice' => 'approved'])->assertRedirect();
+    expect(QuoteController::decisionOf($sr->fresh())['choice'])->toBe('approved');
+});
+
+it('rejects an unknown decision and one on a request without a quote', function () {
+    Mail::fake();
+    submitInvite()->assertOk();
+    $sr = ServiceRequest::sole();
+
+    // لا عرض سعر بعد ← لا قرار
+    $this->post('/quote/hajar-salama/decision', ['choice' => 'approved'])->assertNotFound();
+
+    $sr->update(['payload' => array_merge((array) $sr->payload, ['_quote' => [
+        'items' => [['name' => 'تجهيز المتجر', 'qty' => 1, 'price' => 20000]],
+        'vat_percent' => 0, 'currency' => 'ج.م', 'valid_days' => 30,
+        'issued_at' => now()->toIso8601String(),
+    ]])]);
+
+    $this->post('/quote/hajar-salama/decision', ['choice' => 'مدري'])
+        ->assertSessionHasErrors('choice');
+
+    expect(QuoteController::decisionOf($sr->fresh()))->toBeNull();
 });
 
 it('prints the legal identifiers on the proposal header', function () {
