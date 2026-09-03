@@ -213,14 +213,22 @@
         .decide-lead { font-size: .84rem; color: var(--muted); margin-top: .3rem; }
         .decide-lead b { color: var(--ink); }
         .decide-opts { display: grid; grid-template-columns: repeat(3, 1fr); gap: .7rem; margin-top: 1rem; }
+        /* لون كل خيار يتبع حالته: اعتماد أخضر، تخفيض كهرماني، اعتذار محايد — بألوان صندوق التأكيد نفسها */
         .d-opt {
-            position: relative; display: block; cursor: pointer; padding: .85rem .95rem;
+            --d: #047857; --d-bg: #ecfdf5; --d-line: #a7f3d0; --d-ring: rgba(4, 120, 87, .14);
+            position: relative; display: block; cursor: pointer; overflow: hidden;
+            padding: .85rem .95rem; padding-inline-start: 1.15rem;
             border: 1.5px solid var(--line); border-radius: 12px; background: #fff; transition: .15s;
         }
-        .d-opt:hover { border-color: #bfd3f8; background: #fafcff; }
-        .d-opt.on { border-color: var(--blue); background: #f2f7ff; box-shadow: 0 0 0 3px rgba(37, 99, 235, .12); }
+        .d-opt[data-opt="discount"] { --d: #b45309; --d-bg: #fffbeb; --d-line: #fde68a; --d-ring: rgba(180, 83, 9, .14); }
+        .d-opt[data-opt="declined"] { --d: #475569; --d-bg: #f8fafc; --d-line: #cbd5e1; --d-ring: rgba(71, 85, 105, .14); }
+        /* شريط جانبي بلون الحالة يميّزها قبل الاختيار، ويكتمل لونه عند اختيارها */
+        .d-opt::before { content: ""; position: absolute; inset-block: 0; inset-inline-start: 0; width: 4px; background: var(--d); opacity: .4; }
+        .d-opt:hover { border-color: var(--d-line); background: var(--d-bg); }
+        .d-opt.on { border-color: var(--d); background: var(--d-bg); box-shadow: 0 0 0 3px var(--d-ring); }
+        .d-opt.on::before { opacity: 1; }
         .d-opt input { position: absolute; opacity: 0; pointer-events: none; }
-        .d-name { display: block; font-size: .92rem; font-weight: 700; color: var(--ink); }
+        .d-name { display: block; font-size: .92rem; font-weight: 700; color: var(--d); }
         .d-lead { display: block; font-size: .76rem; color: var(--muted); margin-top: .2rem; line-height: 1.65; }
         .decide-note { margin-top: .9rem; }
         .decide-note label { display: block; font-size: .78rem; color: var(--muted); margin-bottom: .3rem; }
