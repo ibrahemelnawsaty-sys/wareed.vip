@@ -7,7 +7,7 @@
     $wa = preg_replace('/[^0-9]/', '', (string) $order->customer_phone);
 @endphp
 
-<h2 style="margin:0 0 6px;font-size:20px;color:#1a2547;">🛒 طلب جديد في متجر {{ $order->store?->name }}</h2>
+<h2 style="margin:0 0 6px;font-size:20px;color:#1a2547;">طلب جديد في متجر {{ $order->store?->name }}</h2>
 <p style="margin:0 0 18px;color:#65718f;font-size:14px;">رقم الطلب: <strong dir="ltr">{{ $order->order_number }}</strong></p>
 
 <table style="width:100%;border-collapse:collapse;border:1px solid #eef2fb;border-radius:10px;overflow:hidden;">
@@ -30,6 +30,6 @@
 </div>
 
 <div style="margin-top:20px;text-align:center;">
-    <a href="https://wa.me/{{ $wa }}" style="display:inline-block;background:#25d366;color:#fff;text-decoration:none;font-weight:bold;padding:11px 22px;border-radius:10px;font-size:14px;">💬 تأكيد الطلب مع العميل</a>
+    <a href="https://wa.me/{{ $wa }}" style="display:inline-block;background:#25d366;color:#fff;text-decoration:none;font-weight:bold;padding:11px 22px;border-radius:10px;font-size:14px;">تأكيد الطلب مع العميل</a>
 </div>
 @endsection

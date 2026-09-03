@@ -24,8 +24,7 @@
     <meta name="robots" content="noindex, nofollow">
     <title>عرض سعر {{ $sr->reference }} — وريد</title>
     <link rel="icon" type="image/svg+xml" href="{{ asset('favicon.svg') }}">
-    <link rel="preconnect" href="https://fonts.bunny.net" crossorigin>
-    <link href="https://fonts.bunny.net/css?family=ibm-plex-sans-arabic:400,500,600,700&display=swap" rel="stylesheet">
+@include('quote._fonts')
     <style>
         :root {
             --ink: #0d1830; --muted: #55638a; --faint: #8493b5;
@@ -36,7 +35,7 @@
         }
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            font-family: 'IBM Plex Sans Arabic', 'Tajawal', ui-sans-serif, system-ui, sans-serif;
+            font-family: 'Thmanyah', 'IBM Plex Sans Arabic', ui-sans-serif, system-ui, sans-serif;
             background: #eef2f9; color: var(--ink); line-height: 1.6;
             -webkit-font-smoothing: antialiased; padding: 26px 14px 60px;
         }
@@ -86,6 +85,12 @@
         .section-title { margin-top: 5.5mm; display: flex; align-items: center; gap: 3mm; font-size: 10.5pt; font-weight: 700; }
         .section-title::before { content: ""; width: 1.2mm; height: 5mm; border-radius: 2px; background: var(--grad); }
         .section-title .en { font-size: 7.4pt; font-weight: 600; letter-spacing: 2px; color: var(--faint); margin-inline-start: auto; }
+
+        /* الجداول الكثيفة (بنود، جداول زمنية، دفعات) لها عرض أدنى ثابت بالمليمتر؛ على الجوّال
+           تصير قابلة للتمرير أفقياً داخل حدودها (أدناه) بدل أن تُخرج الصفحة كلها عن عرضها.
+           التفعيل يبقى مقصوراً على الجوّال لأنه ينشئ سياق تنسيق جديداً يمنع دمج الهوامش
+           المتجاورة (margin collapsing)، فتفعيله دائماً يزيد ارتفاع الصفحة المطبوعة بلا داع */
+        .tbl-wrap { max-width: 100%; }
 
         table.items { width: 100%; border-collapse: collapse; margin-top: 3mm; }
         table.items th {
@@ -172,13 +177,6 @@
 
         .foot { margin-top: auto; padding-top: 4.5mm; }
         .foot-note { font-size: 7.2pt; color: var(--faint); line-height: 1.65; border-top: 1px solid var(--line); padding-top: 3mm; }
-        .run-foot {
-            display: none; position: fixed; inset-inline: 0; bottom: 0; height: 9mm;
-            align-items: center; justify-content: space-between; gap: 4mm;
-            padding: 0 12mm; font-size: 7pt; color: var(--faint);
-            border-top: 1px solid var(--line-soft); background: #fff;
-        }
-        .run-foot b { color: var(--muted); font-weight: 600; letter-spacing: .4px; }
         .foot-bar {
             margin-top: 3mm; padding-top: 2.6mm; border-top: 2px solid var(--band);
             display: flex; align-items: center; justify-content: space-between; gap: 6mm; font-size: 7.8pt; color: var(--muted);
@@ -189,7 +187,7 @@
         .toolbar {
             position: sticky; top: 12px; z-index: 10; width: 210mm; max-width: 100%; margin: 0 auto 16px;
             display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
-            background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 11px 18px;
+            background: #fff; border: 1px solid var(--line); border-radius: 18px; padding: 11px 18px;
             box-shadow: 0 12px 30px -18px rgba(13, 24, 48, .4);
         }
         .toolbar p { font-size: .82rem; color: var(--muted); }
@@ -197,8 +195,9 @@
         .tb-actions { display: flex; gap: 9px; flex-wrap: wrap; }
         .tb-btn {
             display: inline-flex; align-items: center; gap: 7px; cursor: pointer;
-            padding: 9px 20px; border-radius: 11px; border: 1px solid transparent;
+            padding: 9px 22px; border-radius: 999px; border: 1px solid transparent;
             font: inherit; font-size: .88rem; font-weight: 700;
+            transition: transform .32s cubic-bezier(.22,1,.36,1), box-shadow .32s cubic-bezier(.22,1,.36,1), border-color .28s;
         }
         .tb-primary { background: var(--grad); color: #fff; }
         .tb-ghost { background: #fff; color: var(--muted); border-color: var(--line); }
@@ -214,25 +213,33 @@
         .decide-lead { font-size: .84rem; color: var(--muted); margin-top: .3rem; }
         .decide-lead b { color: var(--ink); }
         .decide-opts { display: grid; grid-template-columns: repeat(3, 1fr); gap: .7rem; margin-top: 1rem; }
+        /* لون كل خيار يتبع حالته: اعتماد أخضر، تخفيض كهرماني، اعتذار محايد — بألوان صندوق التأكيد نفسها */
         .d-opt {
-            position: relative; display: block; cursor: pointer; padding: .85rem .95rem;
-            border: 1.5px solid var(--line); border-radius: 12px; background: #fff; transition: .15s;
+            --d: #047857; --d-bg: #ecfdf5; --d-line: #a7f3d0; --d-ring: rgba(4, 120, 87, .14);
+            position: relative; display: block; cursor: pointer; overflow: hidden;
+            padding: .85rem .95rem; padding-inline-start: 1.15rem;
+            border: 1.5px solid var(--line); border-radius: 14px; background: #fff; transition: .22s cubic-bezier(.22,1,.36,1);
         }
-        .d-opt:hover { border-color: #bfd3f8; background: #fafcff; }
-        .d-opt.on { border-color: var(--blue); background: #f2f7ff; box-shadow: 0 0 0 3px rgba(37, 99, 235, .12); }
+        .d-opt[data-opt="discount"] { --d: #b45309; --d-bg: #fffbeb; --d-line: #fde68a; --d-ring: rgba(180, 83, 9, .14); }
+        .d-opt[data-opt="declined"] { --d: #475569; --d-bg: #f8fafc; --d-line: #cbd5e1; --d-ring: rgba(71, 85, 105, .14); }
+        /* شريط جانبي بلون الحالة يميّزها قبل الاختيار، ويكتمل لونه عند اختيارها */
+        .d-opt::before { content: ""; position: absolute; inset-block: 0; inset-inline-start: 0; width: 4px; background: var(--d); opacity: .4; }
+        .d-opt:hover { border-color: var(--d-line); background: var(--d-bg); }
+        .d-opt.on { border-color: var(--d); background: var(--d-bg); box-shadow: 0 0 0 3px var(--d-ring); }
+        .d-opt.on::before { opacity: 1; }
         .d-opt input { position: absolute; opacity: 0; pointer-events: none; }
-        .d-name { display: block; font-size: .92rem; font-weight: 700; color: var(--ink); }
+        .d-name { display: block; font-size: .92rem; font-weight: 700; color: var(--d); }
         .d-lead { display: block; font-size: .76rem; color: var(--muted); margin-top: .2rem; line-height: 1.65; }
         .decide-note { margin-top: .9rem; }
         .decide-note label { display: block; font-size: .78rem; color: var(--muted); margin-bottom: .3rem; }
         .decide-note textarea {
-            width: 100%; padding: .6rem .8rem; border-radius: 10px; border: 1px solid var(--line);
+            width: 100%; padding: .65rem .9rem; border-radius: 14px; border: 1px solid var(--line);
             font: inherit; font-size: .86rem; color: var(--ink); background: #fff; resize: vertical;
         }
         .decide-note textarea:focus { outline: 2px solid rgba(37, 99, 235, .3); border-color: var(--blue); }
         .decide-send {
             margin-top: 1rem; display: inline-flex; align-items: center; gap: .45rem; cursor: pointer;
-            border: 0; border-radius: 10px; padding: .7rem 1.6rem; font: inherit; font-size: .9rem;
+            border: 0; border-radius: 999px; padding: .7rem 1.8rem; font: inherit; font-size: .9rem;
             font-weight: 700; color: #fff; background: var(--grad);
         }
         .decide-send:disabled { opacity: .45; cursor: not-allowed; }
@@ -255,12 +262,123 @@
         .dd-meta { font-size: .76rem; color: var(--dd); opacity: .8; margin-top: .4rem; }
         @media (max-width: 640px) { .decide-opts { grid-template-columns: 1fr; } }
 
+        /* صندوق رفع متطلبات المشروع — يظهر بعد اعتماد العرض فقط */
+        .reqs {
+            width: 210mm; max-width: 100%; margin: 16px auto 0; background: #fff;
+            border: 1px solid var(--line); border-radius: 16px; padding: 9mm 10mm;
+            box-shadow: 0 18px 44px -30px rgba(13, 24, 48, .45);
+        }
+        .reqs-title { font-size: 1.05rem; font-weight: 700; display: flex; align-items: center; gap: .5rem; }
+        .reqs-title .ic { width: 20px; height: 20px; color: var(--blue); }
+        .reqs-lead { font-size: .84rem; color: var(--muted); margin-top: .3rem; line-height: 1.75; }
+        .reqs-lead b { color: var(--ink); }
+
+        .reqs-list { margin-top: 1rem; display: flex; flex-direction: column; gap: .5rem; }
+        .reqs-item {
+            display: flex; align-items: center; gap: .7rem; padding: .6rem .8rem;
+            border: 1px solid var(--line); border-radius: 10px; background: #fafcff;
+        }
+        .reqs-item .ic { width: 18px; height: 18px; color: var(--blue); flex: none; }
+        .reqs-item .ri-name { font-size: .86rem; font-weight: 700; color: var(--ink); overflow-wrap: anywhere; }
+        .reqs-item .ri-desc { font-size: .78rem; color: var(--muted); margin-top: .15rem; overflow-wrap: anywhere; }
+        .reqs-item .ri-meta { margin-inline-start: auto; font-size: .72rem; color: var(--faint); white-space: nowrap; text-align: end; }
+
+        .reqs-form { margin-top: 1.1rem; padding-top: 1rem; border-top: 1px solid var(--line-soft); }
+        .reqs-form-title { font-size: .82rem; font-weight: 700; color: var(--ink); }
+        .reqs-rows { margin-top: .7rem; display: flex; flex-direction: column; gap: .6rem; }
+        .reqs-row {
+            display: grid; grid-template-columns: 1fr 1fr auto; gap: .6rem; align-items: center;
+            padding: .55rem; border: 1.5px dashed var(--line); border-radius: 10px;
+        }
+        .reqs-row input[type="file"] {
+            font: inherit; font-size: .8rem; color: var(--muted); width: 100%;
+        }
+        .reqs-row input[type="text"] {
+            width: 100%; padding: .5rem .7rem; border-radius: 8px; border: 1px solid var(--line);
+            font: inherit; font-size: .82rem; color: var(--ink); background: #fff;
+        }
+        .reqs-row input[type="text"]:focus { outline: 2px solid rgba(37, 99, 235, .3); border-color: var(--blue); }
+        .reqs-rm {
+            cursor: pointer; border: 1px solid var(--line); background: #fff; border-radius: 8px;
+            width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; color: #b91c1c;
+        }
+        .reqs-rm .ic { width: 15px; height: 15px; }
+        .reqs-add {
+            margin-top: .7rem; display: inline-flex; align-items: center; gap: .4rem; cursor: pointer;
+            border: 1.5px dashed var(--line); border-radius: 10px; background: #fff; color: var(--blue);
+            padding: .5rem 1rem; font: inherit; font-size: .82rem; font-weight: 700;
+        }
+        .reqs-add .ic { width: 16px; height: 16px; }
+        .reqs-hint { margin-top: .6rem; font-size: .74rem; color: var(--faint); }
+        .reqs-send {
+            margin-top: 1rem; display: inline-flex; align-items: center; gap: .45rem; cursor: pointer;
+            border: 0; border-radius: 10px; padding: .7rem 1.6rem; font: inherit; font-size: .9rem;
+            font-weight: 700; color: #fff; background: var(--grad);
+        }
+        .reqs-send .ic { width: 18px; height: 18px; }
+        .reqs-err { margin-top: .5rem; font-size: .8rem; color: #b91c1c; }
+        .reqs-ok { margin-top: .5rem; font-size: .8rem; color: #047857; font-weight: 600; }
+        @media (max-width: 640px) { .reqs-row { grid-template-columns: 1fr; } }
+
+        /* عمود حالة المرحلة داخل الجدول الزمني — يظهر بعد اعتماد العرض */
+        .sc-badge {
+            display: inline-flex; align-items: center; gap: .25rem; padding: .1rem .55rem; border-radius: 99px;
+            font-size: 6.8pt; font-weight: 700; white-space: nowrap;
+        }
+        .sc-badge.done { color: #047857; background: rgba(4, 120, 87, .1); }
+        .sc-badge.now { color: #b45309; background: rgba(180, 83, 9, .1); }
+        .sc-badge.next { color: #55638a; background: rgba(85, 99, 138, .08); }
+
+        /* ── تقسيم الطباعة: كل صفحة صندوق A4 مستقل بترويسته وتذييله ── */
+        .pg { display: none; }
+        .pg-foot {
+            display: none; align-items: center; justify-content: space-between; gap: 4mm;
+            padding-top: 2.5mm; border-top: 1px solid var(--line-soft);
+            font-size: 7pt; color: var(--faint);
+        }
+        .pg-foot b { color: var(--muted); font-weight: 600; letter-spacing: .4px; }
+        .pg-foot .no { font-weight: 700; color: var(--muted); font-variant-numeric: tabular-nums; }
+        .pg-head {
+            display: none; align-items: center; justify-content: space-between; gap: 4mm;
+            padding-bottom: 2.5mm; margin-bottom: 4mm; border-bottom: 1px solid var(--line-soft);
+        }
+        .pg-head .who { display: flex; align-items: center; gap: 2.5mm; font-size: 9pt; font-weight: 700; }
+        .pg-head .mark { width: 7mm; height: 7mm; }
+        .pg-head .ref { font-size: 7.6pt; color: var(--faint); direction: ltr; }
+
+        /* ===== هندسة صفحات الطباعة =====
+           تعيش خارج @media print عمداً: المتصفّح يُطلق beforeprint قبل تطبيق أنماط
+           الطباعة، فلو كانت المقاسات داخلها لقاس المقسّم صفحاتٍ بلا ارتفاع (0)،
+           فظنّ أن كل المحتوى يسع صفحة واحدة وقصّ ما زاد صامتاً عند الطباعة. */
+        body.paged .pg {
+            display: flex; flex-direction: column;
+            width: 210mm; height: 297mm; padding: 11mm 12mm 8mm;
+            background: #fff; overflow: hidden; position: relative;
+        }
+        body.paged .pg::before {
+            content: ""; position: absolute; inset-inline: 0; top: 0; height: 4mm; background: var(--grad);
+        }
+        body.paged .pg > .pg-body { flex: 1; min-height: 0; overflow: hidden; }
+        body.paged .pg > .pg-head { display: flex; }
+        body.paged .pg > .pg-foot { display: flex; margin-top: auto; }
+        /* الصفحة الأولى تحمل ترويسة المستند الكاملة لا المصغّرة */
+        body.paged .pg:first-of-type > .pg-head { display: none; }
+
+        /* على الشاشة تُقاس الصفحات دون أن تُرى ودون أن تزيح المحتوى المعروض */
+        @media screen {
+            body.paged .pg { position: fixed; top: 0; inset-inline-start: -400vw; visibility: hidden; }
+        }
+
         @media print {
-            /* هامش سفلي لكل صفحة يسكنه الشريط الجاري أسفلها */
-            @page { size: A4; margin: 0 0 13mm; }
+            @page { size: A4; margin: 0; }
+
+            /* الصفحات المبنية بالسكربت تحلّ محلّ التدفّق الواحد */
+            body.paged .sheet { display: none !important; }
+            body.paged .pg { break-after: page; }
+            body.paged .pg:last-of-type { break-after: auto; }
             html, body { background: #fff; padding: 0; margin: 0; }
-            .toolbar, .decide { display: none !important; }
-            .sheet { width: 210mm; min-height: 0; box-shadow: none; margin: 0; padding-bottom: 4mm; }
+            .toolbar, .decide, .reqs { display: none !important; }
+            .sheet { width: 210mm; min-height: 0; box-shadow: none; margin: 0; padding: 11mm 12mm 8mm; }
             * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
 
             /* المستند يمتد على ما يلزم من الصفحات — والانتقال بينها يبقى مرتّباً */
@@ -269,17 +387,39 @@
             .section-title { break-after: avoid; }
             .totals, .bank, .term-box, .refbar, .party, footer.foot { break-inside: avoid; }
             .parties, section.pay, .terms { break-inside: auto; }
-
-            /* شريط جارٍ يتكرر أسفل كل صفحة مطبوعة يحمل الرقم المرجعي */
-            .run-foot { display: flex !important; }
         }
         @media screen and (max-width: 230mm) {
+            /* شبكة أمان: أي عنصر يفلت بعرضه (نادراً، بعد تمرير الجداول الكثيفة أدناه)
+               يبقى قابلاً للتمرير داخل حدوده بدل أن يُخرج الصفحة كلها عن عرض الشاشة ويصغّرها */
+            html, body { overflow-x: hidden; }
             body { padding: 14px 8px 40px; }
             .sheet { width: 100%; min-height: auto; padding: 9mm 7mm; }
             .parties, .terms, .pay { grid-template-columns: 1fr; }
             .refbar { flex-wrap: wrap; }
             .refbar-meta, .refbar-qr { border-inline-start: 0; border-top: 1px solid var(--line); }
             .totals table { width: 100%; }
+            .tbl-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+        }
+        /* الجوّال تحديداً: نصوص العرض والطباعة بمقاس المليمتر مريحة على A4 لكنها صغيرة على شاشة
+           بهذا الحجم، فتُكبَّر أهم العناصر التي يقرؤها العميل فعلياً — البنود والإجماليات والعناوين */
+        @media screen and (max-width: 480px) {
+            body { font-size: 15px; }
+            .head-title h1 { font-size: 19pt; }
+            .section-title { font-size: 12pt; }
+            .party-name { font-size: 12.5pt; }
+            .party-row { font-size: 9.6pt; }
+            table.items th, table.pay-table th { font-size: 9.4pt; padding: 2.8mm 3mm; }
+            table.items td, table.pay-table td { font-size: 10pt; padding: 3mm 3mm; }
+            td.it small { font-size: 8.8pt; }
+            table.pay-table td small { font-size: 8.4pt; }
+            tr.phase .ph-name { font-size: 9.6pt; }
+            tr.phase .ph-sum { font-size: 9pt; }
+            .totals td { font-size: 10.5pt; padding: 2.6mm 4mm; }
+            .totals tr.grand td { font-size: 13pt; }
+            .opt-totals td { font-size: 9.6pt; }
+            .note-list li, .term-box p, .opt-note { font-size: 9.4pt; }
+            .bank .brow { font-size: 9.2pt; }
+            .refbar-num { font-size: 14pt; }
         }
     </style>
 </head>
@@ -299,7 +439,7 @@
 </div>
 
 <article class="sheet">
-    <header class="head">
+    <header class="head" data-pg-unit="head">
         <div class="head-title">
             <h1>عرض سعر</h1>
             <div class="en">PRICE QUOTATION</div>
@@ -330,7 +470,7 @@
         </div>
     </header>
 
-    <section class="refbar">
+    <section class="refbar" data-pg-unit="refbar">
         <div class="refbar-main">
             <div class="refbar-label">الرقم المرجعي · REFERENCE No.</div>
             <div class="refbar-num">{{ $sr->reference }}</div>
@@ -346,7 +486,7 @@
         </div>
     </section>
 
-    <section class="parties">
+    <section class="parties" data-pg-unit="parties">
         <div class="party to">
             <div class="party-head">مقدَّم إلى</div>
             <div class="party-body">
@@ -371,11 +511,12 @@
         </div>
     </section>
 
-    <div class="section-title">
+    <div class="section-title" data-pg-unit="items-title">
         بنود عرض السعر
         <span class="en">QUOTATION ITEMS</span>
     </div>
-    <table class="items">
+    <div class="tbl-wrap">
+    <table class="items" data-pg-unit="items-table">
         <thead>
             <tr>
                 <th style="width:9mm">م</th>
@@ -428,8 +569,9 @@
             @endforeach
         </tbody>
     </table>
+    </div>
 
-    <div class="totals">
+    <div class="totals" data-pg-unit="totals">
         <table>
             <tr><td>الإجمالي قبل الخصم</td><td>{{ $money($quote['subtotal']) }} {{ $cur }}</td></tr>
             @if ($quote['discount'] > 0)
@@ -443,6 +585,7 @@
     </div>
 
     @if ($quote['extras'])
+        <div class="pg-unit" data-pg-unit="extras">
         <div class="section-title">
             خدمات إضافية اختيارية
             <span class="en">OPTIONAL ADD-ONS</span>
@@ -451,6 +594,7 @@
             بنود معروضة للاطلاع فقط ولم تُحتسب ضمن الإجمالي المستحق أعلاه.
             يمكن إضافة أيٍّ منها لاحقاً بطلب منكم، ويُصدَر لها ملحق مستقل للعرض.
         </p>
+        <div class="tbl-wrap">
         <table class="pay-table sched opt">
             <thead>
                 <tr>
@@ -480,6 +624,7 @@
                 @endforeach
             </tbody>
         </table>
+        </div>
         <div class="opt-totals">
             <table>
                 <tr>
@@ -505,13 +650,17 @@
             </table>
             <span class="opt-flag">غير مشمولة في الإجمالي المستحق</span>
         </div>
+        </div>
     @endif
 
     @if ($quote['schedule'])
+        <div class="pg-unit" data-pg-unit="schedule">
         <div class="section-title">
             الجدول الزمني للتسليم
             <span class="en">DELIVERY SCHEDULE</span>
         </div>
+        @php $showScheduleStatus = ($decision['choice'] ?? null) === 'approved'; @endphp
+        <div class="tbl-wrap">
         <table class="pay-table sched">
             <thead>
                 <tr>
@@ -519,22 +668,44 @@
                     <th>المرحلة</th>
                     <th style="width:34mm">تاريخ البدء</th>
                     <th style="width:34mm">تاريخ النهاية</th>
+                    @if ($showScheduleStatus)<th style="width:24mm">الحالة</th>@endif
                 </tr>
             </thead>
             <tbody>
                 @foreach ($quote['schedule'] as $stageNo => $stage)
+                    @php
+                        $scState = null;
+                        if ($showScheduleStatus) {
+                            $scState = match (true) {
+                                $flow['stage'] === 'delivered' => 'done',
+                                $stage['end'] && now()->gt($stage['end']) => 'done',
+                                $stage['start'] && now()->gte($stage['start']) => 'now',
+                                default => 'next',
+                            };
+                        }
+                    @endphp
                     <tr>
                         <td class="n">{{ $stageNo + 1 }}</td>
                         <td><b>{{ $stage['phase'] ?: 'مرحلة' }}</b></td>
                         <td class="due">{{ $stage['start'] ? $fmtShort($stage['start']) : '—' }}</td>
                         <td class="due">{{ $stage['end'] ? $fmtShort($stage['end']) : 'يُحدَّد لاحقاً' }}</td>
+                        @if ($showScheduleStatus)
+                            <td>
+                                <span class="sc-badge {{ $scState }}">
+                                    {{ match ($scState) { 'done' => 'مكتملة', 'now' => 'جارية الآن', default => 'قادمة' } }}
+                                </span>
+                            </td>
+                        @endif
                     </tr>
                 @endforeach
             </tbody>
         </table>
+        </div>
+        </div>
     @endif
 
     @if ($quote['payments'] || $bank['has'])
+        <div class="pg-unit" data-pg-unit="payments">
         <div class="section-title">
             الدفعات وطريقة السداد
             <span class="en">PAYMENT TERMS</span>
@@ -542,6 +713,7 @@
         @php $hasDue = collect($quote['payments'])->contains(fn ($p) => (bool) $p['due']); @endphp
         <section @class(['pay', 'with-due' => $hasDue])>
             @if ($quote['payments'])
+                <div class="tbl-wrap">
                 <table class="pay-table">
                     <thead>
                         <tr>
@@ -567,6 +739,7 @@
                         @endforeach
                     </tbody>
                 </table>
+                </div>
             @endif
 
             @if ($bank['has'])
@@ -580,9 +753,10 @@
                 </div>
             @endif
         </section>
+        </div>
     @endif
 
-    <section class="terms">
+    <section class="terms" data-pg-unit="terms">
         <div class="term-box">
             <h4>شروط العرض</h4>
             <p>
@@ -612,7 +786,7 @@
         </div>
     </section>
 
-    <footer class="foot">
+    <footer class="foot" data-pg-unit="footer">
         <p class="foot-note">
             هذا المستند نسخة العميل من عرض سعر صادر إلكترونياً عن منصة وريد، ويُعدّ ساري المفعول خلال مدة صلاحيته المذكورة أعلاه.
             يمكن التحقق من العرض بالرقم المرجعي أو رمز QR. أي تعديل على نطاق العمل قد يستوجب مراجعة الأسعار.
@@ -679,6 +853,72 @@
     </form>
 </section>
 
+@if (($decision['choice'] ?? null) === 'approved')
+    {{-- متطلبات المشروع: ملفات الهوية البصرية وبيانات المنتجات وغيرها — تظهر فقط بعد اعتماد العرض --}}
+    <section class="reqs" id="requirements">
+        <h2 class="reqs-title"><svg class="ic"><use href="#i-box"/></svg> متطلبات المشروع</h2>
+        <p class="reqs-lead">
+            ارفع ملفات هويتك البصرية أو شعار المتجر، وبيانات منتجاتك (أسماء وأوصاف وأسعار وصور إن توفّرت)،
+            وأي ملفات أخرى يحتاجها فريق وريد، مع وصف مختصر لكل ملف.
+            @if ($flow['stage'] === 'awaiting_requirements')
+                <b>لم يبدأ التنفيذ الفعلي بعد — يبدأ فور رفعك لأوّل ملف.</b>
+            @endif
+        </p>
+
+        @if (session('requirements_saved'))
+            <p class="reqs-ok">
+                <svg class="ic" style="width:16px;height:16px;display:inline-block;vertical-align:-3px"><use href="#i-check"/></svg>
+                استلمنا ملفاتك بنجاح — شكراً لتعاونك.
+            </p>
+        @endif
+
+        @if (count($requirements))
+            <div class="reqs-list">
+                @foreach ($requirements as $file)
+                    <div class="reqs-item">
+                        <svg class="ic"><use href="#i-document"/></svg>
+                        <div>
+                            <div class="ri-name">{{ $file['name'] }}</div>
+                            @if ($file['desc'])<div class="ri-desc">{{ $file['desc'] }}</div>@endif
+                        </div>
+                        <span class="ri-meta">
+                            {{ $file['size_h'] }}
+                            @if ($file['uploaded_at']) · {{ $fmtShort($file['uploaded_at']) }} @endif
+                        </span>
+                    </div>
+                @endforeach
+            </div>
+        @endif
+
+        <form method="POST" action="{{ $requirementsUrl }}" enctype="multipart/form-data" class="reqs-form" data-reqs>
+            @csrf
+            <div class="reqs-form-title">{{ count($requirements) ? 'إضافة ملفات أخرى' : 'رفع الملفات' }}</div>
+
+            <div class="reqs-rows" data-reqs-rows>
+                <div class="reqs-row" data-reqs-row>
+                    <input type="file" name="files[0][file]" required>
+                    <input type="text" name="files[0][desc]" placeholder="وصف الملف (اختياري) — مثال: شعار المتجر">
+                    <button type="button" class="reqs-rm" data-reqs-rm aria-label="إزالة الملف" hidden>
+                        <svg class="ic"><use href="#i-trash"/></svg>
+                    </button>
+                </div>
+            </div>
+
+            <button type="button" class="reqs-add" data-reqs-add>
+                <svg class="ic"><use href="#i-plus"/></svg> إضافة ملف آخر
+            </button>
+            <p class="reqs-hint">حتى 10 ملفات في الرفعة الواحدة، وحجم أقصى 10 ميجابايت لكل ملف.</p>
+
+            <button type="submit" class="reqs-send">
+                <svg class="ic"><use href="#i-check"/></svg> رفع الملفات
+            </button>
+
+            @error('files')<p class="reqs-err">{{ $message }}</p>@enderror
+            @error('files.0.file')<p class="reqs-err">{{ $message }}</p>@enderror
+        </form>
+    </section>
+@endif
+
 <script>
 /* إبراز الخيار المحدَّد وتغيير عنوان حقل الملاحظة — النموذج يعمل بدونه أيضاً */
 (function () {
@@ -702,11 +942,212 @@
 })();
 </script>
 
-{{-- شريط جارٍ يتكرر أسفل كل صفحة عند الطباعة (مخفي على الشاشة) --}}
-<div class="run-foot" aria-hidden="true">
-    <span>وريد لتقنية المعلومات · {{ $contactEmail }}</span>
-    <b>عرض سعر · {{ $sr->reference }}</b>
-</div>
+<script>
+/* إضافة/حذف صفوف رفع الملفات في نموذج متطلبات المشروع — النموذج يعمل بصفٍّ واحد بدونه أيضاً */
+(function () {
+    'use strict';
+    var wrap = document.querySelector('[data-reqs-rows]');
+    if (!wrap) return;
+
+    var addBtn = document.querySelector('[data-reqs-add]');
+    var MAX_ROWS = 10;
+
+    function refreshRemoveButtons() {
+        var rows = wrap.querySelectorAll('[data-reqs-row]');
+        rows.forEach(function (row) {
+            var rm = row.querySelector('[data-reqs-rm]');
+            if (rm) rm.hidden = rows.length <= 1;
+        });
+        if (addBtn) addBtn.hidden = rows.length >= MAX_ROWS;
+    }
+
+    function addRow() {
+        var rows = wrap.querySelectorAll('[data-reqs-row]');
+        if (rows.length >= MAX_ROWS) return;
+
+        var index = rows.length;
+        var row = document.createElement('div');
+        row.className = 'reqs-row';
+        row.setAttribute('data-reqs-row', '');
+        row.innerHTML =
+            '<input type="file" name="files[' + index + '][file]" required>' +
+            '<input type="text" name="files[' + index + '][desc]" placeholder="وصف الملف (اختياري)">' +
+            '<button type="button" class="reqs-rm" data-reqs-rm aria-label="إزالة الملف">' +
+            '<svg class="ic"><use href="#i-trash"/></svg></button>';
+
+        wrap.appendChild(row);
+        refreshRemoveButtons();
+    }
+
+    if (addBtn) addBtn.addEventListener('click', addRow);
+
+    wrap.addEventListener('click', function (e) {
+        var rm = e.target.closest('[data-reqs-rm]');
+        if (!rm) return;
+
+        var rows = wrap.querySelectorAll('[data-reqs-row]');
+        if (rows.length <= 1) return;
+
+        rm.closest('[data-reqs-row]').remove();
+        // إعادة ترقيم الأسماء كي تبقى مصفوفة متتالية files[0], files[1]...
+        wrap.querySelectorAll('[data-reqs-row]').forEach(function (row, i) {
+            row.querySelectorAll('input').forEach(function (input) {
+                input.name = input.name.replace(/files\[\d+\]/, 'files[' + i + ']');
+            });
+        });
+        refreshRemoveButtons();
+    });
+
+    refreshRemoveButtons();
+})();
+</script>
+
+<script>
+/*
+ * تقسيم الطباعة إلى صفحات A4 مستقلة، كل واحدة بترويستها المصغّرة (من الصفحة الثانية)
+ * وتذييلها المرقّم «صفحة X من Y»، دون قصّ أي محتوى مهما طال جدول البنود.
+ *
+ * يعمل بقياس فعلي: يُستنسخ كل عنصر (رأس المستند، جدول البنود صفاً صفاً، الإجماليات،
+ * الباقات الاختيارية، الجدول الزمني، الدفعات، الشروط، التذييل القانوني) داخل صفحة
+ * جارية، فإن فاض بها المحتوى (scrollHeight أكبر من المساحة المتاحة) يُنقل العنصر
+ * لصفحة جديدة. يُبنى فقط عند الطباعة الفعلية (beforeprint) ويُزال بعدها (afterprint)
+ * فتبقى الصفحة التفاعلية على الشاشة كما هي دون أي أثر.
+ *
+ * الأصل يبقى دون تعديل (نسخ لا نقل)، فإن تعطّل هذا السكربت لأي سبب يطبع المتصفح
+ * التدفّق الواحد العادي بقواعد الطباعة الأساسية (تكرار رأس الجدول، منع القطع
+ * منتصف صفّ) — نتيجة سليمة أيضاً وإن بلا ترقيم صفحات.
+ */
+(function () {
+    'use strict';
+
+    var REFERENCE = @json($sr->reference);
+    var CONTACT_EMAIL = @json($contactEmail);
+
+    var UNITS_BEFORE_ITEMS = ['head', 'refbar', 'parties', 'items-title'];
+    var UNITS_AFTER_ITEMS = ['totals', 'extras', 'schedule', 'payments', 'terms', 'footer'];
+
+    function fits(body) {
+        return body.scrollHeight <= body.clientHeight + 1;
+    }
+
+    function markMarkup() {
+        var mark = document.querySelector('[data-pg-unit="head"] .head-org .mark');
+        return mark ? mark.outerHTML : '';
+    }
+
+    function makePage(isFirst) {
+        var pg = document.createElement('div');
+        pg.className = 'pg';
+
+        var head = document.createElement('div');
+        head.className = 'pg-head';
+        if (!isFirst) {
+            head.innerHTML =
+                '<span class="who">' + markMarkup() + ' وريد</span>' +
+                '<span class="ref" dir="ltr">' + REFERENCE + '</span>';
+        }
+
+        var body = document.createElement('div');
+        body.className = 'pg-body';
+
+        var foot = document.createElement('div');
+        foot.className = 'pg-foot';
+        foot.innerHTML =
+            '<span>وريد لتقنية المعلومات · ' + CONTACT_EMAIL + '</span>' +
+            '<span>عرض سعر · <b dir="ltr">' + REFERENCE + '</b> — صفحة ' +
+            '<span class="no" data-pg-cur></span> من <span class="no" data-pg-total></span></span>';
+
+        pg.appendChild(head);
+        pg.appendChild(body);
+        pg.appendChild(foot);
+        document.body.appendChild(pg);
+
+        return {el: pg, body: body, foot: foot};
+    }
+
+    /* يستنسخ عنصراً في متن الصفحة الجارية؛ فإن فاض بها ولم يكن أول محتوى فيها ينتقل لصفحة جديدة */
+    function place(pages, original) {
+        var page = pages[pages.length - 1];
+        var clone = original.cloneNode(true);
+        page.body.appendChild(clone);
+
+        if (page.body.children.length === 1 || fits(page.body)) {
+            return;
+        }
+
+        page.body.removeChild(clone);
+        page = makePage(false);
+        pages.push(page);
+        page.body.appendChild(clone);
+    }
+
+    function newItemsTable(pages, originalThead) {
+        var table = document.createElement('table');
+        table.className = 'items';
+        table.appendChild(originalThead.cloneNode(true));
+        var tbody = document.createElement('tbody');
+        table.appendChild(tbody);
+        pages[pages.length - 1].body.appendChild(table);
+
+        return tbody;
+    }
+
+    function paginate() {
+        var sheet = document.querySelector('.sheet');
+        var table = sheet && sheet.querySelector('[data-pg-unit="items-table"]');
+        if (!sheet || !table) return;
+
+        var originalThead = table.querySelector('thead');
+        var rows = Array.prototype.slice.call(table.querySelectorAll('tbody tr'));
+
+        document.body.classList.add('paged');
+        var pages = [makePage(true)];
+
+        UNITS_BEFORE_ITEMS.forEach(function (key) {
+            var node = sheet.querySelector('[data-pg-unit="' + key + '"]');
+            if (node) place(pages, node);
+        });
+
+        var currentTbody = newItemsTable(pages, originalThead);
+        rows.forEach(function (row) {
+            var clone = row.cloneNode(true);
+            currentTbody.appendChild(clone);
+
+            var page = pages[pages.length - 1];
+            if (currentTbody.children.length === 1 || fits(page.body)) {
+                return;
+            }
+
+            currentTbody.removeChild(clone);
+            page = makePage(false);
+            pages.push(page);
+            currentTbody = newItemsTable(pages, originalThead);
+            currentTbody.appendChild(clone);
+        });
+
+        UNITS_AFTER_ITEMS.forEach(function (key) {
+            var node = sheet.querySelector('[data-pg-unit="' + key + '"]');
+            if (node) place(pages, node);
+        });
+
+        pages.forEach(function (page, i) {
+            page.foot.querySelector('[data-pg-cur]').textContent = i + 1;
+            page.foot.querySelector('[data-pg-total]').textContent = pages.length;
+        });
+    }
+
+    function unpaginate() {
+        document.querySelectorAll('.pg').forEach(function (pg) { pg.remove(); });
+        document.body.classList.remove('paged');
+    }
+
+    window.addEventListener('beforeprint', function () {
+        unpaginate();
+        paginate();
+    });
+    window.addEventListener('afterprint', unpaginate);
+})();
+</script>
 
 </body>
 </html>

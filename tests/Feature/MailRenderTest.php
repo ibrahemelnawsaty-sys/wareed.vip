@@ -1,5 +1,6 @@
 <?php
 
+use App\Mail\QuoteProposalIssued;
 use App\Mail\ServiceRequestConfirmation;
 use App\Mail\ServiceRequestReceived;
 use App\Mail\StoreOrderReceived;
@@ -23,6 +24,23 @@ it('renders service request admin + confirmation emails without errors', functio
 
     expect((new ServiceRequestReceived($sr))->render())->toContain('طلب جديد');
     expect((new ServiceRequestConfirmation($sr))->render())->toContain('عميل تجربة');
+});
+
+it('embeds a hidden tracking pixel in the issued quote email', function () {
+    $sr = ServiceRequest::create([
+        'service_type' => 'ecommerce', 'name' => 'عميل تجربة', 'phone' => '01000000000',
+        'email' => 'test@example.com', 'status' => 'proposal', 'source' => 'quote_form',
+        'payload' => ['_quote' => [
+            'items' => [['name' => 'تجهيز المتجر', 'qty' => 1, 'price' => 20000]],
+            'vat_percent' => 0, 'currency' => 'ج.م', 'valid_days' => 30,
+            'issued_at' => now()->toIso8601String(),
+        ]],
+    ]);
+
+    $html = (new QuoteProposalIssued($sr))->render();
+
+    expect($html)->toContain('width="1" height="1"')
+        ->and($html)->toContain('/quote/track/'.$sr->id);
 });
 
 it('renders store order email without errors', function () {

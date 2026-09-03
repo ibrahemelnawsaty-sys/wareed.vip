@@ -9,49 +9,58 @@
         'provider' => ['@type' => 'Organization', 'name' => setting('site_name', 'وريد')],
         'areaServed' => 'EG',
     ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+
+    $heroIcon = \App\Support\Icons::name($service->icon, \App\Support\Icons::forServiceKey($service->key));
+    $ctaLabel = $service->cta_label ?: __('اطلب الخدمة الآن');
 @endphp
 @push('jsonld')
 <script type="application/ld+json">{!! $serviceSchema !!}</script>
 @endpush
 
 @section('content')
-{{-- HERO --}}
-<section class="bg-aurora relative overflow-hidden pt-36 pb-20">
-    <div class="dot-grid absolute inset-0 opacity-40"></div>
-    <div class="relative mx-auto max-w-7xl px-5">
-        <div class="grid items-center gap-12 lg:grid-cols-2">
-            <div data-reveal>
-                <div class="flex h-16 w-16 items-center justify-center rounded-2xl text-4xl"
-                     style="background: {{ $service->color }}1a; color: {{ $service->color }}">{{ $service->icon ?? '◆' }}</div>
-                <h1 class="mt-6 text-4xl font-black leading-tight sm:text-5xl">{{ $service->hero_title ?: $service->name }}</h1>
-                <p class="mt-5 max-w-xl text-lg leading-8 text-cloud-300">{{ $service->hero_subtitle ?: $service->summary }}</p>
-                <div class="mt-8 flex flex-wrap gap-4">
-                    <a href="#request" class="btn btn-gold text-base">{{ $service->cta_label ?: __('اطلب الخدمة الآن') }}</a>
-                    <a href="{{ url('/contact') }}" class="btn btn-ghost text-base">{{ __('استشارة مجانية') }}</a>
-                </div>
+{{-- ===== HERO ===== --}}
+<section class="svc-hero">
+    <div class="wrap svc-grid">
+        <div data-reveal>
+            <span class="ic-box"><x-w-icon :name="$heroIcon" /></span>
+            <h1>{{ $service->hero_title ?: $service->name }}</h1>
+            <p class="lead">{{ $service->hero_subtitle ?: $service->summary }}</p>
+            <div class="svc-actions">
+                <a href="#request" class="btn btn-gold">{{ $ctaLabel }} <x-w-icon name="arrow-down" /></a>
+                <a href="{{ url('/contact') }}" class="btn btn-ghost">{{ __('استشارة مجانية') }}</a>
             </div>
-            <div data-reveal class="glass rounded-[1.75rem] p-8">
-                @if($service->description)
-                    <div class="prose-invert leading-8 text-cloud-200">{!! nl2br(e($service->description)) !!}</div>
-                @else
-                    <p class="leading-8 text-cloud-300">{{ $service->summary }}</p>
-                @endif
-            </div>
+        </div>
+
+        <div data-reveal class="svc-panel">
+            @if($service->description)
+                <p>{!! nl2br(e($service->description)) !!}</p>
+            @else
+                <p>{{ $service->summary }}</p>
+            @endif
+            <ul class="svc-points">
+                <li><x-w-icon name="check" />{{ __('استشارة أولى مجانية قبل أي التزام') }}</li>
+                <li><x-w-icon name="check" />{{ __('عرض سعر مفصّل بجدول زمني واضح') }}</li>
+                <li><x-w-icon name="check" />{{ __('متابعة ودعم بشري طوال المشروع') }}</li>
+            </ul>
         </div>
     </div>
 </section>
 
-{{-- المميزات --}}
+{{-- ===== المميزات ===== --}}
 @if(!empty($service->features))
-<section class="py-20">
-    <div class="mx-auto max-w-7xl px-5">
-        <h2 class="text-center text-3xl font-black sm:text-4xl" data-reveal>{{ __('ماذا تتضمّن') }} <span class="text-gradient-gold">{{ $service->name }}</span>{{ __('؟') }}</h2>
-        <div class="mt-12 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+<section class="sec sec-alt">
+    <div class="wrap">
+        <div class="sec-head" data-reveal>
+            <span class="kicker">{{ __('ماذا تتضمّن') }}</span>
+            <h2>{{ $service->name }}</h2>
+            <p>{{ __('كل ما تحتاجه في خدمة واحدة، ينفّذه فريق واحد بمعيار واحد.') }}</p>
+        </div>
+        <div class="svc-feats">
             @foreach($service->features as $f)
-                <div data-reveal class="glass card-hover rounded-3xl p-7">
-                    <div class="text-3xl">{{ $f['icon'] ?? '✦' }}</div>
-                    <h3 class="mt-4 text-lg font-bold text-cloud-50">{{ tleaf($f['title'] ?? '') }}</h3>
-                    <p class="mt-2 text-sm leading-7 text-cloud-400">{{ tleaf($f['desc'] ?? '') }}</p>
+                <div data-reveal class="feat">
+                    <div class="fi"><span class="ic-box ic-box-sm"><x-w-icon :name="\App\Support\Icons::name($f['icon'] ?? null)" /></span></div>
+                    <h3>{{ tleaf($f['title'] ?? '') }}</h3>
+                    <p>{{ tleaf($f['desc'] ?? '') }}</p>
                 </div>
             @endforeach
         </div>
@@ -59,28 +68,32 @@
 </section>
 @endif
 
-{{-- الأسعار --}}
+{{-- ===== الأسعار ===== --}}
 @if(!empty($service->pricing))
-<section class="py-20">
-    <div class="mx-auto max-w-7xl px-5">
-        <h2 class="text-center text-3xl font-black sm:text-4xl" data-reveal>{{ __('باقات') }} <span class="text-gradient-gold">{{ __('بأسعار واضحة') }}</span></h2>
-        <div class="mt-12 grid gap-6 md:grid-cols-3">
+<section class="sec">
+    <div class="wrap">
+        <div class="sec-head" data-reveal>
+            <span class="kicker">{{ __('الباقات') }}</span>
+            <h2>{{ __('أسعار واضحة بلا مفاجآت') }}</h2>
+            <p>{{ __('اختر ما يناسب مرحلتك الآن، ويمكنك الترقية في أي وقت.') }}</p>
+        </div>
+        <div class="plans">
             @foreach($service->pricing as $plan)
-                <div data-reveal class="card-hover relative rounded-3xl p-8 {{ ($plan['featured'] ?? false) ? 'glass-gold' : 'glass' }}">
+                <div data-reveal class="plan {{ ($plan['featured'] ?? false) ? 'plan-featured' : '' }}">
                     @if($plan['featured'] ?? false)
-                        <span class="absolute -top-3 right-6 rounded-full bg-gold-500 px-3 py-1 text-xs font-bold text-ink-950">{{ __('الأكثر طلباً') }}</span>
+                        <span class="plan-tag">{{ __('الأكثر طلباً') }}</span>
                     @endif
-                    <h3 class="text-xl font-bold text-cloud-50">{{ tleaf($plan['name'] ?? '') }}</h3>
-                    <div class="mt-4 flex items-end gap-1">
-                        <span class="text-4xl font-black text-gold-300">{{ tleaf($plan['price'] ?? '') }}</span>
-                        <span class="mb-1 text-sm text-cloud-400">{{ tleaf($plan['period'] ?? '') }}</span>
+                    <h3>{{ tleaf($plan['name'] ?? '') }}</h3>
+                    <div class="plan-price">
+                        <b>{{ tleaf($plan['price'] ?? '') }}</b>
+                        <span>{{ tleaf($plan['period'] ?? '') }}</span>
                     </div>
-                    <ul class="mt-6 space-y-3 text-sm text-cloud-300">
+                    <ul>
                         @foreach((array) tleaf($plan['features'] ?? []) as $feat)
-                            <li class="flex items-center gap-2"><span class="text-emerald-400">✓</span>{{ $feat }}</li>
+                            <li><x-w-icon name="check" />{{ $feat }}</li>
                         @endforeach
                     </ul>
-                    <a href="#request" class="btn {{ ($plan['featured'] ?? false) ? 'btn-gold' : 'btn-ghost' }} mt-8 w-full justify-center">{{ __('اختر الباقة') }}</a>
+                    <a href="#request" class="btn {{ ($plan['featured'] ?? false) ? 'btn-gold' : 'btn-ghost' }}">{{ __('اختر الباقة') }}</a>
                 </div>
             @endforeach
         </div>
@@ -88,80 +101,98 @@
 </section>
 @endif
 
-{{-- نموذج الطلب --}}
-<section id="request" class="py-20">
-    <div class="mx-auto max-w-3xl px-5">
-        <div class="glass rounded-[2rem] p-8 sm:p-10" data-reveal>
-            <h2 class="text-center text-3xl font-black">{{ __('اطلب') }} <span class="text-gradient-gold">{{ $service->name }}</span></h2>
-            <p class="mt-3 text-center text-cloud-400">{{ __('املأ النموذج وسيتواصل معك فريقنا خلال ساعات.') }}</p>
+{{-- ===== نموذج الطلب ===== --}}
+<section id="request" class="sec sec-alt">
+    <div class="wrap" style="max-width: 780px;">
+        <div class="sec-head" data-reveal>
+            <span class="kicker">{{ __('ابدأ الآن') }}</span>
+            <h2>{{ $ctaLabel }}</h2>
+            <p>{{ __('املأ النموذج وسيتواصل معك فريقنا خلال ساعات.') }}</p>
+        </div>
 
+        <div class="form-card" data-reveal>
             @if(session('success'))
-                <div class="mt-6 rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-5 py-4 text-center text-emerald-300">{{ session('success') }}</div>
+                <div class="alert alert-ok" style="margin-bottom: 24px;">
+                    <x-w-icon name="check" /><span>{{ session('success') }}</span>
+                </div>
             @endif
             @if($errors->any())
-                <div class="mt-6 rounded-xl border border-vein-500/40 bg-vein-500/10 px-5 py-4 text-sm text-red-300">
-                    <ul class="list-inside list-disc">@foreach($errors->all() as $e)<li>{{ $e }}</li>@endforeach</ul>
+                <div class="alert alert-err" style="margin-bottom: 24px;">
+                    <x-w-icon name="spark" />
+                    <ul>@foreach($errors->all() as $e)<li>{{ $e }}</li>@endforeach</ul>
                 </div>
             @endif
 
-            <form method="POST" action="{{ route('services.submit', $service) }}" class="mt-8 grid gap-5 sm:grid-cols-2">
+            <form method="POST" action="{{ route('services.submit', $service) }}" class="f-row" style="grid-template-columns: 1fr 1fr;">
                 @csrf
                 <div>
-                    <label class="mb-2 block text-sm font-semibold text-cloud-200">{{ __('الاسم') }} *</label>
-                    <input name="name" value="{{ old('name') }}" required class="w-full rounded-xl border border-white/10 bg-ink-850 px-4 py-3 text-cloud-100 outline-none transition focus:border-gold-500" placeholder="{{ __('اسمك الكامل') }}">
+                    <label class="f-label" for="f-name">{{ __('الاسم') }} *</label>
+                    <input id="f-name" name="name" value="{{ old('name') }}" required class="f-input" placeholder="{{ __('اسمك الكامل') }}">
                 </div>
                 <div>
-                    <label class="mb-2 block text-sm font-semibold text-cloud-200">{{ __('رقم الموبايل / واتساب') }} *</label>
-                    <input name="phone" value="{{ old('phone') }}" required class="w-full rounded-xl border border-white/10 bg-ink-850 px-4 py-3 text-cloud-100 outline-none transition focus:border-gold-500" placeholder="01xxxxxxxxx">
+                    <label class="f-label" for="f-phone">{{ __('رقم الموبايل / واتساب') }} *</label>
+                    <input id="f-phone" name="phone" value="{{ old('phone') }}" required class="f-input" placeholder="01xxxxxxxxx" dir="ltr" inputmode="tel">
                 </div>
                 <div>
-                    <label class="mb-2 block text-sm font-semibold text-cloud-200">{{ __('البريد الإلكتروني') }}</label>
-                    <input name="email" type="email" value="{{ old('email') }}" class="w-full rounded-xl border border-white/10 bg-ink-850 px-4 py-3 text-cloud-100 outline-none transition focus:border-gold-500" placeholder="email@example.com" dir="ltr">
+                    <label class="f-label" for="f-email">{{ __('البريد الإلكتروني') }}</label>
+                    <input id="f-email" name="email" type="email" value="{{ old('email') }}" class="f-input" placeholder="name@example.com" dir="ltr" inputmode="email">
                 </div>
                 <div>
-                    <label class="mb-2 block text-sm font-semibold text-cloud-200">{{ __('اسم الشركة / النشاط') }}</label>
-                    <input name="company" value="{{ old('company') }}" class="w-full rounded-xl border border-white/10 bg-ink-850 px-4 py-3 text-cloud-100 outline-none transition focus:border-gold-500" placeholder="{{ __('اختياري') }}">
+                    <label class="f-label" for="f-company">{{ __('اسم الشركة / النشاط') }}</label>
+                    <input id="f-company" name="company" value="{{ old('company') }}" class="f-input" placeholder="{{ __('اختياري') }}">
                 </div>
 
-                {{-- حقول خاصة بالخدمة --}}
+                {{-- حقول خاصة بالخدمة، مصدرها إعدادات الخدمة نفسها --}}
                 @foreach((array) $service->form_fields as $field)
-                    <div class="{{ ($field['full'] ?? false) ? 'sm:col-span-2' : '' }}">
-                        <label class="mb-2 block text-sm font-semibold text-cloud-200">{{ $field['label'] ?? $field['name'] }}</label>
-                        @if(($field['type'] ?? 'text') === 'select' && !empty($field['options']))
-                            <select name="extra_{{ $field['name'] }}" class="w-full rounded-xl border border-white/10 bg-ink-850 px-4 py-3 text-cloud-100 outline-none transition focus:border-gold-500">
-                                <option value="">اختر...</option>
-                                @foreach($field['options'] as $opt)<option value="{{ $opt }}">{{ $opt }}</option>@endforeach
-                            </select>
-                        @elseif(($field['type'] ?? 'text') === 'textarea')
-                            <textarea name="extra_{{ $field['name'] }}" rows="3" class="w-full rounded-xl border border-white/10 bg-ink-850 px-4 py-3 text-cloud-100 outline-none transition focus:border-gold-500"></textarea>
+                    @php $fname = 'extra_'.($field['name'] ?? ''); $ftype = $field['type'] ?? 'text'; @endphp
+                    <div style="{{ ($field['full'] ?? false) || $ftype === 'textarea' ? 'grid-column: 1 / -1;' : '' }}">
+                        <label class="f-label" for="{{ $fname }}">{{ $field['label'] ?? $field['name'] }}</label>
+                        @if($ftype === 'select' && !empty($field['options']))
+                            <div class="f-select-wrap">
+                                <select id="{{ $fname }}" name="{{ $fname }}" class="f-select">
+                                    <option value="">{{ __('اختر…') }}</option>
+                                    @foreach($field['options'] as $opt)
+                                        <option value="{{ $opt }}" @selected(old($fname) === $opt)>{{ $opt }}</option>
+                                    @endforeach
+                                </select>
+                                <x-w-icon name="chevron-down" />
+                            </div>
+                        @elseif($ftype === 'textarea')
+                            <textarea id="{{ $fname }}" name="{{ $fname }}" rows="3" class="f-area">{{ old($fname) }}</textarea>
                         @else
-                            <input name="extra_{{ $field['name'] }}" class="w-full rounded-xl border border-white/10 bg-ink-850 px-4 py-3 text-cloud-100 outline-none transition focus:border-gold-500">
+                            <input id="{{ $fname }}" name="{{ $fname }}" value="{{ old($fname) }}" class="f-input">
                         @endif
                     </div>
                 @endforeach
 
-                <div class="sm:col-span-2">
-                    <label class="mb-2 block text-sm font-semibold text-cloud-200">{{ __('تفاصيل إضافية') }}</label>
-                    <textarea name="message" rows="4" class="w-full rounded-xl border border-white/10 bg-ink-850 px-4 py-3 text-cloud-100 outline-none transition focus:border-gold-500" placeholder="{{ __('أخبرنا عن احتياجك...') }}">{{ old('message') }}</textarea>
+                <div style="grid-column: 1 / -1;">
+                    <label class="f-label" for="f-message">{{ __('تفاصيل إضافية') }}</label>
+                    <textarea id="f-message" name="message" rows="4" class="f-area" placeholder="{{ __('أخبرنا عن احتياجك...') }}">{{ old('message') }}</textarea>
                 </div>
-                <div class="sm:col-span-2">
-                    <button type="submit" class="btn btn-gold w-full justify-center text-base">{{ __('إرسال الطلب') }}</button>
+                <div style="grid-column: 1 / -1;">
+                    <button type="submit" class="btn btn-gold" style="width: 100%;">
+                        {{ __('إرسال الطلب') }} <x-w-icon name="arrow-left" />
+                    </button>
+                    <p class="f-hint" style="text-align: center;">{{ __('بياناتك سرّية بالكامل ولا تُشارك مع أي طرف.') }}</p>
                 </div>
             </form>
         </div>
     </div>
 </section>
 
-{{-- الأسئلة الشائعة --}}
+{{-- ===== الأسئلة الشائعة ===== --}}
 @if(!empty($service->faqs))
-<section class="py-20">
-    <div class="mx-auto max-w-3xl px-5">
-        <h2 class="text-center text-3xl font-black sm:text-4xl" data-reveal>{{ __('أسئلة شائعة') }}</h2>
-        <div class="mt-10 space-y-4">
+<section class="sec">
+    <div class="wrap">
+        <div class="sec-head" data-reveal>
+            <span class="kicker">{{ __('أسئلة شائعة') }}</span>
+            <h2>{{ __('ما يسأل عنه عملاؤنا عادةً') }}</h2>
+        </div>
+        <div class="faq" data-reveal>
             @foreach($service->faqs as $faq)
-                <details data-reveal class="glass group rounded-2xl p-6">
-                    <summary class="cursor-pointer list-none text-lg font-bold text-cloud-100">{{ tleaf($faq['q'] ?? '') }}</summary>
-                    <p class="mt-3 leading-7 text-cloud-400">{{ tleaf($faq['a'] ?? '') }}</p>
+                <details>
+                    <summary>{{ tleaf($faq['q'] ?? '') }}<x-w-icon name="chevron-down" /></summary>
+                    <div class="fa">{{ tleaf($faq['a'] ?? '') }}</div>
                 </details>
             @endforeach
         </div>

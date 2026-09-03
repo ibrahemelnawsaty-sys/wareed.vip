@@ -7,8 +7,10 @@ use App\Models\Service;
 use App\Models\ServiceRequest;
 use App\Models\Setting;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Testing\TestResponse;
 
@@ -636,8 +638,9 @@ it('prints the delivery schedule and payment due dates in the proposal', functio
         ->assertSee('<td class="due">—</td>', false)
         ->assertSee('<td class="due">1 أكتوبر 2026م</td>', false)
         ->assertSee('مواعيد بدء المراحل وتسليمها موضّحة في الجدول الزمني أعلاه')
-        // شريط جارٍ يحمل الرقم المرجعي أسفل كل صفحة مطبوعة
-        ->assertSee('عرض سعر · '.$sr->fresh()->reference);
+        // سكربت تقسيم الطباعة يبني ترويسة وتذييلاً مرقّماً لكل صفحة عند الطباعة الفعلية،
+        // ويحمل الرقم المرجعي نفسه
+        ->assertSee('var REFERENCE = '.json_encode($sr->fresh()->reference), false);
 });
 
 it('falls back to the legacy timeline text when no schedule is set', function () {
@@ -784,8 +787,8 @@ it('rejects an unknown decision and one on a request without a quote', function 
     expect(QuoteController::decisionOf($sr->fresh()))->toBeNull();
 });
 
-it('starts execution automatically when the client approves', function () {
-    Mail::fake();
+function approveQuoteWithSchedule(): ServiceRequest
+{
     submitInvite()->assertOk();
     $sr = ServiceRequest::sole();
 
@@ -800,17 +803,65 @@ it('starts execution automatically when the client approves', function () {
         ],
     ])]);
 
-    $this->post('/quote/hajar-salama/decision', ['choice' => 'approved'])->assertRedirect();
+    test()->post('/quote/hajar-salama/decision', ['choice' => 'approved'])->assertRedirect();
+
+    return $sr->fresh();
+}
+
+it('moves to awaiting project requirements when the client approves', function () {
+    Mail::fake();
+    $sr = approveQuoteWithSchedule();
+    $flow = QuoteController::flowOf($sr);
+
+    // الاعتماد ينقل الطلب لمرحلة رفع المتطلبات لا التنفيذ مباشرة، والتنفيذ ينتظر أول رفعة
+    expect($flow['stage'])->toBe('awaiting_requirements')
+        ->and($flow['counting'])->toBeFalse()
+        ->and($flow['approved_at'])->not->toBeNull()
+        ->and($sr->status)->toBe('won');
+
+    // بريد يدعو العميل لرفع متطلبات المشروع، ورابطه صفحة العرض التي يرفع منها
+    Mail::assertSent(
+        StageMessage::class,
+        fn ($mail) => $mail->hasTo('hagersalma89@gmail.com')
+            && $mail->summaryOf !== null
+            && str_contains($mail->render(), 'رفع متطلبات المشروع')
+            && $mail->link === QuoteController::proposalUrl($sr)
+    );
+
+    // وإشعار وريد بالاعتماد
+    Mail::assertSent(
+        StageMessage::class,
+        fn ($mail) => $mail->hasTo(setting('contact_email', 'info@wareed.vip'))
+            && str_contains($mail->bodyText, 'نُقل الطلب تلقائياً إلى مرحلة «رفع متطلبات المشروع»')
+    );
+});
+
+it('starts execution and notifies both sides when the client uploads project requirements', function () {
+    Mail::fake();
+    Storage::fake('local');
+    $sr = approveQuoteWithSchedule();
+
+    $file = UploadedFile::fake()->create('logo.png', 500, 'image/png');
+
+    $this->post('/quote/hajar-salama/requirements', [
+        'files' => [
+            ['file' => $file, 'desc' => 'شعار المتجر'],
+        ],
+    ])->assertRedirect();
 
     $sr = $sr->fresh();
     $flow = QuoteController::flowOf($sr);
+    $requirements = QuoteController::requirementsOf($sr);
 
-    // المسار انتقل تلقائياً، وموعد التسليم من آخر مرحلة في الجدول
+    // أول رفعة تنقل الطلب فعلياً لمرحلة التنفيذ، وموعد التسليم من آخر مرحلة في الجدول
     expect($flow['stage'])->toBe('in_progress')
         ->and($flow['counting'])->toBeTrue()
         ->and($flow['due_at']->toDateString())->toBe('2026-11-30')
-        ->and($flow['approved_at'])->not->toBeNull()
-        ->and($sr->status)->toBe('won');
+        ->and($requirements)->toHaveCount(1)
+        ->and($requirements[0]['name'])->toBe('logo.png')
+        ->and($requirements[0]['desc'])->toBe('شعار المتجر');
+
+    Storage::disk('local')->assertExists($requirements[0]['path']);
 
     // بريد بدء التنفيذ للعميل بكامل التفاصيل
     Mail::assertSent(
@@ -819,16 +870,157 @@ it('starts execution automatically when the client approves', function () {
             && $mail->summaryOf !== null
             && str_contains($mail->render(), 'تجهيز المتجر')
             && str_contains($mail->render(), 'الجدول الزمني للتسليم')
-            && str_contains($mail->render(), 'الخطوات التالية')
     );
 
-    // وإشعار وريد بكافة التفاصيل
+    // وإشعار وريد بالملفات المرفوعة وبدء التنفيذ
     Mail::assertSent(
         StageMessage::class,
         fn ($mail) => $mail->hasTo(setting('contact_email', 'info@wareed.vip'))
-            && str_contains($mail->bodyText, 'نُقل الطلب تلقائياً إلى مرحلة «تنفيذ المتجر»')
-            && $mail->summaryOf !== null
+            && str_contains($mail->bodyText, 'رفع العميل متطلبات المشروع وبدأ التنفيذ تلقائياً')
+            && str_contains($mail->bodyText, 'logo.png')
+            && str_contains($mail->bodyText, 'شعار المتجر')
     );
+});
+
+it('notifies both sides again for extra requirement files uploaded after execution started', function () {
+    Mail::fake();
+    Storage::fake('local');
+    $sr = approveQuoteWithSchedule();
+
+    $this->post('/quote/hajar-salama/requirements', [
+        'files' => [['file' => UploadedFile::fake()->create('logo.png', 200)]],
+    ])->assertRedirect();
+
+    Mail::fake();
+    $this->post('/quote/hajar-salama/requirements', [
+        'files' => [['file' => UploadedFile::fake()->create('products.xlsx', 300), 'desc' => 'بيانات المنتجات']],
+    ])->assertRedirect();
+
+    $sr = $sr->fresh();
+
+    // الرفعة الثانية لا تعيد نقل المرحلة، وتُضاف لنفس القائمة
+    expect(QuoteController::flowOf($sr)['stage'])->toBe('in_progress')
+        ->and(QuoteController::requirementsOf($sr))->toHaveCount(2);
+
+    // تأكيد مختصر للعميل، وإشعار جديد لوريد — دون إعادة إرسال بريد بدء التنفيذ الكامل
+    Mail::assertSent(
+        StageMessage::class,
+        fn ($mail) => $mail->hasTo('hagersalma89@gmail.com') && $mail->summaryOf === null
+    );
+    Mail::assertSent(
+        StageMessage::class,
+        fn ($mail) => $mail->hasTo(setting('contact_email', 'info@wareed.vip'))
+            && str_contains($mail->bodyText, 'رفع العميل ملفات إضافية')
+            && str_contains($mail->bodyText, 'products.xlsx')
+    );
+});
+
+it('rejects uploading requirements before the client approves the quote', function () {
+    Mail::fake();
+    submitInvite()->assertOk();
+    $sr = ServiceRequest::sole();
+
+    $sr->update(['payload' => array_merge((array) $sr->payload, ['_quote' => [
+        'items' => [['name' => 'تجهيز المتجر', 'qty' => 1, 'price' => 20000]],
+        'vat_percent' => 0, 'currency' => 'ج.م', 'valid_days' => 30,
+        'issued_at' => now()->toIso8601String(),
+    ]])]);
+
+    // لا قرار بعد
+    $this->post('/quote/hajar-salama/requirements', [
+        'files' => [['file' => UploadedFile::fake()->create('logo.png', 200)]],
+    ])->assertForbidden();
+
+    // قرار بطلب تخفيض لا يفتح الرفع أيضاً
+    $this->post('/quote/hajar-salama/decision', ['choice' => 'discount'])->assertRedirect();
+    $this->post('/quote/hajar-salama/requirements', [
+        'files' => [['file' => UploadedFile::fake()->create('logo.png', 200)]],
+    ])->assertForbidden();
+
+    expect(QuoteController::requirementsOf($sr->fresh()))->toBeEmpty();
+});
+
+it('requires at least one file to upload as project requirements', function () {
+    Mail::fake();
+    $sr = approveQuoteWithSchedule();
+
+    $this->post('/quote/hajar-salama/requirements', ['files' => []])
+        ->assertSessionHasErrors('files');
+
+    expect(QuoteController::requirementsOf($sr->fresh()))->toBeEmpty();
+});
+
+it('records a platform view and notifies wareed only on the first visit', function () {
+    Mail::fake();
+    submitInvite()->assertOk();
+    $sr = ServiceRequest::sole();
+
+    $sr->update(['payload' => array_merge((array) $sr->payload, ['_quote' => [
+        'items' => [['name' => 'تجهيز المتجر', 'qty' => 1, 'price' => 20000]],
+        'vat_percent' => 0, 'currency' => 'ج.م', 'valid_days' => 30,
+        'issued_at' => now()->toIso8601String(),
+    ]])]);
+
+    $this->get('/quote/hajar-salama/proposal')->assertOk();
+
+    $views = QuoteController::viewsOf($sr->fresh());
+    expect($views['platform']['count'])->toBe(1)
+        ->and($views['platform']['first'])->not->toBeNull()
+        ->and($views['email']['count'])->toBe(0);
+
+    Mail::assertSent(
+        StageMessage::class,
+        fn ($mail) => $mail->hasTo(setting('contact_email', 'info@wareed.vip'))
+            && str_contains($mail->subjectLine, 'فتح العميل صفحة عرض السعر على المنصة لأول مرة')
+    );
+
+    // زيارة ثانية تُسجَّل هي الأخرى، لكن دون إرسال إشعار جديد يزعج الفريق
+    Mail::fake();
+    $this->get('/quote/hajar-salama/proposal')->assertOk();
+
+    expect(QuoteController::viewsOf($sr->fresh())['platform']['count'])->toBe(2);
+    Mail::assertNothingSent();
+});
+
+it('records an email open via the tracking pixel and returns a transparent image', function () {
+    Mail::fake();
+    submitInvite()->assertOk();
+    $sr = ServiceRequest::sole();
+
+    $sr->update(['payload' => array_merge((array) $sr->payload, ['_quote' => [
+        'items' => [['name' => 'تجهيز المتجر', 'qty' => 1, 'price' => 20000]],
+        'vat_percent' => 0, 'currency' => 'ج.م', 'valid_days' => 30,
+        'issued_at' => now()->toIso8601String(),
+    ]])]);
+
+    $url = QuoteController::trackingPixelUrl($sr->fresh());
+
+    $response = $this->get($url)->assertOk();
+    expect($response->headers->get('Content-Type'))->toBe('image/gif')
+        ->and(strlen($response->getContent()))->toBeGreaterThan(0);
+
+    $views = QuoteController::viewsOf($sr->fresh());
+    expect($views['email']['count'])->toBe(1)
+        ->and($views['platform']['count'])->toBe(0);
+
+    Mail::assertSent(
+        StageMessage::class,
+        fn ($mail) => $mail->hasTo(setting('contact_email', 'info@wareed.vip'))
+            && str_contains($mail->subjectLine, 'فتح العميل بريد عرض السعر لأول مرة')
+    );
+
+    // فتح ثانٍ (أو إعادة تحميل صورة البريد) يُسجَّل بلا تكرار الإشعار
+    Mail::fake();
+    $this->get($url)->assertOk();
+    expect(QuoteController::viewsOf($sr->fresh())['email']['count'])->toBe(2);
+    Mail::assertNothingSent();
+});
+
+it('rejects a tampered or missing tracking pixel signature', function () {
+    submitInvite()->assertOk();
+    $sr = ServiceRequest::sole();
+
+    $this->get('/quote/track/'.$sr->id)->assertForbidden();
 });
 
 it('does not start execution when the client asks for a discount or declines', function () {
@@ -850,6 +1042,31 @@ it('does not start execution when the client asks for a discount or declines', f
 
         expect(QuoteController::flowOf($sr->fresh())['stage'])->toBe('awaiting_approval')
             ->and($sr->fresh()->status)->not->toBe('won');
+    }
+});
+
+it('marks every section the print paginator moves between pages', function () {
+    Mail::fake();
+    submitInvite()->assertOk();
+    $sr = ServiceRequest::sole();
+
+    $sr->update(['payload' => array_merge((array) $sr->payload, [
+        '_quote' => [
+            'items' => [['name' => 'تجهيز المتجر', 'qty' => 1, 'price' => 20000]],
+            'schedule' => [['phase' => 'المرحلة الأولى', 'start' => '2026-09-10', 'end' => '2026-11-30']],
+            'payments' => [['label' => 'دفعة مقدّمة', 'percent' => 50]],
+            'extras' => [['name' => 'باقة إضافية', 'qty' => 1, 'price' => 1000]],
+            'vat_percent' => 0, 'currency' => 'ج.م', 'valid_days' => 30,
+            'issued_at' => now()->toIso8601String(),
+        ],
+    ])]);
+
+    // كل قسم يحتاج علامة data-pg-unit كي يستطيع سكربت التقسيم نقله ككتلة واحدة؛
+    // فقدان أي منها يعطّل ترقيم الصفحات بصمت دون أن يظهر أثره في الاختبارات الأخرى
+    $response = $this->get('/quote/hajar-salama/proposal')->assertOk();
+
+    foreach (['head', 'refbar', 'parties', 'items-title', 'items-table', 'totals', 'extras', 'schedule', 'payments', 'terms', 'footer'] as $unit) {
+        $response->assertSee('data-pg-unit="'.$unit.'"', false);
     }
 });
 

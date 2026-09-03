@@ -1,7 +1,7 @@
 @extends('emails.layout')
 
 @section('content')
-<h2 style="margin:0 0 10px;font-size:20px;color:#1a2547;">شكراً {{ $sr->name }} 🙏</h2>
+<h2 style="margin:0 0 10px;font-size:20px;color:#1a2547;">شكراً {{ $sr->name }}</h2>
 <p style="margin:0 0 14px;color:#1a2547;font-size:15px;">تم استلام طلبك بنجاح، وفريق <strong>شركة وريد لتقنية المعلومات</strong> سيتواصل معك في أقرب وقت.</p>
 <p style="margin:0 0 20px;color:#65718f;font-size:14px;">نحن سعداء بثقتك، ونعدك بتجربة تقنية احترافية تليق بطموحك.</p>
 

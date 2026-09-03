@@ -130,5 +130,10 @@
     </tr>
 </table>
 
+{{-- بكسل تتبّع فتح البريد — يظهر فقط حين يمرّر القالب المُرسِل رابطاً له --}}
+@isset($trackingUrl)
+    <img src="{{ $trackingUrl }}" width="1" height="1" alt="" style="display:block;border:0;">
+@endisset
+
 </body>
 </html>

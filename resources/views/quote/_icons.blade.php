@@ -193,5 +193,12 @@
         <symbol id="i-mail" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
             <rect x="2.8" y="5" width="18.4" height="14" rx="2.2"/><path d="m3.4 7 8.6 6 8.6-6"/>
         </symbol>
+        <symbol id="i-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 4.8v14.4M4.8 12h14.4"/>
+        </symbol>
+        <symbol id="i-trash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4.4 6.8h15.2M9.2 6.8V4.6a1.2 1.2 0 0 1 1.2-1.2h3.2a1.2 1.2 0 0 1 1.2 1.2v2.2M6.8 6.8l.8 12.6a1.6 1.6 0 0 0 1.6 1.5h5.6a1.6 1.6 0 0 0 1.6-1.5l.8-12.6"/>
+            <path d="M10.2 10.8v6M13.8 10.8v6"/>
+        </symbol>
     </defs>
 </svg>

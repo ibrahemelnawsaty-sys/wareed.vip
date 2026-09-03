@@ -17,8 +17,7 @@
     <meta name="theme-color" content="#ffffff">
     <title>حالة الطلب {{ $sr->reference }} — وريد</title>
     <link rel="icon" type="image/svg+xml" href="{{ asset('favicon.svg') }}">
-    <link rel="preconnect" href="https://fonts.bunny.net" crossorigin>
-    <link href="https://fonts.bunny.net/css?family=ibm-plex-sans-arabic:400,500,600,700&display=swap" rel="stylesheet">
+@include('quote._fonts')
     <style>
         :root {
             --blue: #3b82f6; --blue-deep: #2563eb; --teal: #14b8a6;
@@ -30,7 +29,7 @@
         }
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            font-family: 'IBM Plex Sans Arabic', 'Tajawal', ui-sans-serif, system-ui, sans-serif;
+            font-family: 'Thmanyah', 'IBM Plex Sans Arabic', ui-sans-serif, system-ui, sans-serif;
             background: var(--bg); color: var(--ink); line-height: 1.85; min-height: 100svh;
             -webkit-font-smoothing: antialiased;
         }
@@ -97,7 +96,7 @@
         .ref-box {
             display: flex; flex-direction: column; align-items: center; gap: 3px;
             margin: 0 auto 24px; padding: 15px 26px; max-width: 400px;
-            background: #f7f9fe; border: 1.5px dashed rgba(59,130,246,.4); border-radius: 16px;
+            background: #f7f9fe; border: 1.5px dashed rgba(59,130,246,.35); border-radius: 20px;
         }
         .ref-label { font-size: .76rem; font-weight: 600; color: var(--muted); letter-spacing: .04em; }
         .ref-num { font-size: 1.2rem; font-weight: 700; letter-spacing: .06em; direction: ltr; font-variant-numeric: tabular-nums;
@@ -136,7 +135,7 @@
         .timer-title .ic { color: var(--blue-deep); }
         .timer { display: flex; justify-content: center; gap: 10px; }
         .tcell {
-            min-width: 74px; padding: 12px 8px 9px; border-radius: 15px;
+            min-width: 74px; padding: 12px 8px 9px; border-radius: 18px;
             background: #f7f9fe; border: 1px solid var(--line-strong);
         }
         .tval {
@@ -180,8 +179,9 @@
         .actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 11px; }
         .btn {
             display: inline-flex; align-items: center; justify-content: center; gap: 9px;
-            padding: 13px 28px; border-radius: 14px; border: 1px solid transparent;
-            font-weight: 700; font-size: .98rem; cursor: pointer; transition: transform .22s, box-shadow .3s;
+            padding: 13px 30px; border-radius: 999px; border: 1px solid transparent;
+            font-weight: 700; font-size: .98rem; cursor: pointer;
+            transition: transform .38s cubic-bezier(.22,1,.36,1), box-shadow .38s cubic-bezier(.22,1,.36,1);
         }
         .btn-primary { background: var(--grad); color: #fff; box-shadow: 0 12px 30px -12px rgba(99,102,241,.55); }
         .btn-primary:hover { transform: translateY(-2px); }
@@ -224,6 +224,7 @@
                 'meeting_scheduled' => 'اجتماعنا محدّد يا',
                 'quote_due' => 'نجهّز عرض سعرك الآن يا',
                 'awaiting_approval' => 'عرض سعر متجرك جاهز يا',
+                'awaiting_requirements' => 'اعتُمد عرض متجرك يا',
                 'in_progress' => 'بدأ تنفيذ متجرك يا',
                 'delivered' => 'تم تسليم متجرك يا',
             };
@@ -268,6 +269,25 @@
                 </div>
                 <a class="btn btn-primary" href="{{ route('quote.proposal', $inviteSlug) }}" target="_blank" rel="noopener">
                     <svg class="ic"><use href="#i-download"/></svg> استعراض عرض السعر وتحميله
+                </a>
+            </div>
+        @endif
+
+        @if ($flow['stage'] === 'awaiting_requirements')
+            <div class="quote-card">
+                <div class="quote-total">
+                    <span class="ql">الخطوة التالية</span>
+                    <b class="qv" style="font-size:1.15rem">ارفع متطلبات مشروعك</b>
+                    <span class="qmeta">
+                        @if (count($requirements))
+                            رُفع {{ count($requirements) }} ملف حتى الآن — يمكنك إضافة المزيد
+                        @else
+                            ملفات الهوية البصرية وبيانات المنتجات لتنطلق مرحلة التنفيذ
+                        @endif
+                    </span>
+                </div>
+                <a class="btn btn-primary" href="{{ $proposalUrl }}#requirements" target="_blank" rel="noopener">
+                    <svg class="ic"><use href="#i-box"/></svg> رفع الملفات الآن
                 </a>
             </div>
         @endif
@@ -317,6 +337,7 @@
                             : ($flow['meeting_at'] ? $fmt($flow['meeting_at']) : null),
                         'quote_due' => $quote ? 'صدر العرض — '.$fmt($quote['issued_at']) : null,
                         'awaiting_approval' => $flow['approved_at'] ? 'اعتُمد — '.$fmt($flow['approved_at']) : null,
+                        'awaiting_requirements' => count($requirements) ? 'رُفع '.count($requirements).' ملف' : null,
                         'in_progress' => $flow['due_at'] ? 'موعد التسليم: '.$flow['due_at']->format('Y/m/d') : null,
                         'delivered' => $flow['delivered_at'] ? $fmt($flow['delivered_at']) : null,
                     };

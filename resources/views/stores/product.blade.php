@@ -44,14 +44,14 @@
                     @csrf
                     <h3 class="text-lg font-bold text-cloud-100">{{ __('اطلب الآن — الدفع عند الاستلام') }}</h3>
                     <div class="grid gap-4 sm:grid-cols-2">
-                        <input name="customer_name" value="{{ old('customer_name') }}" required placeholder="{{ __('الاسم') }} *" class="rounded-xl border border-white/10 bg-ink-850 px-4 py-3 text-cloud-100 outline-none focus:border-gold-500">
-                        <input name="customer_phone" value="{{ old('customer_phone') }}" required placeholder="{{ __('الموبايل') }} *" class="rounded-xl border border-white/10 bg-ink-850 px-4 py-3 text-cloud-100 outline-none focus:border-gold-500">
+                        <input name="customer_name" value="{{ old('customer_name') }}" required placeholder="{{ __('الاسم') }} *" class="rounded-xl border border-ink-600 bg-ink-850 px-4 py-3 text-cloud-100 outline-none focus:border-gold-500">
+                        <input name="customer_phone" value="{{ old('customer_phone') }}" required placeholder="{{ __('الموبايل') }} *" class="rounded-xl border border-ink-600 bg-ink-850 px-4 py-3 text-cloud-100 outline-none focus:border-gold-500">
                     </div>
                     <div class="grid gap-4 sm:grid-cols-2">
-                        <input name="governorate" value="{{ old('governorate') }}" placeholder="{{ __('المحافظة') }}" class="rounded-xl border border-white/10 bg-ink-850 px-4 py-3 text-cloud-100 outline-none focus:border-gold-500">
-                        <input name="quantity" type="number" min="1" max="99" value="{{ old('quantity', 1) }}" placeholder="{{ __('الكمية') }}" class="rounded-xl border border-white/10 bg-ink-850 px-4 py-3 text-cloud-100 outline-none focus:border-gold-500">
+                        <input name="governorate" value="{{ old('governorate') }}" placeholder="{{ __('المحافظة') }}" class="rounded-xl border border-ink-600 bg-ink-850 px-4 py-3 text-cloud-100 outline-none focus:border-gold-500">
+                        <input name="quantity" type="number" min="1" max="99" value="{{ old('quantity', 1) }}" placeholder="{{ __('الكمية') }}" class="rounded-xl border border-ink-600 bg-ink-850 px-4 py-3 text-cloud-100 outline-none focus:border-gold-500">
                     </div>
-                    <textarea name="shipping_address" required rows="2" placeholder="{{ __('العنوان بالتفصيل') }} *" class="rounded-xl border border-white/10 bg-ink-850 px-4 py-3 text-cloud-100 outline-none focus:border-gold-500">{{ old('shipping_address') }}</textarea>
+                    <textarea name="shipping_address" required rows="2" placeholder="{{ __('العنوان بالتفصيل') }} *" class="rounded-xl border border-ink-600 bg-ink-850 px-4 py-3 text-cloud-100 outline-none focus:border-gold-500">{{ old('shipping_address') }}</textarea>
                     <button type="submit" class="btn w-full justify-center text-ink-950" style="background: {{ $accent }}">{{ __('تأكيد الطلب') }}</button>
                     @if($store->whatsapp)
                         <a href="https://wa.me/{{ preg_replace('/[^0-9]/','',$store->whatsapp) }}?text={{ urlencode('أريد طلب: '.$product->name) }}" target="_blank" rel="noopener" class="btn btn-ghost w-full justify-center">{{ __('اطلب عبر واتساب') }}</a>

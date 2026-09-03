@@ -38,6 +38,12 @@ Route::get('/quote/proposal/{serviceRequest}', [QuoteController::class, 'proposa
     ->middleware('signed')->name('quote.proposal.signed');
 Route::post('/quote/decision/{serviceRequest}', [QuoteController::class, 'decisionSigned'])
     ->middleware(['signed', 'throttle:10,1'])->name('quote.decision.signed');
+// رفع متطلبات المشروع بعد اعتماد العرض: ملفات الهوية البصرية وبيانات المنتجات وغيرها
+Route::post('/quote/requirements/{serviceRequest}', [QuoteController::class, 'requirementsSigned'])
+    ->middleware(['signed', 'throttle:10,1'])->name('quote.requirements.signed');
+// بكسل تتبّع فتح بريد عرض السعر — مضمَّن كصورة شفافة 1×1 داخل قالب البريد
+Route::get('/quote/track/{serviceRequest}', [QuoteController::class, 'trackEmailOpen'])
+    ->middleware('signed')->name('quote.track');
 Route::get('/quote/{invite}', [QuoteController::class, 'show'])->name('quote.invite');
 Route::post('/quote/{invite}', [QuoteController::class, 'submit'])
     ->middleware('throttle:10,1')->name('quote.invite.submit');
@@ -46,6 +52,9 @@ Route::get('/quote/{invite}/proposal', [QuoteController::class, 'proposal'])->na
 // قرار العميل على العرض: اعتماد أو طلب تخفيض أو اعتذار عن المتابعة
 Route::post('/quote/{invite}/decision', [QuoteController::class, 'decision'])
     ->middleware('throttle:10,1')->name('quote.decision');
+// رفع متطلبات المشروع بعد اعتماد العرض
+Route::post('/quote/{invite}/requirements', [QuoteController::class, 'requirements'])
+    ->middleware('throttle:10,1')->name('quote.requirements');
 // اختصار شخصي يُشارك مع العميلة مباشرة
 Route::redirect('/hajar-salama', '/quote/hajar-salama');
 
