@@ -36,11 +36,16 @@ Route::get('/quote/document/{serviceRequest}', [QuoteController::class, 'documen
     ->middleware('signed')->name('quote.document.signed');
 Route::get('/quote/proposal/{serviceRequest}', [QuoteController::class, 'proposalSigned'])
     ->middleware('signed')->name('quote.proposal.signed');
+Route::post('/quote/decision/{serviceRequest}', [QuoteController::class, 'decisionSigned'])
+    ->middleware(['signed', 'throttle:10,1'])->name('quote.decision.signed');
 Route::get('/quote/{invite}', [QuoteController::class, 'show'])->name('quote.invite');
 Route::post('/quote/{invite}', [QuoteController::class, 'submit'])
     ->middleware('throttle:10,1')->name('quote.invite.submit');
 Route::get('/quote/{invite}/document', [QuoteController::class, 'document'])->name('quote.document');
 Route::get('/quote/{invite}/proposal', [QuoteController::class, 'proposal'])->name('quote.proposal');
+// قرار العميل على العرض: اعتماد أو طلب تخفيض أو اعتذار عن المتابعة
+Route::post('/quote/{invite}/decision', [QuoteController::class, 'decision'])
+    ->middleware('throttle:10,1')->name('quote.decision');
 // اختصار شخصي يُشارك مع العميلة مباشرة
 Route::redirect('/hajar-salama', '/quote/hajar-salama');
 

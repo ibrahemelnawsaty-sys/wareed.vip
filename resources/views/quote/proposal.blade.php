@@ -198,11 +198,62 @@
         .tb-ghost { background: #fff; color: var(--muted); border-color: var(--line); }
         .tb-btn .ic { width: 17px; height: 17px; }
 
+        /* صندوق قرار العميل */
+        .decide {
+            width: 210mm; max-width: 100%; margin: 16px auto 0; background: #fff;
+            border: 1px solid var(--line); border-radius: 16px; padding: 9mm 10mm;
+            box-shadow: 0 18px 44px -30px rgba(13, 24, 48, .45);
+        }
+        .decide-title { font-size: 1.05rem; font-weight: 700; }
+        .decide-lead { font-size: .84rem; color: var(--muted); margin-top: .3rem; }
+        .decide-lead b { color: var(--ink); }
+        .decide-opts { display: grid; grid-template-columns: repeat(3, 1fr); gap: .7rem; margin-top: 1rem; }
+        .d-opt {
+            position: relative; display: block; cursor: pointer; padding: .85rem .95rem;
+            border: 1.5px solid var(--line); border-radius: 12px; background: #fff; transition: .15s;
+        }
+        .d-opt:hover { border-color: #bfd3f8; background: #fafcff; }
+        .d-opt.on { border-color: var(--blue); background: #f2f7ff; box-shadow: 0 0 0 3px rgba(37, 99, 235, .12); }
+        .d-opt input { position: absolute; opacity: 0; pointer-events: none; }
+        .d-name { display: block; font-size: .92rem; font-weight: 700; color: var(--ink); }
+        .d-lead { display: block; font-size: .76rem; color: var(--muted); margin-top: .2rem; line-height: 1.65; }
+        .decide-note { margin-top: .9rem; }
+        .decide-note label { display: block; font-size: .78rem; color: var(--muted); margin-bottom: .3rem; }
+        .decide-note textarea {
+            width: 100%; padding: .6rem .8rem; border-radius: 10px; border: 1px solid var(--line);
+            font: inherit; font-size: .86rem; color: var(--ink); background: #fff; resize: vertical;
+        }
+        .decide-note textarea:focus { outline: 2px solid rgba(37, 99, 235, .3); border-color: var(--blue); }
+        .decide-send {
+            margin-top: 1rem; display: inline-flex; align-items: center; gap: .45rem; cursor: pointer;
+            border: 0; border-radius: 10px; padding: .7rem 1.6rem; font: inherit; font-size: .9rem;
+            font-weight: 700; color: #fff; background: var(--grad);
+        }
+        .decide-send:disabled { opacity: .45; cursor: not-allowed; }
+        .decide-send .ic { width: 18px; height: 18px; }
+        .decide-err { margin-top: .5rem; font-size: .8rem; color: #b91c1c; }
+        /* لون التأكيد يتبع نوع القرار: اعتماد أخضر، تخفيض كهرماني، اعتذار محايد */
+        .decide-done {
+            --dd: #047857; --dd-soft: #d1fae5; --dd-bg: #ecfdf5; --dd-line: #a7f3d0;
+            margin-bottom: 1.1rem; padding: .9rem 1rem; border-radius: 12px;
+            background: var(--dd-bg); border: 1px solid var(--dd-line);
+        }
+        .decide-done.is-discount { --dd: #b45309; --dd-soft: #fef3c7; --dd-bg: #fffbeb; --dd-line: #fde68a; }
+        .decide-done.is-declined { --dd: #475569; --dd-soft: #e2e8f0; --dd-bg: #f8fafc; --dd-line: #cbd5e1; }
+        .dd-badge {
+            display: inline-block; font-size: .74rem; font-weight: 700; color: var(--dd);
+            background: var(--dd-soft); border-radius: 99px; padding: .15rem .7rem;
+        }
+        .dd-msg { font-size: .88rem; color: var(--dd); margin-top: .4rem; line-height: 1.8; font-weight: 600; }
+        .dd-note { font-size: .82rem; color: var(--dd); margin-top: .35rem; }
+        .dd-meta { font-size: .76rem; color: var(--dd); opacity: .8; margin-top: .4rem; }
+        @media (max-width: 640px) { .decide-opts { grid-template-columns: 1fr; } }
+
         @media print {
             /* هامش سفلي لكل صفحة يسكنه الشريط الجاري أسفلها */
             @page { size: A4; margin: 0 0 13mm; }
             html, body { background: #fff; padding: 0; margin: 0; }
-            .toolbar { display: none !important; }
+            .toolbar, .decide { display: none !important; }
             .sheet { width: 210mm; min-height: 0; box-shadow: none; margin: 0; padding-bottom: 4mm; }
             * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
 
@@ -542,6 +593,84 @@
         </div>
     </footer>
 </article>
+
+{{-- قرار العميل على العرض — للشاشة فقط، لا يظهر في النسخة المطبوعة --}}
+<section class="decide" id="decide">
+    @if (session('decision_saved') && $decision)
+        <div @class(['decide-done', 'is-'.$decision['choice']])>
+            <div class="dd-badge">{{ $decision['label'] }}</div>
+            <p class="dd-msg">{{ $decision['done'] }}</p>
+            @if ($decision['note'])
+                <p class="dd-note">ملاحظتك: {{ $decision['note'] }}</p>
+            @endif
+            <p class="dd-meta">
+                سُجّل قرارك في {{ $decision['at']?->format('Y/m/d — H:i') }}.
+                لتغييره، اختر خياراً آخر من الأسفل.
+            </p>
+        </div>
+    @endif
+
+    <h2 class="decide-title">قرارك على هذا العرض</h2>
+    <p class="decide-lead">
+        اختر ما يناسبك وسيصل قرارك لفريق وريد فوراً.
+        @if ($decision && ! session('decision_saved'))
+            <b>قرارك المسجّل حالياً: {{ $decision['label'] }}</b> — يمكنك تغييره.
+        @endif
+    </p>
+
+    <form method="POST" action="{{ $decisionUrl }}" class="decide-form" data-decide>
+        @csrf
+
+        <div class="decide-opts">
+            @foreach (\App\Http\Controllers\QuoteController::DECISIONS as $key => $option)
+                <label @class(['d-opt', 'on' => ($decision['choice'] ?? null) === $key])
+                       data-opt="{{ $key }}" data-note-label="{{ $option['note_label'] }}">
+                    <input type="radio" name="choice" value="{{ $key }}" required
+                           @checked(($decision['choice'] ?? null) === $key)>
+                    <span class="d-name">{{ $option['label'] }}</span>
+                    <span class="d-lead">{{ $option['lead'] }}</span>
+                </label>
+            @endforeach
+        </div>
+
+        {{-- حقل ملاحظة واحد يتغيّر عنوانه حسب الاختيار، فيعمل النموذج حتى بلا جافاسكربت --}}
+        <div class="decide-note">
+            <label for="decide-note" data-note-target>ملاحظة تودّ إضافتها (اختياري)</label>
+            <textarea id="decide-note" name="note" rows="3"
+                      placeholder="اكتب هنا…">{{ old('note', $decision['note'] ?? '') }}</textarea>
+        </div>
+
+        <button type="submit" class="decide-send">
+            <svg class="ic"><use href="#i-check"/></svg> إرسال قراري
+        </button>
+
+        @error('choice')<p class="decide-err">{{ $message }}</p>@enderror
+        @error('note')<p class="decide-err">{{ $message }}</p>@enderror
+    </form>
+</section>
+
+<script>
+/* إبراز الخيار المحدَّد وتغيير عنوان حقل الملاحظة — النموذج يعمل بدونه أيضاً */
+(function () {
+    'use strict';
+    var form = document.querySelector('[data-decide]');
+    if (!form) return;
+
+    var options = form.querySelectorAll('[data-opt]');
+    var noteLabel = form.querySelector('[data-note-target]');
+
+    function sync() {
+        options.forEach(function (option) {
+            var picked = option.querySelector('input').checked;
+            option.classList.toggle('on', picked);
+            if (picked && noteLabel) noteLabel.textContent = option.dataset.noteLabel;
+        });
+    }
+
+    form.addEventListener('change', sync);
+    sync();
+})();
+</script>
 
 {{-- شريط جارٍ يتكرر أسفل كل صفحة عند الطباعة (مخفي على الشاشة) --}}
 <div class="run-foot" aria-hidden="true">

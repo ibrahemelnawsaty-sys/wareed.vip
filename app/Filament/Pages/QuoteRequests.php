@@ -5,6 +5,7 @@ namespace App\Filament\Pages;
 use App\Http\Controllers\QuoteController;
 use App\Mail\QuoteProposalIssued;
 use App\Models\ServiceRequest;
+use App\Support\MailTemplates;
 use BackedEnum;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
@@ -106,6 +107,7 @@ class QuoteRequests extends Page
                         ? route('quote.document', $invite)
                         : URL::signedRoute('quote.document.signed', ['serviceRequest' => $sr->id]),
                     'quote' => QuoteController::quoteOf($sr),
+                    'decision' => QuoteController::decisionOf($sr),
                     'proposal' => QuoteController::proposalUrl($sr),
                     'flow' => QuoteController::flowOf($sr),
                 ];
@@ -539,7 +541,11 @@ class QuoteRequests extends Page
             'meeting_at' => Carbon::parse($when)->toIso8601String(),
         ]);
 
-        Notification::make()->title('ثُبّت موعد الاجتماع للطلب '.$sr->reference)->success()->send();
+        Notification::make()
+            ->title('ثُبّت موعد الاجتماع للطلب '.$sr->reference)
+            ->body($this->mailedNote($sr, 'meeting_scheduled'))
+            ->success()
+            ->send();
     }
 
     /** انتهاء الاجتماع: تبدأ مهلة الـ3 أيام لتسليم عرض السعر. */
@@ -554,7 +560,7 @@ class QuoteRequests extends Page
 
         Notification::make()
             ->title('بدأت مهلة تجهيز عرض السعر')
-            ->body('موعد التسليم: '.$due->format('Y/m/d — H:i'))
+            ->body('موعد التسليم: '.$due->format('Y/m/d — H:i').' — '.$this->mailedNote($sr, 'quote_due'))
             ->success()
             ->send();
     }
@@ -579,7 +585,11 @@ class QuoteRequests extends Page
 
         $sr->update(['status' => 'won']);
 
-        Notification::make()->title('بدأ تنفيذ المتجر للطلب '.$sr->reference)->success()->send();
+        Notification::make()
+            ->title('بدأ تنفيذ المتجر للطلب '.$sr->reference)
+            ->body($this->mailedNote($sr->fresh(), 'in_progress', withSummary: true))
+            ->success()
+            ->send();
     }
 
     /** تسليم المتجر — نهاية المسار. */
@@ -590,7 +600,23 @@ class QuoteRequests extends Page
             'delivered_at' => now()->toIso8601String(),
         ]);
 
-        Notification::make()->title('تم تسليم المتجر — الطلب '.$sr->reference)->success()->send();
+        Notification::make()
+            ->title('تم تسليم المتجر — الطلب '.$sr->reference)
+            ->body($this->mailedNote($sr, 'delivered'))
+            ->success()
+            ->send();
+    }
+
+    /** سطر يُضاف للإشعار يوضّح هل وصل بريد المرحلة للعميل أم لا. */
+    private function mailedNote(ServiceRequest $sr, string $stage, bool $withSummary = false): string
+    {
+        if (MailTemplates::sendStage($sr, $stage, $withSummary)) {
+            return 'وأُرسل بريد المرحلة إلى '.$sr->email;
+        }
+
+        return filter_var((string) $sr->email, FILTER_VALIDATE_EMAIL)
+            ? 'لكن تعذّر إرسال بريد المرحلة — راجع إعدادات MAIL.'
+            : 'ولا بريد للعميل فلم تُرسَل رسالة.';
     }
 
     /** إرجاع الطلب لمرحلة سابقة عند الحاجة. */

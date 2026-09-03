@@ -2,8 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Mail\StageMessage;
 use App\Models\Service;
 use App\Models\ServiceRequest;
+use App\Support\MailTemplates;
 use Carbon\CarbonInterface;
 use chillerlan\QRCode\Common\EccLevel;
 use chillerlan\QRCode\Output\QROutputInterface;
@@ -12,6 +14,7 @@ use chillerlan\QRCode\QROptions;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
@@ -145,6 +148,31 @@ class QuoteController extends Controller
      * phone / email / store_name: بيانات معروفة مسبقاً لا يُسأل عنها في النموذج،
      * وتظهر في مستند الطلب وفي لوحة المتابعة. اتركها فارغة إن لم تتوفر.
      */
+    /**
+     * قرار العميل على عرض السعر — يُسجَّل من صفحة العرض نفسها.
+     * «الاعتذار عن المتابعة» هي الصيغة الرسمية المهذّبة لعدم الرغبة في المشروع.
+     */
+    public const DECISIONS = [
+        'approved' => [
+            'label' => 'اعتماد العرض',
+            'lead' => 'أوافق على العرض ونبدأ التنفيذ',
+            'note_label' => 'ملاحظة تودّ إضافتها (اختياري)',
+            'done' => 'شكراً لثقتك — اعتُمد العرض ووصلنا قرارك. سيتواصل معك فريق وريد لبدء التنفيذ.',
+        ],
+        'discount' => [
+            'label' => 'طلب تخفيض',
+            'lead' => 'العرض مناسب لكن أرغب في مراجعة السعر',
+            'note_label' => 'الميزانية المناسبة لك أو ملاحظاتك على البنود',
+            'done' => 'وصلنا طلبك — سيراجع فريق وريد العرض ويوافيك بعرض محدَّث في أقرب وقت.',
+        ],
+        'declined' => [
+            'label' => 'الاعتذار عن المتابعة',
+            'lead' => 'أعتذر عن المضي في المشروع حالياً',
+            'note_label' => 'سبب الاعتذار إن أحببت مشاركته (اختياري)',
+            'done' => 'شكراً لوقتك ولصراحتك — سجّلنا اعتذارك، وباب وريد يبقى مفتوحاً لك في أي وقت.',
+        ],
+    ];
+
     public const INVITES = [
         'hajar-salama' => [
             'name' => 'أ. هاجر سلامة',
@@ -572,7 +600,148 @@ class QuoteController extends Controller
             'quote' => $quote,
             'bank' => self::bankDetails(),
             'qr' => $this->qrSvg($sr->reference),
+            'decision' => self::decisionOf($sr),
+            'decisionUrl' => self::decisionUrl($sr),
         ]);
+    }
+
+    /** تسجيل قرار العميل عبر رابطه المخصّص. */
+    public function decision(Request $request, string $invite)
+    {
+        $this->resolveInvite($invite);
+        $sr = $this->existingRequest($invite) ?? abort(404);
+
+        return $this->storeDecision($request, $sr);
+    }
+
+    /** تسجيل القرار عبر رابط موقّع للنموذج العام. */
+    public function decisionSigned(Request $request, ServiceRequest $serviceRequest)
+    {
+        return $this->storeDecision($request, $serviceRequest);
+    }
+
+    /**
+     * حفظ القرار في الطلب وإشعار فريق وريد به.
+     * العميل يستطيع تغيير قراره (طلب تخفيض ثم اعتماد مثلاً) فيُستبدل المسجَّل.
+     */
+    private function storeDecision(Request $request, ServiceRequest $sr)
+    {
+        self::quoteOf($sr) ?? abort(404);
+
+        $data = $request->validate([
+            'choice' => ['required', 'string', Rule::in(array_keys(self::DECISIONS))],
+            'note' => ['nullable', 'string', 'max:2000'],
+        ], [], ['choice' => 'القرار', 'note' => 'الملاحظة']);
+
+        $payload = (array) $sr->payload;
+        $payload['_decision'] = [
+            'choice' => $data['choice'],
+            'note' => trim((string) ($data['note'] ?? '')),
+            'at' => now()->toIso8601String(),
+        ];
+
+        // الاعتماد ينقل الطلب تلقائياً إلى مرحلة التنفيذ،
+        // وموعد التسليم يُؤخذ من آخر مرحلة في الجدول الزمني إن وُجد.
+        if ($data['choice'] === 'approved') {
+            $deliveryAt = self::quoteOf($sr)['delivery_at'] ?? null;
+
+            $payload['_flow'] = array_merge($payload['_flow'] ?? [], array_filter([
+                'stage' => 'in_progress',
+                'approved_at' => now()->toIso8601String(),
+                'started_at' => now()->toIso8601String(),
+                'due_at' => $deliveryAt?->toIso8601String(),
+            ]));
+        }
+
+        $sr->update(['payload' => $payload]);
+
+        if ($data['choice'] === 'approved') {
+            $sr->update(['status' => 'won']);
+        }
+
+        $sr = $sr->fresh();
+        $decision = self::decisionOf($sr);
+
+        $this->notifyDecision($sr, $decision);
+
+        // العميل الذي اعتمد العرض يصله بريد بدء التنفيذ بكامل تفاصيله
+        if ($data['choice'] === 'approved') {
+            MailTemplates::sendStage($sr, 'in_progress', withSummary: true);
+        }
+
+        return back()->with('decision_saved', true);
+    }
+
+    /** إشعار فريق وريد بقرار العميل — فشل الإرسال لا يُفقد القرار. */
+    private function notifyDecision(ServiceRequest $sr, ?array $decision): void
+    {
+        if (! $decision) {
+            return;
+        }
+
+        try {
+            $quote = self::quoteOf($sr);
+            $money = fn ($n, $cur) => number_format((float) $n, ((float) $n == (int) $n) ? 0 : 2).' '.$cur;
+
+            $lines = [
+                'سجّل العميل قراره على عرض السعر '.$sr->reference.'.',
+                'القرار: '.$decision['label'],
+                'العميل: '.$sr->name.($sr->company ? ' — '.$sr->company : '')
+                    .($sr->email ? ' · '.$sr->email : '').($sr->phone && $sr->phone !== '—' ? ' · '.$sr->phone : ''),
+                'إجمالي العرض: '.($quote ? $money($quote['total'], $quote['currency']) : '—'),
+            ];
+
+            if ($decision['note'] !== '') {
+                $lines[] = 'ملاحظة العميل: '.$decision['note'];
+            }
+
+            if ($decision['choice'] === 'approved') {
+                $lines[] = 'نُقل الطلب تلقائياً إلى مرحلة «تنفيذ المتجر» وحالته صارت «مكسوب»، '
+                    .'ووصل العميل بريد بدء التنفيذ بكامل التفاصيل.';
+            }
+
+            Mail::to((string) setting('contact_email', 'info@wareed.vip'))->send(new StageMessage(
+                subjectLine: 'قرار العميل على عرض السعر — '.$decision['label'].' — '.$sr->reference,
+                bodyText: implode("\n\n", $lines),
+                link: route('filament.admin.pages.quote-requests'),
+                linkLabel: 'فتح لوحة المتابعة',
+                // كافة تفاصيل العرض والجدول والدفعات مع الإشعار
+                summaryOf: $sr,
+            ));
+        } catch (\Throwable $e) {
+            report($e);
+        }
+    }
+
+    /** قرار العميل المسجَّل على العرض، أو null إن لم يقرّر بعد. */
+    public static function decisionOf(ServiceRequest $sr): ?array
+    {
+        $d = ((array) $sr->payload)['_decision'] ?? null;
+        $choice = is_array($d) ? (string) ($d['choice'] ?? '') : '';
+
+        if (! isset(self::DECISIONS[$choice])) {
+            return null;
+        }
+
+        return [
+            'choice' => $choice,
+            'label' => self::DECISIONS[$choice]['label'],
+            'done' => self::DECISIONS[$choice]['done'],
+            'note' => trim((string) ($d['note'] ?? '')),
+            'at' => self::parseDate($d['at'] ?? null),
+        ];
+    }
+
+    /** رابط تسجيل القرار: مخصّص عبر الدعوة، أو موقّع للنموذج العام. */
+    public static function decisionUrl(ServiceRequest $sr): string
+    {
+        $invite = str_starts_with((string) $sr->source, 'quote_link:')
+            ? substr((string) $sr->source, strlen('quote_link:'))
+            : null;
+
+        return $invite !== null
+            ? route('quote.decision', $invite)
+            : URL::signedRoute('quote.decision.signed', ['serviceRequest' => $sr->id]);
     }
 
     /** بيانات التحويل البنكي من إعدادات الموقع — تظهر في عرض السعر. */

@@ -7,6 +7,10 @@
 
     {!! \App\Support\MailTemplates::html($bodyText) !!}
 
+    @if ($summaryOf ?? null)
+        @include('emails._quote-summary')
+    @endif
+
     @if ($link)
         {{-- زر بجدول ليُرسَم في Outlook أيضاً --}}
         <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:22px 0 6px;">
