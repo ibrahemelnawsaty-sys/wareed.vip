@@ -17,11 +17,12 @@ class StageMessage extends Mailable
 {
     use Queueable, SerializesModels;
 
+    // الخصائص العامة تتقدّم على بيانات with() في Laravel، فالقيمة الافتراضية تُضبط هنا لا هناك
     public function __construct(
         public string $subjectLine,
         public string $bodyText,
         public ?string $link = null,
-        public ?string $linkLabel = null,
+        public string $linkLabel = 'متابعة الطلب',
     ) {}
 
     public function envelope(): Envelope
@@ -38,9 +39,6 @@ class StageMessage extends Mailable
     public function content(): Content
     {
         return new Content(view: 'emails.stage', with: [
-            'bodyText' => $this->bodyText,
-            'link' => $this->link,
-            'linkLabel' => $this->linkLabel ?? 'متابعة الطلب',
             'title' => $this->subjectLine,
         ]);
     }

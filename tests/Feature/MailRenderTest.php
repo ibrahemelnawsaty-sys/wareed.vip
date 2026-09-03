@@ -5,6 +5,10 @@ use App\Mail\ServiceRequestReceived;
 use App\Mail\StoreOrderReceived;
 use App\Models\ServiceRequest;
 use App\Models\StoreOrder;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+
+// قالب البريد يقرأ بيانات الشركة من الإعدادات، فيحتاج قاعدة بيانات ولو كان النموذج غير محفوظ
+uses(RefreshDatabase::class);
 
 it('renders service request admin + confirmation emails without errors', function () {
     $sr = new ServiceRequest([

@@ -1,19 +1,24 @@
 @extends('emails.layout', ['title' => $title])
 
 @section('content')
+    <h1 style="margin:0 0 16px;font-size:19px;font-weight:bold;color:#0d1830;line-height:1.6;">
+        {{ $title }}
+    </h1>
+
     {!! \App\Support\MailTemplates::html($bodyText) !!}
 
     @if ($link)
-        <p style="margin:22px 0 6px;text-align:center;">
-            <a href="{{ $link }}"
-               style="display:inline-block;background:#2563eb;color:#ffffff;text-decoration:none;font-weight:bold;font-size:15px;padding:13px 30px;border-radius:10px;">
-                {{ $linkLabel }}
-            </a>
-        </p>
+        {{-- زر بجدول ليُرسَم في Outlook أيضاً --}}
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:22px 0 6px;">
+            <tr>
+                <td align="center" bgcolor="#2563eb" style="border-radius:10px;">
+                    <a href="{{ $link }}"
+                       style="display:inline-block;padding:13px 32px;font-size:15px;font-weight:bold;
+                              color:#ffffff;text-decoration:none;border-radius:10px;">
+                        {{ $linkLabel }}
+                    </a>
+                </td>
+            </tr>
+        </table>
     @endif
-
-    <p style="margin:18px 0 0;color:#8493b5;font-size:12px;">
-        لأي استفسار يسعدنا تواصلكم معنا على {{ setting('contact_email', 'info@wareed.vip') }}
-        أو هاتفياً على {{ setting('contact_phone', '+201055789056') }}.
-    </p>
 @endsection

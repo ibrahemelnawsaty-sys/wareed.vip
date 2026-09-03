@@ -45,21 +45,31 @@
         .mt-actions { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .9rem; }
         .mt-actions .end { margin-inline-start: auto; display: flex; flex-wrap: wrap; gap: .5rem; }
 
-        /* معاينة تحاكي شكل الرسالة الواصلة للعميل */
-        .mt-mail { background: rgb(244 246 251); border-radius: .6rem; padding: 1rem; }
-        .mt-mail-subject { font-size: .8rem; color: rgb(107 114 128); margin-bottom: .6rem; }
-        .mt-mail-subject b { color: rgb(17 24 39); font-size: .9rem; }
-        .mt-mail-sheet { max-width: 34rem; margin: 0 auto; }
-        .mt-mail-head { background: linear-gradient(120deg,#3b82f6,#8b5cf6 50%,#2dd4bf); border-radius: .8rem .8rem 0 0;
-                        padding: 1.1rem; text-align: center; color: #fff; }
-        .mt-mail-head .brand { font-size: 1.15rem; font-weight: 700; letter-spacing: 1px; }
-        .mt-mail-head .sub { font-size: .7rem; color: #eaf0fb; margin-top: .15rem; }
-        .mt-mail-body { background: #fff; border: 1px solid rgb(230 236 247); border-top: 0;
-                        border-radius: 0 0 .8rem .8rem; padding: 1.3rem 1.2rem; font-size: .85rem; }
-        .mt-mail-body p { margin: 0 0 .8rem; color: rgb(85 99 138); line-height: 1.95; }
-        .mt-cta { display: inline-block; background: rgb(37 99 235); color: #fff; text-decoration: none;
-                  font-weight: 700; font-size: .85rem; padding: .6rem 1.4rem; border-radius: .55rem; }
-        .mt-mail-foot { color: rgb(132 147 181); font-size: .72rem; margin-top: .9rem; }
+        /* معاينة مطابقة للرسالة الحقيقية — وضع فاتح دائماً مهما كان مظهر اللوحة */
+        .mt-mail { background: #eef2f9; border-radius: .6rem; padding: 1.1rem; color-scheme: light; }
+        .mt-mail-subject { font-size: .8rem; color: #55638a; margin-bottom: .7rem; }
+        .mt-mail-subject b { color: #0d1830; font-size: .9rem; }
+        .mt-mail-sheet { max-width: 37.5rem; margin: 0 auto; background: #fff;
+                         border: 1px solid #e3eaf6; border-radius: 1rem; overflow: hidden; }
+        .mt-mail-bar { height: 5px; background: linear-gradient(90deg,#3b82f6,#8b5cf6 50%,#2dd4bf); }
+        .mt-mail-head { display: flex; align-items: center; gap: .75rem;
+                        padding: 1.15rem 1.35rem 1rem; border-bottom: 1px solid #eef2fa; }
+        .mt-mail-head img { width: 44px; height: 44px; border-radius: 11px; display: block; }
+        .mt-mail-head .brand { font-size: 1.1rem; font-weight: 700; color: #0d1830; letter-spacing: .5px; }
+        .mt-mail-head .sub { font-size: .7rem; color: #8493b5; margin-top: .05rem; }
+        .mt-mail-body { padding: 1.35rem; font-size: .87rem; background: #fff; }
+        .mt-mail-body h1 { font-size: 1.05rem; font-weight: 700; color: #0d1830; margin: 0 0 .8rem; line-height: 1.6; }
+        .mt-mail-body p { margin: 0 0 .8rem; color: #55638a; line-height: 1.95; }
+        .mt-cta { display: inline-block; background: #2563eb; color: #fff; text-decoration: none;
+                  font-weight: 700; font-size: .85rem; padding: .68rem 1.6rem; border-radius: .6rem; }
+        .mt-mail-foot { background: #f7f9fd; border-top: 1px solid #eef2fa; padding: 1.05rem 1.35rem 1.15rem; }
+        .mt-mail-foot .co { font-size: .82rem; font-weight: 700; color: #0d1830; margin-bottom: .45rem; }
+        .mt-mail-foot table { width: 100%; font-size: .74rem; color: #55638a; border-collapse: collapse; }
+        .mt-mail-foot td { padding: .06rem 0; vertical-align: top; }
+        .mt-mail-foot td:first-child { color: #8493b5; width: 4.6rem; }
+        .mt-mail-foot a { color: #2563eb; text-decoration: none; }
+        .mt-mail-foot .copy { border-top: 1px solid #e6ecf7; margin-top: .7rem; padding-top: .6rem;
+                              font-size: .68rem; color: #9aa8c6; }
 
         .mt-note { font-size: .78rem; color: rgb(107 114 128); }
         .mt-to { font-size: .78rem; color: rgb(21 128 61); font-weight: 600; }
@@ -74,9 +84,6 @@
         .dark .mt-stage.on .n { color: rgb(191 219 254); }
         .dark .mt-step { background: rgba(255,255,255,.08); color: rgb(209 213 219); }
         .dark .mt-in { background: rgb(17 24 39); border-color: rgba(255,255,255,.15); color: #fff; }
-        .dark .mt-mail { background: rgba(255,255,255,.04); }
-        .dark .mt-mail-subject b { color: #fff; }
-        .dark .mt-mail-body { background: rgb(15 23 42); border-color: rgba(255,255,255,.1); }
         .dark .mt-var { background: rgba(37,99,235,.18); border-color: rgba(147,197,253,.35); color: rgb(191 219 254); }
 
         @media (max-width: 1100px) { .mt-wrap { grid-template-columns: 1fr; } }
@@ -156,21 +163,22 @@
                     </div>
 
                     <div class="mt-actions">
-                        <x-filament::button wire:click="save" size="sm" color="primary" icon="heroicon-o-check">
+                        <x-filament::button wire:click="save" size="sm" color="primary"
+                                            icon="heroicon-o-check-circle">
                             حفظ القالب
                         </x-filament::button>
-                        <x-filament::button wire:click="resetTemplate" size="sm" color="gray"
+                        <x-filament::button wire:click="resetTemplate" size="sm" color="gray" outlined
                                             icon="heroicon-o-arrow-path"
                                             wire:confirm="سيُستبدل النص الحالي بالنص المقترح. متابعة؟">
                             استعادة النص المقترح
                         </x-filament::button>
 
                         <div class="end">
-                            <x-filament::button wire:click="sendTest" size="sm" color="warning"
+                            <x-filament::button wire:click="sendTest" size="sm" color="gray" outlined
                                                 icon="heroicon-o-beaker">
                                 إرسال تجريبي
                             </x-filament::button>
-                            <x-filament::button wire:click="sendToClient" size="sm" color="success"
+                            <x-filament::button wire:click="sendToClient" size="sm" color="primary"
                                                 icon="heroicon-o-paper-airplane"
                                                 :disabled="! $preview['to']"
                                                 wire:confirm="سيُرسل البريد إلى العميل مباشرة. متابعة؟">
@@ -185,22 +193,57 @@
             <div class="mt-card">
                 <div class="mt-card-head"><b>معاينة الرسالة كما تصل للعميل</b></div>
                 <div class="mt-card-body">
+                    @php
+                        $coPhone = setting('contact_phone', '01055789056');
+                        $coEmail = setting('contact_email', 'info@wareed.vip');
+                        $coName = setting('legal_name', 'شركة وريد لتقنية المعلومات');
+                        $coAddress = setting('legal_address', setting('contact_address'));
+                        $coTax = setting('tax_number');
+                        $coRegister = setting('commercial_register');
+                    @endphp
                     <div class="mt-mail">
                         <p class="mt-mail-subject">الموضوع: <b>{{ $preview['subject'] }}</b></p>
+
                         <div class="mt-mail-sheet">
+                            <div class="mt-mail-bar"></div>
+
                             <div class="mt-mail-head">
-                                <div class="brand">وريد</div>
-                                <div class="sub">شركة وريد لتقنية المعلومات</div>
+                                <img src="{{ url('/images/wareed-mark.png') }}" alt="وريد">
+                                <div>
+                                    <div class="brand">وريد</div>
+                                    <div class="sub">منصتك التقنية المتكاملة</div>
+                                </div>
                             </div>
+
                             <div class="mt-mail-body">
+                                <h1>{{ $preview['subject'] }}</h1>
                                 {!! $preview['html'] !!}
-                                <p style="text-align:center;margin:1.2rem 0 .3rem">
+                                <p style="margin:1.3rem 0 .2rem">
                                     <a class="mt-cta" href="{{ $preview['link'] }}" target="_blank" rel="noopener">متابعة الطلب</a>
                                 </p>
-                                <p class="mt-mail-foot">
-                                    لأي استفسار يسعدنا تواصلكم معنا على {{ setting('contact_email', 'info@wareed.vip') }}
-                                    أو هاتفياً على {{ setting('contact_phone', '+201055789056') }}.
-                                </p>
+                            </div>
+
+                            <div class="mt-mail-foot">
+                                <div class="co">{{ $coName }}</div>
+                                <table>
+                                    @if ($coAddress)
+                                        <tr><td>العنوان</td><td>{{ $coAddress }}</td></tr>
+                                    @endif
+                                    <tr><td>الهاتف</td><td><a href="#" dir="ltr" onclick="return false"><b>{{ $coPhone }}</b></a></td></tr>
+                                    <tr><td>البريد</td><td><a href="#" dir="ltr" onclick="return false">{{ $coEmail }}</a></td></tr>
+                                    <tr><td>الموقع</td><td><a href="#" dir="ltr" onclick="return false">wareed.vip</a></td></tr>
+                                    @if ($coTax || $coRegister)
+                                        <tr>
+                                            <td>السجلات</td>
+                                            <td>
+                                                @if ($coTax)الرقم الضريبي: <span dir="ltr">{{ $coTax }}</span>@endif
+                                                @if ($coTax && $coRegister) · @endif
+                                                @if ($coRegister)س.ت: <span dir="ltr">{{ $coRegister }}</span>@endif
+                                            </td>
+                                        </tr>
+                                    @endif
+                                </table>
+                                <div class="copy">© {{ date('Y') }} {{ $coName }} — جميع الحقوق محفوظة.</div>
                             </div>
                         </div>
                     </div>
