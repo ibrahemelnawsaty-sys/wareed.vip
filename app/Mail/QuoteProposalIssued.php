@@ -4,6 +4,7 @@ namespace App\Mail;
 
 use App\Http\Controllers\QuoteController;
 use App\Models\ServiceRequest;
+use App\Support\MailTemplates;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Address;
@@ -28,7 +29,11 @@ class QuoteProposalIssued extends Mailable
         return new Envelope(
             from: new Address($from, 'وريد لتقنية المعلومات'),
             replyTo: [new Address($from, 'وريد لتقنية المعلومات')],
-            subject: 'عرض سعر متجرك الإلكتروني — '.$this->sr->reference,
+            // العنوان قابل للتعديل من: لوحة التحكم ← قوالب البريد ← إرسال عرض السعر
+            subject: MailTemplates::render(
+                MailTemplates::subject('proposal_sent'),
+                MailTemplates::variables($this->sr),
+            ),
         );
     }
 

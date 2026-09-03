@@ -7,10 +7,11 @@
 
     <h2 style="margin:0 0 14px;font-size:20px;color:#0d1830;">عرض سعر متجرك الإلكتروني</h2>
 
-    <p style="margin:0 0 16px;color:#55638a;">
-        مرحباً {{ $sr->name }}،<br>
-        يسعدنا موافاتكم بعرض السعر المخصّص لمتجركم الإلكتروني بناءً على الطلب المسجّل لدينا.
-    </p>
+    {{-- المقدّمة قابلة للتعديل من: لوحة التحكم ← قوالب البريد ← إرسال عرض السعر --}}
+    {!! \App\Support\MailTemplates::html(\App\Support\MailTemplates::render(
+        \App\Support\MailTemplates::body('proposal_sent'),
+        \App\Support\MailTemplates::variables($sr),
+    )) !!}
 
     <table role="presentation" width="100%" style="border-collapse:collapse;margin:0 0 18px;background:#f7f9fe;border:1px solid #e6ecf7;border-radius:12px;">
         <tr>
