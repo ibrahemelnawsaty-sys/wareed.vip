@@ -169,11 +169,26 @@
         .wq-quote-badge .amt { font-weight: 700; color: rgb(21 128 61); font-variant-numeric: tabular-nums; }
         .wq-quote-badge .meta { font-size: .78rem; color: rgb(107 114 128); }
 
+        .wq-reqs { padding: .7rem 1rem; border-top: 1px solid rgb(243 244 246); background: rgb(239 246 255); }
+        .wq-reqs-title { display: flex; align-items: center; gap: .4rem; font-size: .78rem; font-weight: 700; color: rgb(30 64 175); margin-bottom: .5rem; }
+        .wq-reqs-list { display: flex; flex-direction: column; gap: .35rem; }
+        .wq-reqs-item {
+            display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; padding: .4rem .6rem;
+            border: 1px solid rgb(219 234 254); border-radius: .5rem; background: #fff; text-decoration: none;
+        }
+        .wq-reqs-item:hover { border-color: rgb(147 197 253); }
+        .wq-reqs-item .ri-name { font-size: .82rem; font-weight: 600; color: rgb(17 24 39); }
+        .wq-reqs-item .ri-desc { font-size: .76rem; color: rgb(107 114 128); }
+        .wq-reqs-item .ri-meta { margin-inline-start: auto; font-size: .72rem; color: rgb(156 163 175); white-space: nowrap; }
+
         .dark .wq-editor { background: rgba(37,99,235,.08); }
         .dark .wq-in { background: rgb(17 24 39); border-color: rgba(255,255,255,.15); color: #fff; }
         .dark .wq-sum { background: rgb(17 24 39); border-color: rgba(255,255,255,.1); }
         .dark .wq-sum b { color: #fff; }
         .dark .wq-quote-badge { background: rgba(34,197,94,.1); border-color: rgba(255,255,255,.08); }
+        .dark .wq-reqs { background: rgba(37,99,235,.1); border-color: rgba(255,255,255,.08); }
+        .dark .wq-reqs-item { background: rgb(17 24 39); border-color: rgba(255,255,255,.12); }
+        .dark .wq-reqs-item .ri-name { color: #fff; }
         .dark .wq-del { background: rgba(239,68,68,.12); border-color: rgba(239,68,68,.3); color: rgb(252 165 165); }
 
         @media (max-width: 1400px) {
@@ -341,6 +356,19 @@
                                 </x-filament::button>
                                 @break
 
+                            @case ('awaiting_requirements')
+                                <span class="wq-when">
+                                    اعتمد العميل العرض — بانتظار رفع متطلبات المشروع
+                                    @if (count($r['requirements']))
+                                        ({{ count($r['requirements']) }} ملف مرفوع)
+                                    @endif
+                                </span>
+                                <input type="date" class="wq-dt" wire:model="flowInput.{{ $r['id'] }}.due_at">
+                                <x-filament::button wire:click="startExecution({{ $r['id'] }})" size="sm" color="success" icon="heroicon-o-play">
+                                    ابدأ التنفيذ يدويًا
+                                </x-filament::button>
+                                @break
+
                             @case ('in_progress')
                                 <span class="wq-when">
                                     التسليم قبل: <b>{{ $flow['due_at']?->format('Y/m/d') }}</b>
@@ -391,6 +419,11 @@
                             صالح حتى {{ $r['quote']['valid_until']->format('Y/m/d') }}
                         </span>
                         <div style="margin-inline-start:auto;display:flex;gap:.5rem;flex-wrap:wrap">
+                            <x-filament::button wire:click="sendQuote({{ $r['id'] }})" size="sm" color="primary"
+                                                icon="heroicon-o-paper-airplane"
+                                                wire:confirm="سيُرسل عرض السعر إلى بريد العميل الإلكتروني الآن. متابعة؟">
+                                إرسال عرض السعر
+                            </x-filament::button>
                             <x-filament::button tag="a" :href="$r['proposal']" target="_blank" size="sm" color="success" icon="heroicon-o-document-currency-dollar">
                                 عرض السعر
                             </x-filament::button>
@@ -400,6 +433,28 @@
                                 size="sm" color="danger">حذف العرض</x-filament::button>
                         </div>
                     </div>
+
+                    @if (count($r['requirements']))
+                        <div class="wq-reqs">
+                            <div class="wq-reqs-title">
+                                <x-filament::icon icon="heroicon-o-paper-clip" style="width:1rem;height:1rem" />
+                                متطلبات المشروع المرفوعة ({{ count($r['requirements']) }})
+                            </div>
+                            <div class="wq-reqs-list">
+                                @foreach ($r['requirements'] as $file)
+                                    <a class="wq-reqs-item" href="{{ \App\Http\Controllers\QuoteController::requirementDownloadUrl($file['path']) }}" target="_blank" rel="noopener">
+                                        <x-filament::icon icon="heroicon-o-arrow-down-tray" style="width:.9rem;height:.9rem" />
+                                        <span class="ri-name">{{ $file['name'] }}</span>
+                                        @if ($file['desc'])<span class="ri-desc">{{ $file['desc'] }}</span>@endif
+                                        <span class="ri-meta">
+                                            {{ $file['size_h'] }}
+                                            @if ($file['uploaded_at']) · {{ $file['uploaded_at']->format('Y/m/d — H:i') }} @endif
+                                        </span>
+                                    </a>
+                                @endforeach
+                            </div>
+                        </div>
+                    @endif
                 @endif
 
                 @if ($editingId === $r['id'])
@@ -780,7 +835,7 @@
                         @endif
                         @if (in_array($r['status'], ['new', 'contacted', 'qualified'], true))
                             <x-filament::button wire:click="markStatus({{ $r['id'] }}, 'proposal')" size="sm" color="info">
-                                أُرسل عرض السعر
+                                وسم الحالة: أُرسل العرض
                             </x-filament::button>
                         @endif
                         @if ($r['status'] !== 'won')

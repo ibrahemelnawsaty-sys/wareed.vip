@@ -13,10 +13,13 @@ use chillerlan\QRCode\QRCode;
 use chillerlan\QRCode\QROptions;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
 /**
@@ -65,6 +68,12 @@ class QuoteController extends Controller
             'label' => 'اعتماد العرض',
             'icon' => 'verified',
             'client' => 'عرض السعر جاهز — بانتظار اعتمادك للبدء في التنفيذ.',
+            'countdown' => false,
+        ],
+        'awaiting_requirements' => [
+            'label' => 'رفع متطلبات المشروع',
+            'icon' => 'box',
+            'client' => 'اعتمدت العرض — ارفع الآن ملفات هويتك البصرية وبيانات منتجاتك ليبدأ فريق وريد التنفيذ.',
             'countdown' => false,
         ],
         'in_progress' => [
@@ -424,6 +433,8 @@ class QuoteController extends Controller
             'quote' => self::quoteOf($sr),
             'flow' => self::flowOf($sr),
             'stages' => self::STAGES,
+            'requirements' => self::requirementsOf($sr),
+            'proposalUrl' => self::proposalUrl($sr),
         ]);
     }
 
@@ -619,6 +630,9 @@ class QuoteController extends Controller
             'qr' => $this->qrSvg($sr->reference),
             'decision' => self::decisionOf($sr),
             'decisionUrl' => self::decisionUrl($sr),
+            'flow' => self::flowOf($sr),
+            'requirements' => self::requirementsOf($sr),
+            'requirementsUrl' => self::requirementsUrl($sr),
         ]);
     }
 
@@ -635,6 +649,21 @@ class QuoteController extends Controller
     public function decisionSigned(Request $request, ServiceRequest $serviceRequest)
     {
         return $this->storeDecision($request, $serviceRequest);
+    }
+
+    /** رفع متطلبات المشروع (ملفات الهوية البصرية وبيانات المنتجات...) عبر الرابط المخصّص. */
+    public function requirements(Request $request, string $invite)
+    {
+        $this->resolveInvite($invite);
+        $sr = $this->existingRequest($invite) ?? abort(404);
+
+        return $this->storeRequirements($request, $sr);
+    }
+
+    /** رفع متطلبات المشروع عبر رابط موقّع للنموذج العام. */
+    public function requirementsSigned(Request $request, ServiceRequest $serviceRequest)
+    {
+        return $this->storeRequirements($request, $serviceRequest);
     }
 
     /**
@@ -657,17 +686,13 @@ class QuoteController extends Controller
             'at' => now()->toIso8601String(),
         ];
 
-        // الاعتماد ينقل الطلب تلقائياً إلى مرحلة التنفيذ،
-        // وموعد التسليم يُؤخذ من آخر مرحلة في الجدول الزمني إن وُجد.
+        // الاعتماد ينقل الطلب تلقائياً إلى مرحلة رفع متطلبات المشروع،
+        // والتنفيذ الفعلي (وعدّاده) يبدأ بعدها بمجرد رفع العميل لأول ملف — أو بدء يدوي من الفريق.
         if ($data['choice'] === 'approved') {
-            $deliveryAt = self::quoteOf($sr)['delivery_at'] ?? null;
-
-            $payload['_flow'] = array_merge($payload['_flow'] ?? [], array_filter([
-                'stage' => 'in_progress',
+            $payload['_flow'] = array_merge($payload['_flow'] ?? [], [
+                'stage' => 'awaiting_requirements',
                 'approved_at' => now()->toIso8601String(),
-                'started_at' => now()->toIso8601String(),
-                'due_at' => $deliveryAt?->toIso8601String(),
-            ]));
+            ]);
         }
 
         $sr->update(['payload' => $payload]);
@@ -681,9 +706,9 @@ class QuoteController extends Controller
 
         $this->notifyDecision($sr, $decision);
 
-        // العميل الذي اعتمد العرض يصله بريد بدء التنفيذ بكامل تفاصيله
+        // العميل الذي اعتمد العرض يصله بريد يدعوه لرفع متطلبات مشروعه
         if ($data['choice'] === 'approved') {
-            MailTemplates::sendStage($sr, 'in_progress', withSummary: true);
+            MailTemplates::sendStage($sr, 'awaiting_requirements', withSummary: true);
         }
 
         return back()->with('decision_saved', true);
@@ -713,8 +738,8 @@ class QuoteController extends Controller
             }
 
             if ($decision['choice'] === 'approved') {
-                $lines[] = 'نُقل الطلب تلقائياً إلى مرحلة «تنفيذ المتجر» وحالته صارت «مكسوب»، '
-                    .'ووصل العميل بريد بدء التنفيذ بكامل التفاصيل.';
+                $lines[] = 'نُقل الطلب تلقائياً إلى مرحلة «رفع متطلبات المشروع» وحالته صارت «مكسوب»، '
+                    .'ووصل العميل بريد يدعوه لرفع ملفات مشروعه. بمجرد رفعه لها ينتقل الطلب تلقائياً لمرحلة التنفيذ.';
             }
 
             Mail::to((string) setting('contact_email', 'info@wareed.vip'))->send(new StageMessage(
@@ -728,6 +753,192 @@ class QuoteController extends Controller
         } catch (\Throwable $e) {
             report($e);
         }
+    }
+
+    /** أقصى حجم للملف الواحد المرفوع كمتطلبات مشروع (كيلوبايت) — محافظ لتوافق الاستضافات المشتركة. */
+    public const REQUIREMENT_MAX_KB = 10240;
+
+    /**
+     * حفظ ملفات متطلبات المشروع التي يرفعها العميل بعد اعتماد العرض (هوية بصرية، بيانات منتجات...).
+     * أول رفعة تنقل الطلب تلقائياً من «رفع متطلبات المشروع» إلى «تنفيذ المتجر» وتُشغّل عدّاده،
+     * وأي رفعة لاحقة تُضاف لنفس القائمة وتُبلَّغ لفريق وريد دون إعادة نقل المرحلة.
+     */
+    private function storeRequirements(Request $request, ServiceRequest $sr)
+    {
+        self::quoteOf($sr) ?? abort(404);
+
+        if ((self::decisionOf($sr)['choice'] ?? null) !== 'approved') {
+            abort(403);
+        }
+
+        $data = $request->validate([
+            'files' => ['required', 'array', 'min:1', 'max:10'],
+            'files.*.file' => ['required', 'file', 'max:'.self::REQUIREMENT_MAX_KB],
+            'files.*.desc' => ['nullable', 'string', 'max:500'],
+        ], [], [
+            'files' => 'الملفات',
+            'files.*.file' => 'الملف',
+            'files.*.desc' => 'الوصف',
+        ]);
+
+        $payload = (array) $sr->payload;
+        $saved = (array) ($payload['_requirements'] ?? []);
+        $folder = 'requirements/'.$sr->reference;
+        $uploaded = [];
+
+        foreach ($data['files'] as $row) {
+            /** @var UploadedFile $file */
+            $file = $row['file'];
+            $ext = $file->getClientOriginalExtension();
+            $storedName = (string) Str::uuid().($ext !== '' ? '.'.$ext : '');
+            $path = $file->storeAs($folder, $storedName, 'local');
+
+            $entry = [
+                'name' => $file->getClientOriginalName(),
+                'path' => $path,
+                'desc' => trim((string) ($row['desc'] ?? '')),
+                'size' => $file->getSize(),
+                'uploaded_at' => now()->toIso8601String(),
+            ];
+            $saved[] = $entry;
+            $uploaded[] = $entry;
+        }
+
+        $payload['_requirements'] = $saved;
+
+        // أول رفعة بعد الاعتماد تُشغّل التنفيذ فعلياً — والتالية تبقى الطلب في مرحلته الحالية
+        $flow = (array) ($payload['_flow'] ?? []);
+        $startingExecution = ($flow['stage'] ?? null) === 'awaiting_requirements';
+
+        if ($startingExecution) {
+            $deliveryAt = self::quoteOf($sr)['delivery_at'] ?? null;
+
+            $payload['_flow'] = array_merge($flow, array_filter([
+                'stage' => 'in_progress',
+                'started_at' => now()->toIso8601String(),
+                'due_at' => $deliveryAt?->toIso8601String(),
+            ]));
+        }
+
+        $sr->update(['payload' => $payload]);
+        $sr = $sr->fresh();
+
+        $this->notifyRequirements($sr, $uploaded, $startingExecution);
+
+        if ($startingExecution) {
+            // أول رفعة: بريد بدء التنفيذ الكامل بتفاصيله وجدوله
+            MailTemplates::sendStage($sr, 'in_progress', withSummary: true);
+        } else {
+            // رفعة إضافية أثناء التنفيذ: تأكيد استلام مختصر للعميل
+            $this->notifyRequirementsClient($sr, $uploaded);
+        }
+
+        return back()->with('requirements_saved', true);
+    }
+
+    /** إشعار فريق وريد بالملفات المرفوعة — فشل الإرسال لا يُفقد الملفات المحفوظة. */
+    private function notifyRequirements(ServiceRequest $sr, array $uploaded, bool $startingExecution): void
+    {
+        try {
+            $lines = [
+                ($startingExecution
+                    ? 'رفع العميل متطلبات المشروع وبدأ التنفيذ تلقائياً — '
+                    : 'رفع العميل ملفات إضافية لمشروعه — ').$sr->reference.'.',
+                'العميل: '.$sr->name.($sr->company ? ' — '.$sr->company : '')
+                    .($sr->email ? ' · '.$sr->email : '').($sr->phone && $sr->phone !== '—' ? ' · '.$sr->phone : ''),
+                'عدد الملفات المرفوعة الآن: '.count($uploaded),
+            ];
+
+            foreach ($uploaded as $i => $f) {
+                $lines[] = ($i + 1).') '.$f['name'].($f['desc'] !== '' ? ' — '.$f['desc'] : '').' ('.self::humanSize($f['size']).')';
+            }
+
+            if ($startingExecution) {
+                $lines[] = 'نُقل الطلب تلقائياً إلى مرحلة «تنفيذ المتجر».';
+            }
+
+            Mail::to((string) setting('contact_email', 'info@wareed.vip'))->send(new StageMessage(
+                subjectLine: ($startingExecution
+                    ? 'رُفعت متطلبات المشروع وبدأ التنفيذ — '
+                    : 'ملفات جديدة من العميل — ').$sr->reference,
+                bodyText: implode("\n\n", $lines),
+                link: route('filament.admin.pages.quote-requests'),
+                linkLabel: 'فتح لوحة المتابعة',
+                summaryOf: $sr,
+            ));
+        } catch (\Throwable $e) {
+            report($e);
+        }
+    }
+
+    /** تأكيد استلام مختصر للعميل عند رفع ملفات إضافية بعد بدء التنفيذ فعلياً. */
+    private function notifyRequirementsClient(ServiceRequest $sr, array $uploaded): void
+    {
+        if (! filter_var((string) $sr->email, FILTER_VALIDATE_EMAIL)) {
+            return;
+        }
+
+        try {
+            $names = collect($uploaded)->pluck('name')->implode('، ');
+
+            Mail::to($sr->email)->send(new StageMessage(
+                subjectLine: 'استلمنا ملفاتك الإضافية — '.$sr->reference,
+                bodyText: "مرحباً {$sr->name}،\n\n"
+                    ."استلم فريق وريد الملفات التالية بنجاح: {$names}.\n\n"
+                    .'شكراً لتعاونك، وسنراجعها ضمن سير العمل على متجر '.($sr->company ?: 'متجرك').'.',
+                link: self::statusUrl($sr),
+            ));
+        } catch (\Throwable $e) {
+            report($e);
+        }
+    }
+
+    /** حجم مقروء للملف (ك.ب / م.ب). */
+    private static function humanSize(int $bytes): string
+    {
+        return $bytes >= 1048576
+            ? number_format($bytes / 1048576, 1).' م.ب'
+            : max(1, (int) round($bytes / 1024)).' ك.ب';
+    }
+
+    /**
+     * ملفات متطلبات المشروع التي رفعها العميل، أو مصفوفة فارغة إن لم يرفع شيئاً بعد.
+     * تُخزَّن داخل payload['_requirements'] فلا تحتاج جدولاً ولا هجرة على الخادم.
+     */
+    public static function requirementsOf(ServiceRequest $sr): array
+    {
+        return array_values(array_map(fn (array $r) => [
+            'name' => (string) ($r['name'] ?? ''),
+            'path' => (string) ($r['path'] ?? ''),
+            'desc' => (string) ($r['desc'] ?? ''),
+            'size' => (int) ($r['size'] ?? 0),
+            'size_h' => self::humanSize((int) ($r['size'] ?? 0)),
+            'uploaded_at' => self::parseDate($r['uploaded_at'] ?? null),
+        ], array_filter(
+            (array) (((array) $sr->payload)['_requirements'] ?? []),
+            fn ($r) => is_array($r) && trim((string) ($r['path'] ?? '')) !== ''
+        )));
+    }
+
+    /**
+     * رابط تنزيل ملف متطلبات مرفوع — موقّع ومؤقّت (نصف ساعة) عبر مسار «serve» المدمج في القرص المحلي،
+     * فلا يحتاج مسار عام (public/storage) ولا رابطاً دائماً؛ للوحة التحكم فقط.
+     */
+    public static function requirementDownloadUrl(string $path): string
+    {
+        return Storage::disk('local')->temporaryUrl($path, now()->addMinutes(30));
+    }
+
+    /** رابط رفع متطلبات المشروع: مخصّص عبر الدعوة، أو موقّع للنموذج العام. */
+    public static function requirementsUrl(ServiceRequest $sr): string
+    {
+        $invite = str_starts_with((string) $sr->source, 'quote_link:')
+            ? substr((string) $sr->source, strlen('quote_link:'))
+            : null;
+
+        return $invite !== null
+            ? route('quote.requirements', $invite)
+            : URL::signedRoute('quote.requirements.signed', ['serviceRequest' => $sr->id]);
     }
 
     /** قرار العميل المسجَّل على العرض، أو null إن لم يقرّر بعد. */

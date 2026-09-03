@@ -224,6 +224,7 @@
                 'meeting_scheduled' => 'اجتماعنا محدّد يا',
                 'quote_due' => 'نجهّز عرض سعرك الآن يا',
                 'awaiting_approval' => 'عرض سعر متجرك جاهز يا',
+                'awaiting_requirements' => 'اعتُمد عرض متجرك يا',
                 'in_progress' => 'بدأ تنفيذ متجرك يا',
                 'delivered' => 'تم تسليم متجرك يا',
             };
@@ -268,6 +269,25 @@
                 </div>
                 <a class="btn btn-primary" href="{{ route('quote.proposal', $inviteSlug) }}" target="_blank" rel="noopener">
                     <svg class="ic"><use href="#i-download"/></svg> استعراض عرض السعر وتحميله
+                </a>
+            </div>
+        @endif
+
+        @if ($flow['stage'] === 'awaiting_requirements')
+            <div class="quote-card">
+                <div class="quote-total">
+                    <span class="ql">الخطوة التالية</span>
+                    <b class="qv" style="font-size:1.15rem">ارفع متطلبات مشروعك</b>
+                    <span class="qmeta">
+                        @if (count($requirements))
+                            رُفع {{ count($requirements) }} ملف حتى الآن — يمكنك إضافة المزيد
+                        @else
+                            ملفات الهوية البصرية وبيانات المنتجات لتنطلق مرحلة التنفيذ
+                        @endif
+                    </span>
+                </div>
+                <a class="btn btn-primary" href="{{ $proposalUrl }}#requirements" target="_blank" rel="noopener">
+                    <svg class="ic"><use href="#i-box"/></svg> رفع الملفات الآن
                 </a>
             </div>
         @endif
@@ -317,6 +337,7 @@
                             : ($flow['meeting_at'] ? $fmt($flow['meeting_at']) : null),
                         'quote_due' => $quote ? 'صدر العرض — '.$fmt($quote['issued_at']) : null,
                         'awaiting_approval' => $flow['approved_at'] ? 'اعتُمد — '.$fmt($flow['approved_at']) : null,
+                        'awaiting_requirements' => count($requirements) ? 'رُفع '.count($requirements).' ملف' : null,
                         'in_progress' => $flow['due_at'] ? 'موعد التسليم: '.$flow['due_at']->format('Y/m/d') : null,
                         'delivered' => $flow['delivered_at'] ? $fmt($flow['delivered_at']) : null,
                     };

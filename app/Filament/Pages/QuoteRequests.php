@@ -110,6 +110,7 @@ class QuoteRequests extends Page
                     'decision' => QuoteController::decisionOf($sr),
                     'proposal' => QuoteController::proposalUrl($sr),
                     'flow' => QuoteController::flowOf($sr),
+                    'requirements' => QuoteController::requirementsOf($sr),
                 ];
             })
             ->all();
@@ -670,6 +671,51 @@ class QuoteRequests extends Page
         $sr->update(['payload' => $payload, 'status' => 'contacted']);
 
         Notification::make()->title('حُذف عرض السعر من الطلب '.$sr->reference)->success()->send();
+    }
+
+    /**
+     * إرسال العرض الصادر إلى العميل بالبريد الإلكتروني دون إعادة إصداره.
+     * يفيد لإعادة الإرسال أو للإرسال بعد الحفظ دون إرسال.
+     */
+    public function sendQuote(int $id): void
+    {
+        $sr = static::baseQuery()->whereKey($id)->firstOrFail();
+
+        if (! QuoteController::quoteOf($sr)) {
+            Notification::make()->title('لا يوجد عرض سعر صادر لإرساله.')->danger()->send();
+
+            return;
+        }
+
+        if (! filter_var((string) $sr->email, FILTER_VALIDATE_EMAIL)) {
+            Notification::make()
+                ->title('لا بريد إلكتروني لهذا العميل')
+                ->body('أضف بريده في الطلب أولاً ليصله العرض.')
+                ->warning()
+                ->send();
+
+            return;
+        }
+
+        try {
+            Mail::to($sr->email)->send(new QuoteProposalIssued($sr));
+            $sr->update(['status' => 'proposal']);
+
+            Notification::make()
+                ->title('أُرسل عرض السعر إلى العميل')
+                ->body('وصل إلى '.$sr->email.' — تحقّق من الوارد وصندوق الرسائل غير المرغوبة.')
+                ->success()
+                ->send();
+        } catch (\Throwable $e) {
+            report($e);
+
+            Notification::make()
+                ->title('تعذّر إرسال عرض السعر')
+                ->body('راجع إعدادات MAIL في .env. السبب: '.mb_substr($e->getMessage(), 0, 220))
+                ->danger()
+                ->persistent()
+                ->send();
+        }
     }
 
     public function markStatus(int $id, string $status): void

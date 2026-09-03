@@ -28,11 +28,19 @@
 `app/Http/Controllers/QuoteController.php` هو قلب النظام: النموذج، المستند،
 عرض السعر، مراحل الطلب، وقرار العميل.
 
-- **المراحل الست:** `awaiting_meeting` ← `meeting_scheduled` ← `quote_due` ←
-  `awaiting_approval` ← `in_progress` ← `delivered`. العدّاد يعمل في
-  `quote_due` و`in_progress` فقط.
+- **المراحل السبع:** `awaiting_meeting` ← `meeting_scheduled` ← `quote_due` ←
+  `awaiting_approval` ← `awaiting_requirements` ← `in_progress` ← `delivered`.
+  العدّاد يعمل في `quote_due` و`in_progress` فقط. اعتماد العميل للعرض ينقله
+  تلقائياً إلى `awaiting_requirements` (رفع ملفات المشروع)، وأول رفعة تنقله
+  فعلياً إلى `in_progress` وتُشغّل عدّاده — أو يبدأ الفريق التنفيذ يدوياً من
+  اللوحة بلا انتظار رفع.
+- **متطلبات المشروع:** ملفات يرفعها العميل بعد الاعتماد (هوية بصرية، بيانات
+  منتجات...) من صفحة عرض السعر نفسها، بوصف اختياري لكل ملف. تُخزَّن في
+  `payload['_requirements']` وفعلياً على قرص `local` الخاص (لا `public`، فلا
+  اعتماد على `storage:link` غير مضمون على الاستضافة)، وتُنزَّل من اللوحة
+  برابط موقّع مؤقّت عبر `Storage::disk('local')->temporaryUrl()`.
 - **لوحة المتابعة:** `app/Filament/Pages/QuoteRequests.php`.
-- **قوالب البريد الإلكتروني:** `app/Support/MailTemplates.php` — ثماني مراحل
+- **قوالب البريد الإلكتروني:** `app/Support/MailTemplates.php` — تسع مراحل
   بنصوص قابلة للتعديل من اللوحة، وكل زر ينقل مرحلة يرسل بريدها للعميل.
 
 ## قيود تشغيلية لا تُخالَف

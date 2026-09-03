@@ -255,12 +255,112 @@
         .dd-meta { font-size: .76rem; color: var(--dd); opacity: .8; margin-top: .4rem; }
         @media (max-width: 640px) { .decide-opts { grid-template-columns: 1fr; } }
 
+        /* صندوق رفع متطلبات المشروع — يظهر بعد اعتماد العرض فقط */
+        .reqs {
+            width: 210mm; max-width: 100%; margin: 16px auto 0; background: #fff;
+            border: 1px solid var(--line); border-radius: 16px; padding: 9mm 10mm;
+            box-shadow: 0 18px 44px -30px rgba(13, 24, 48, .45);
+        }
+        .reqs-title { font-size: 1.05rem; font-weight: 700; display: flex; align-items: center; gap: .5rem; }
+        .reqs-title .ic { width: 20px; height: 20px; color: var(--blue); }
+        .reqs-lead { font-size: .84rem; color: var(--muted); margin-top: .3rem; line-height: 1.75; }
+        .reqs-lead b { color: var(--ink); }
+
+        .reqs-list { margin-top: 1rem; display: flex; flex-direction: column; gap: .5rem; }
+        .reqs-item {
+            display: flex; align-items: center; gap: .7rem; padding: .6rem .8rem;
+            border: 1px solid var(--line); border-radius: 10px; background: #fafcff;
+        }
+        .reqs-item .ic { width: 18px; height: 18px; color: var(--blue); flex: none; }
+        .reqs-item .ri-name { font-size: .86rem; font-weight: 700; color: var(--ink); overflow-wrap: anywhere; }
+        .reqs-item .ri-desc { font-size: .78rem; color: var(--muted); margin-top: .15rem; overflow-wrap: anywhere; }
+        .reqs-item .ri-meta { margin-inline-start: auto; font-size: .72rem; color: var(--faint); white-space: nowrap; text-align: end; }
+
+        .reqs-form { margin-top: 1.1rem; padding-top: 1rem; border-top: 1px solid var(--line-soft); }
+        .reqs-form-title { font-size: .82rem; font-weight: 700; color: var(--ink); }
+        .reqs-rows { margin-top: .7rem; display: flex; flex-direction: column; gap: .6rem; }
+        .reqs-row {
+            display: grid; grid-template-columns: 1fr 1fr auto; gap: .6rem; align-items: center;
+            padding: .55rem; border: 1.5px dashed var(--line); border-radius: 10px;
+        }
+        .reqs-row input[type="file"] {
+            font: inherit; font-size: .8rem; color: var(--muted); width: 100%;
+        }
+        .reqs-row input[type="text"] {
+            width: 100%; padding: .5rem .7rem; border-radius: 8px; border: 1px solid var(--line);
+            font: inherit; font-size: .82rem; color: var(--ink); background: #fff;
+        }
+        .reqs-row input[type="text"]:focus { outline: 2px solid rgba(37, 99, 235, .3); border-color: var(--blue); }
+        .reqs-rm {
+            cursor: pointer; border: 1px solid var(--line); background: #fff; border-radius: 8px;
+            width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; color: #b91c1c;
+        }
+        .reqs-rm .ic { width: 15px; height: 15px; }
+        .reqs-add {
+            margin-top: .7rem; display: inline-flex; align-items: center; gap: .4rem; cursor: pointer;
+            border: 1.5px dashed var(--line); border-radius: 10px; background: #fff; color: var(--blue);
+            padding: .5rem 1rem; font: inherit; font-size: .82rem; font-weight: 700;
+        }
+        .reqs-add .ic { width: 16px; height: 16px; }
+        .reqs-hint { margin-top: .6rem; font-size: .74rem; color: var(--faint); }
+        .reqs-send {
+            margin-top: 1rem; display: inline-flex; align-items: center; gap: .45rem; cursor: pointer;
+            border: 0; border-radius: 10px; padding: .7rem 1.6rem; font: inherit; font-size: .9rem;
+            font-weight: 700; color: #fff; background: var(--grad);
+        }
+        .reqs-send .ic { width: 18px; height: 18px; }
+        .reqs-err { margin-top: .5rem; font-size: .8rem; color: #b91c1c; }
+        .reqs-ok { margin-top: .5rem; font-size: .8rem; color: #047857; font-weight: 600; }
+        @media (max-width: 640px) { .reqs-row { grid-template-columns: 1fr; } }
+
+        /* عمود حالة المرحلة داخل الجدول الزمني — يظهر بعد اعتماد العرض */
+        .sc-badge {
+            display: inline-flex; align-items: center; gap: .25rem; padding: .1rem .55rem; border-radius: 99px;
+            font-size: 6.8pt; font-weight: 700; white-space: nowrap;
+        }
+        .sc-badge.done { color: #047857; background: rgba(4, 120, 87, .1); }
+        .sc-badge.now { color: #b45309; background: rgba(180, 83, 9, .1); }
+        .sc-badge.next { color: #55638a; background: rgba(85, 99, 138, .08); }
+
+        /* ── تقسيم الطباعة: كل صفحة صندوق A4 مستقل بترويسته وتذييله ── */
+        .pg { display: none; }
+        .pg-foot {
+            display: none; align-items: center; justify-content: space-between; gap: 4mm;
+            padding-top: 2.5mm; border-top: 1px solid var(--line-soft);
+            font-size: 7pt; color: var(--faint);
+        }
+        .pg-foot b { color: var(--muted); font-weight: 600; letter-spacing: .4px; }
+        .pg-foot .no { font-weight: 700; color: var(--muted); font-variant-numeric: tabular-nums; }
+        .pg-head {
+            display: none; align-items: center; justify-content: space-between; gap: 4mm;
+            padding-bottom: 2.5mm; margin-bottom: 4mm; border-bottom: 1px solid var(--line-soft);
+        }
+        .pg-head .who { display: flex; align-items: center; gap: 2.5mm; font-size: 9pt; font-weight: 700; }
+        .pg-head .mark { width: 7mm; height: 7mm; }
+        .pg-head .ref { font-size: 7.6pt; color: var(--faint); direction: ltr; }
+
         @media print {
-            /* هامش سفلي لكل صفحة يسكنه الشريط الجاري أسفلها */
-            @page { size: A4; margin: 0 0 13mm; }
+            @page { size: A4; margin: 0; }
+
+            /* الصفحات المبنية بالسكربت تحلّ محلّ التدفّق الواحد */
+            body.paged .sheet { display: none !important; }
+            body.paged .pg {
+                display: flex !important; flex-direction: column;
+                width: 210mm; height: 297mm; padding: 11mm 12mm 8mm;
+                background: #fff; overflow: hidden; break-after: page; position: relative;
+            }
+            body.paged .pg:last-of-type { break-after: auto; }
+            body.paged .pg::before {
+                content: ""; position: absolute; inset-inline: 0; top: 0; height: 4mm; background: var(--grad);
+            }
+            body.paged .pg > .pg-body { flex: 1; min-height: 0; }
+            body.paged .pg > .pg-head { display: flex !important; }
+            body.paged .pg > .pg-foot { display: flex !important; margin-top: auto; }
+            /* الصفحة الأولى تحمل ترويسة المستند الكاملة لا المصغّرة */
+            body.paged .pg:first-of-type > .pg-head { display: none !important; }
             html, body { background: #fff; padding: 0; margin: 0; }
-            .toolbar, .decide { display: none !important; }
-            .sheet { width: 210mm; min-height: 0; box-shadow: none; margin: 0; padding-bottom: 4mm; }
+            .toolbar, .decide, .reqs { display: none !important; }
+            .sheet { width: 210mm; min-height: 0; box-shadow: none; margin: 0; padding: 11mm 12mm 8mm; }
             * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
 
             /* المستند يمتد على ما يلزم من الصفحات — والانتقال بينها يبقى مرتّباً */
@@ -270,8 +370,9 @@
             .totals, .bank, .term-box, .refbar, .party, footer.foot { break-inside: avoid; }
             .parties, section.pay, .terms { break-inside: auto; }
 
-            /* شريط جارٍ يتكرر أسفل كل صفحة مطبوعة يحمل الرقم المرجعي */
-            .run-foot { display: flex !important; }
+            /* التذييل يُبنى لكل صفحة على حدة بالسكربت، فلا نحتاج الشريط الجاري */
+            .run-foot { display: none !important; }
+            .pg-foot { display: flex !important; }
         }
         @media screen and (max-width: 230mm) {
             body { padding: 14px 8px 40px; }
@@ -512,6 +613,7 @@
             الجدول الزمني للتسليم
             <span class="en">DELIVERY SCHEDULE</span>
         </div>
+        @php $showScheduleStatus = ($decision['choice'] ?? null) === 'approved'; @endphp
         <table class="pay-table sched">
             <thead>
                 <tr>
@@ -519,15 +621,34 @@
                     <th>المرحلة</th>
                     <th style="width:34mm">تاريخ البدء</th>
                     <th style="width:34mm">تاريخ النهاية</th>
+                    @if ($showScheduleStatus)<th style="width:24mm">الحالة</th>@endif
                 </tr>
             </thead>
             <tbody>
                 @foreach ($quote['schedule'] as $stageNo => $stage)
+                    @php
+                        $scState = null;
+                        if ($showScheduleStatus) {
+                            $scState = match (true) {
+                                $flow['stage'] === 'delivered' => 'done',
+                                $stage['end'] && now()->gt($stage['end']) => 'done',
+                                $stage['start'] && now()->gte($stage['start']) => 'now',
+                                default => 'next',
+                            };
+                        }
+                    @endphp
                     <tr>
                         <td class="n">{{ $stageNo + 1 }}</td>
                         <td><b>{{ $stage['phase'] ?: 'مرحلة' }}</b></td>
                         <td class="due">{{ $stage['start'] ? $fmtShort($stage['start']) : '—' }}</td>
                         <td class="due">{{ $stage['end'] ? $fmtShort($stage['end']) : 'يُحدَّد لاحقاً' }}</td>
+                        @if ($showScheduleStatus)
+                            <td>
+                                <span class="sc-badge {{ $scState }}">
+                                    {{ match ($scState) { 'done' => 'مكتملة', 'now' => 'جارية الآن', default => 'قادمة' } }}
+                                </span>
+                            </td>
+                        @endif
                     </tr>
                 @endforeach
             </tbody>
@@ -679,6 +800,72 @@
     </form>
 </section>
 
+@if (($decision['choice'] ?? null) === 'approved')
+    {{-- متطلبات المشروع: ملفات الهوية البصرية وبيانات المنتجات وغيرها — تظهر فقط بعد اعتماد العرض --}}
+    <section class="reqs" id="requirements">
+        <h2 class="reqs-title"><svg class="ic"><use href="#i-box"/></svg> متطلبات المشروع</h2>
+        <p class="reqs-lead">
+            ارفع ملفات هويتك البصرية أو شعار المتجر، وبيانات منتجاتك (أسماء وأوصاف وأسعار وصور إن توفّرت)،
+            وأي ملفات أخرى يحتاجها فريق وريد، مع وصف مختصر لكل ملف.
+            @if ($flow['stage'] === 'awaiting_requirements')
+                <b>لم يبدأ التنفيذ الفعلي بعد — يبدأ فور رفعك لأوّل ملف.</b>
+            @endif
+        </p>
+
+        @if (session('requirements_saved'))
+            <p class="reqs-ok">
+                <svg class="ic" style="width:16px;height:16px;display:inline-block;vertical-align:-3px"><use href="#i-check"/></svg>
+                استلمنا ملفاتك بنجاح — شكراً لتعاونك.
+            </p>
+        @endif
+
+        @if (count($requirements))
+            <div class="reqs-list">
+                @foreach ($requirements as $file)
+                    <div class="reqs-item">
+                        <svg class="ic"><use href="#i-document"/></svg>
+                        <div>
+                            <div class="ri-name">{{ $file['name'] }}</div>
+                            @if ($file['desc'])<div class="ri-desc">{{ $file['desc'] }}</div>@endif
+                        </div>
+                        <span class="ri-meta">
+                            {{ $file['size_h'] }}
+                            @if ($file['uploaded_at']) · {{ $fmtShort($file['uploaded_at']) }} @endif
+                        </span>
+                    </div>
+                @endforeach
+            </div>
+        @endif
+
+        <form method="POST" action="{{ $requirementsUrl }}" enctype="multipart/form-data" class="reqs-form" data-reqs>
+            @csrf
+            <div class="reqs-form-title">{{ count($requirements) ? 'إضافة ملفات أخرى' : 'رفع الملفات' }}</div>
+
+            <div class="reqs-rows" data-reqs-rows>
+                <div class="reqs-row" data-reqs-row>
+                    <input type="file" name="files[0][file]" required>
+                    <input type="text" name="files[0][desc]" placeholder="وصف الملف (اختياري) — مثال: شعار المتجر">
+                    <button type="button" class="reqs-rm" data-reqs-rm aria-label="إزالة الملف" hidden>
+                        <svg class="ic"><use href="#i-trash"/></svg>
+                    </button>
+                </div>
+            </div>
+
+            <button type="button" class="reqs-add" data-reqs-add>
+                <svg class="ic"><use href="#i-plus"/></svg> إضافة ملف آخر
+            </button>
+            <p class="reqs-hint">حتى 10 ملفات في الرفعة الواحدة، وحجم أقصى 10 ميجابايت لكل ملف.</p>
+
+            <button type="submit" class="reqs-send">
+                <svg class="ic"><use href="#i-check"/></svg> رفع الملفات
+            </button>
+
+            @error('files')<p class="reqs-err">{{ $message }}</p>@enderror
+            @error('files.0.file')<p class="reqs-err">{{ $message }}</p>@enderror
+        </form>
+    </section>
+@endif
+
 <script>
 /* إبراز الخيار المحدَّد وتغيير عنوان حقل الملاحظة — النموذج يعمل بدونه أيضاً */
 (function () {
@@ -699,6 +886,66 @@
 
     form.addEventListener('change', sync);
     sync();
+})();
+</script>
+
+<script>
+/* إضافة/حذف صفوف رفع الملفات في نموذج متطلبات المشروع — النموذج يعمل بصفٍّ واحد بدونه أيضاً */
+(function () {
+    'use strict';
+    var wrap = document.querySelector('[data-reqs-rows]');
+    if (!wrap) return;
+
+    var addBtn = document.querySelector('[data-reqs-add]');
+    var MAX_ROWS = 10;
+
+    function refreshRemoveButtons() {
+        var rows = wrap.querySelectorAll('[data-reqs-row]');
+        rows.forEach(function (row) {
+            var rm = row.querySelector('[data-reqs-rm]');
+            if (rm) rm.hidden = rows.length <= 1;
+        });
+        if (addBtn) addBtn.hidden = rows.length >= MAX_ROWS;
+    }
+
+    function addRow() {
+        var rows = wrap.querySelectorAll('[data-reqs-row]');
+        if (rows.length >= MAX_ROWS) return;
+
+        var index = rows.length;
+        var row = document.createElement('div');
+        row.className = 'reqs-row';
+        row.setAttribute('data-reqs-row', '');
+        row.innerHTML =
+            '<input type="file" name="files[' + index + '][file]" required>' +
+            '<input type="text" name="files[' + index + '][desc]" placeholder="وصف الملف (اختياري)">' +
+            '<button type="button" class="reqs-rm" data-reqs-rm aria-label="إزالة الملف">' +
+            '<svg class="ic"><use href="#i-trash"/></svg></button>';
+
+        wrap.appendChild(row);
+        refreshRemoveButtons();
+    }
+
+    if (addBtn) addBtn.addEventListener('click', addRow);
+
+    wrap.addEventListener('click', function (e) {
+        var rm = e.target.closest('[data-reqs-rm]');
+        if (!rm) return;
+
+        var rows = wrap.querySelectorAll('[data-reqs-row]');
+        if (rows.length <= 1) return;
+
+        rm.closest('[data-reqs-row]').remove();
+        // إعادة ترقيم الأسماء كي تبقى مصفوفة متتالية files[0], files[1]...
+        wrap.querySelectorAll('[data-reqs-row]').forEach(function (row, i) {
+            row.querySelectorAll('input').forEach(function (input) {
+                input.name = input.name.replace(/files\[\d+\]/, 'files[' + i + ']');
+            });
+        });
+        refreshRemoveButtons();
+    });
+
+    refreshRemoveButtons();
 })();
 </script>
 

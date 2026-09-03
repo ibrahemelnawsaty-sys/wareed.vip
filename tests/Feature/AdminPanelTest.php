@@ -123,6 +123,58 @@ it('يُصدر عرض السعر من اللوحة ويرسله للعميل ب�
     );
 });
 
+it('يُعيد إرسال عرض السعر الصادر إلى العميل عبر زر إرسال عرض السعر', function () {
+    Mail::fake();
+    $this->actingAs(adminUser());
+
+    $sr = ServiceRequest::create([
+        'service_type' => 'ecommerce', 'name' => 'أ. هاجر سلامة',
+        'phone' => '00201016031031', 'email' => 'hagersalma89@gmail.com', 'company' => 'متجر حواديت',
+        'status' => 'new', 'source' => 'quote_link:hajar-salama',
+        'payload' => ['_quote' => [
+            'items' => [['name' => 'تجهيز المتجر', 'qty' => 1, 'price' => 20000]],
+            'vat_percent' => 0, 'currency' => 'ج.م', 'valid_days' => 30,
+            'issued_at' => now()->toIso8601String(),
+        ]],
+    ]);
+
+    Livewire\Livewire::test(QuoteRequests::class)->call('sendQuote', $sr->id);
+
+    expect($sr->fresh()->status)->toBe('proposal');
+
+    Mail::assertSent(
+        QuoteProposalIssued::class,
+        fn ($mail) => $mail->hasTo('hagersalma89@gmail.com')
+    );
+});
+
+it('يرفض إرسال عرض سعر غير موجود أو لعميل بلا بريد إلكتروني', function () {
+    Mail::fake();
+    $this->actingAs(adminUser());
+
+    $noQuote = ServiceRequest::create([
+        'service_type' => 'ecommerce', 'name' => 'عميل', 'phone' => '—', 'email' => 'c@example.com',
+        'status' => 'new', 'source' => 'quote_form', 'payload' => [],
+    ]);
+
+    Livewire\Livewire::test(QuoteRequests::class)->call('sendQuote', $noQuote->id);
+
+    $noEmail = ServiceRequest::create([
+        'service_type' => 'ecommerce', 'name' => 'عميل آخر', 'phone' => '—', 'email' => '',
+        'status' => 'new', 'source' => 'quote_form', 'payload' => ['_quote' => [
+            'items' => [['name' => 'تجهيز المتجر', 'qty' => 1, 'price' => 20000]],
+            'vat_percent' => 0, 'currency' => 'ج.م', 'valid_days' => 30,
+            'issued_at' => now()->toIso8601String(),
+        ]],
+    ]);
+
+    Livewire\Livewire::test(QuoteRequests::class)->call('sendQuote', $noEmail->id);
+
+    Mail::assertNotSent(QuoteProposalIssued::class);
+    expect($noQuote->fresh()->status)->toBe('new')
+        ->and($noEmail->fresh()->status)->toBe('new');
+});
+
 it('يحفظ عرض السعر دون إرسال بريد عند الطلب', function () {
     Mail::fake();
     $this->actingAs(adminUser());
@@ -182,6 +234,38 @@ it('يرفض إصدار عرض بلا بنود ويسمح بحذف العرض', 
     Livewire\Livewire::test(QuoteRequests::class)->call('deleteQuote', $sr->id);
 
     expect(QuoteController::quoteOf($sr->fresh()))->toBeNull();
+});
+
+it('يعرض حالة رفع المتطلبات وملفات العميل المرفوعة ويسمح ببدء التنفيذ يدوياً', function () {
+    Mail::fake();
+    $this->actingAs(adminUser());
+
+    $sr = ServiceRequest::create([
+        'service_type' => 'ecommerce', 'name' => 'أ. هاجر سلامة',
+        'phone' => '00201016031031', 'email' => 'hagersalma89@gmail.com', 'company' => 'متجر حواديت',
+        'status' => 'won', 'source' => 'quote_link:hajar-salama',
+        'payload' => [
+            '_flow' => ['stage' => 'awaiting_requirements', 'approved_at' => now()->toIso8601String()],
+            '_quote' => [
+                'items' => [['name' => 'تجهيز المتجر', 'qty' => 1, 'price' => 20000]],
+                'vat_percent' => 0, 'currency' => 'ج.م', 'valid_days' => 30,
+                'issued_at' => now()->toIso8601String(),
+            ],
+            '_decision' => ['choice' => 'approved', 'note' => '', 'at' => now()->toIso8601String()],
+            '_requirements' => [
+                ['name' => 'logo.png', 'path' => 'requirements/WRD-x/logo.png', 'desc' => 'شعار المتجر', 'size' => 51200, 'uploaded_at' => now()->toIso8601String()],
+            ],
+        ],
+    ]);
+
+    Livewire\Livewire::test(QuoteRequests::class)
+        ->assertSee('بانتظار رفع متطلبات المشروع')
+        ->assertSee('logo.png')
+        ->assertSee('شعار المتجر')
+        ->set("flowInput.{$sr->id}.due_at", '2026-10-15')
+        ->call('startExecution', $sr->id);
+
+    expect(QuoteController::flowOf($sr->fresh())['stage'])->toBe('in_progress');
 });
 
 it('ينقل الطلب عبر مراحل المسار ويشغّل العدّاد في المرحلتين الصحيحتين', function () {
