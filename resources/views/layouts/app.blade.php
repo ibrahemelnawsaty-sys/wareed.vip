@@ -36,7 +36,8 @@
     <link rel="alternate" hreflang="en" href="{{ request()->fullUrlWithQuery(['hl' => 'en']) }}">
     <link rel="alternate" hreflang="x-default" href="{{ url()->current() }}">
     @if($noindex)<meta name="robots" content="noindex, nofollow">@else<meta name="robots" content="index, follow, max-image-preview:large">@endif
-    <meta name="theme-color" content="#0a0e1a">
+    <meta name="theme-color" content="#ffffff">
+    <meta name="color-scheme" content="light">
 
     {{-- Open Graph / Twitter --}}
     <meta property="og:type" content="{{ $seo['og_type'] ?? 'website' }}">
@@ -61,7 +62,7 @@
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     @stack('head')
 </head>
-<body class="bg-ink-900 text-cloud-100 antialiased">
+<body class="antialiased">
     @include('partials.header')
 
     <main>

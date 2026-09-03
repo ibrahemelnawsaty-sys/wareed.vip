@@ -47,28 +47,28 @@
                     @csrf
                     <div>
                         <label class="mb-2 block text-sm font-semibold text-cloud-200">{{ __('الاسم') }} *</label>
-                        <input name="name" value="{{ old('name') }}" required class="w-full rounded-xl border border-white/10 bg-ink-850 px-4 py-3 text-cloud-100 outline-none transition focus:border-gold-500">
+                        <input name="name" value="{{ old('name') }}" required class="w-full rounded-xl border border-ink-600 bg-ink-850 px-4 py-3 text-cloud-100 outline-none transition focus:border-gold-500">
                     </div>
                     <div class="grid gap-5 sm:grid-cols-2">
                         <div>
                             <label class="mb-2 block text-sm font-semibold text-cloud-200">{{ __('الموبايل / واتساب') }} *</label>
-                            <input name="phone" value="{{ old('phone') }}" required class="w-full rounded-xl border border-white/10 bg-ink-850 px-4 py-3 text-cloud-100 outline-none transition focus:border-gold-500">
+                            <input name="phone" value="{{ old('phone') }}" required class="w-full rounded-xl border border-ink-600 bg-ink-850 px-4 py-3 text-cloud-100 outline-none transition focus:border-gold-500">
                         </div>
                         <div>
                             <label class="mb-2 block text-sm font-semibold text-cloud-200">{{ __('البريد الإلكتروني') }}</label>
-                            <input name="email" type="email" value="{{ old('email') }}" class="w-full rounded-xl border border-white/10 bg-ink-850 px-4 py-3 text-cloud-100 outline-none transition focus:border-gold-500">
+                            <input name="email" type="email" value="{{ old('email') }}" class="w-full rounded-xl border border-ink-600 bg-ink-850 px-4 py-3 text-cloud-100 outline-none transition focus:border-gold-500">
                         </div>
                     </div>
                     <div>
                         <label class="mb-2 block text-sm font-semibold text-cloud-200">{{ __('الخدمة المطلوبة') }}</label>
-                        <select name="service_type" class="w-full rounded-xl border border-white/10 bg-ink-850 px-4 py-3 text-cloud-100 outline-none transition focus:border-gold-500">
+                        <select name="service_type" class="w-full rounded-xl border border-ink-600 bg-ink-850 px-4 py-3 text-cloud-100 outline-none transition focus:border-gold-500">
                             <option value="general">{{ __('استفسار عام') }}</option>
                             @foreach($services as $s)<option value="{{ $s->key }}">{{ $s->name }}</option>@endforeach
                         </select>
                     </div>
                     <div>
                         <label class="mb-2 block text-sm font-semibold text-cloud-200">{{ __('رسالتك') }}</label>
-                        <textarea name="message" rows="4" class="w-full rounded-xl border border-white/10 bg-ink-850 px-4 py-3 text-cloud-100 outline-none transition focus:border-gold-500">{{ old('message') }}</textarea>
+                        <textarea name="message" rows="4" class="w-full rounded-xl border border-ink-600 bg-ink-850 px-4 py-3 text-cloud-100 outline-none transition focus:border-gold-500">{{ old('message') }}</textarea>
                     </div>
                     <button type="submit" class="btn btn-gold w-full justify-center text-base">{{ __('إرسال') }}</button>
                 </form>

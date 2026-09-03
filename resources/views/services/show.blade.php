@@ -108,19 +108,19 @@
                 @csrf
                 <div>
                     <label class="mb-2 block text-sm font-semibold text-cloud-200">{{ __('الاسم') }} *</label>
-                    <input name="name" value="{{ old('name') }}" required class="w-full rounded-xl border border-white/10 bg-ink-850 px-4 py-3 text-cloud-100 outline-none transition focus:border-gold-500" placeholder="{{ __('اسمك الكامل') }}">
+                    <input name="name" value="{{ old('name') }}" required class="w-full rounded-xl border border-ink-600 bg-ink-850 px-4 py-3 text-cloud-100 outline-none transition focus:border-gold-500" placeholder="{{ __('اسمك الكامل') }}">
                 </div>
                 <div>
                     <label class="mb-2 block text-sm font-semibold text-cloud-200">{{ __('رقم الموبايل / واتساب') }} *</label>
-                    <input name="phone" value="{{ old('phone') }}" required class="w-full rounded-xl border border-white/10 bg-ink-850 px-4 py-3 text-cloud-100 outline-none transition focus:border-gold-500" placeholder="01xxxxxxxxx">
+                    <input name="phone" value="{{ old('phone') }}" required class="w-full rounded-xl border border-ink-600 bg-ink-850 px-4 py-3 text-cloud-100 outline-none transition focus:border-gold-500" placeholder="01xxxxxxxxx">
                 </div>
                 <div>
                     <label class="mb-2 block text-sm font-semibold text-cloud-200">{{ __('البريد الإلكتروني') }}</label>
-                    <input name="email" type="email" value="{{ old('email') }}" class="w-full rounded-xl border border-white/10 bg-ink-850 px-4 py-3 text-cloud-100 outline-none transition focus:border-gold-500" placeholder="email@example.com" dir="ltr">
+                    <input name="email" type="email" value="{{ old('email') }}" class="w-full rounded-xl border border-ink-600 bg-ink-850 px-4 py-3 text-cloud-100 outline-none transition focus:border-gold-500" placeholder="email@example.com" dir="ltr">
                 </div>
                 <div>
                     <label class="mb-2 block text-sm font-semibold text-cloud-200">{{ __('اسم الشركة / النشاط') }}</label>
-                    <input name="company" value="{{ old('company') }}" class="w-full rounded-xl border border-white/10 bg-ink-850 px-4 py-3 text-cloud-100 outline-none transition focus:border-gold-500" placeholder="{{ __('اختياري') }}">
+                    <input name="company" value="{{ old('company') }}" class="w-full rounded-xl border border-ink-600 bg-ink-850 px-4 py-3 text-cloud-100 outline-none transition focus:border-gold-500" placeholder="{{ __('اختياري') }}">
                 </div>
 
                 {{-- حقول خاصة بالخدمة --}}
@@ -128,21 +128,21 @@
                     <div class="{{ ($field['full'] ?? false) ? 'sm:col-span-2' : '' }}">
                         <label class="mb-2 block text-sm font-semibold text-cloud-200">{{ $field['label'] ?? $field['name'] }}</label>
                         @if(($field['type'] ?? 'text') === 'select' && !empty($field['options']))
-                            <select name="extra_{{ $field['name'] }}" class="w-full rounded-xl border border-white/10 bg-ink-850 px-4 py-3 text-cloud-100 outline-none transition focus:border-gold-500">
+                            <select name="extra_{{ $field['name'] }}" class="w-full rounded-xl border border-ink-600 bg-ink-850 px-4 py-3 text-cloud-100 outline-none transition focus:border-gold-500">
                                 <option value="">اختر...</option>
                                 @foreach($field['options'] as $opt)<option value="{{ $opt }}">{{ $opt }}</option>@endforeach
                             </select>
                         @elseif(($field['type'] ?? 'text') === 'textarea')
-                            <textarea name="extra_{{ $field['name'] }}" rows="3" class="w-full rounded-xl border border-white/10 bg-ink-850 px-4 py-3 text-cloud-100 outline-none transition focus:border-gold-500"></textarea>
+                            <textarea name="extra_{{ $field['name'] }}" rows="3" class="w-full rounded-xl border border-ink-600 bg-ink-850 px-4 py-3 text-cloud-100 outline-none transition focus:border-gold-500"></textarea>
                         @else
-                            <input name="extra_{{ $field['name'] }}" class="w-full rounded-xl border border-white/10 bg-ink-850 px-4 py-3 text-cloud-100 outline-none transition focus:border-gold-500">
+                            <input name="extra_{{ $field['name'] }}" class="w-full rounded-xl border border-ink-600 bg-ink-850 px-4 py-3 text-cloud-100 outline-none transition focus:border-gold-500">
                         @endif
                     </div>
                 @endforeach
 
                 <div class="sm:col-span-2">
                     <label class="mb-2 block text-sm font-semibold text-cloud-200">{{ __('تفاصيل إضافية') }}</label>
-                    <textarea name="message" rows="4" class="w-full rounded-xl border border-white/10 bg-ink-850 px-4 py-3 text-cloud-100 outline-none transition focus:border-gold-500" placeholder="{{ __('أخبرنا عن احتياجك...') }}">{{ old('message') }}</textarea>
+                    <textarea name="message" rows="4" class="w-full rounded-xl border border-ink-600 bg-ink-850 px-4 py-3 text-cloud-100 outline-none transition focus:border-gold-500" placeholder="{{ __('أخبرنا عن احتياجك...') }}">{{ old('message') }}</textarea>
                 </div>
                 <div class="sm:col-span-2">
                     <button type="submit" class="btn btn-gold w-full justify-center text-base">{{ __('إرسال الطلب') }}</button>

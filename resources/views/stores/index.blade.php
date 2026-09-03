@@ -18,7 +18,7 @@
                     <a href="{{ route('store.show', $store) }}" class="glass card-hover overflow-hidden rounded-3xl" data-reveal>
                         <div class="h-28" style="background: linear-gradient(120deg, {{ $store->primary_color }}55, transparent)"></div>
                         <div class="-mt-10 px-6 pb-6">
-                            <div class="flex h-16 w-16 items-center justify-center rounded-2xl bg-ink-800 text-2xl font-black ring-2 ring-white/10" style="color: {{ $store->primary_color }}">
+                            <div class="flex h-16 w-16 items-center justify-center rounded-2xl bg-ink-800 text-2xl font-black ring-1 ring-ink-600" style="color: {{ $store->primary_color }}">
                                 @if($store->logoUrl())<img src="{{ $store->logoUrl() }}" alt="{{ $store->name }}" class="h-full w-full rounded-2xl object-cover">@else{{ mb_substr($store->name,0,1) }}@endif
                             </div>
                             <h3 class="mt-4 text-lg font-bold text-cloud-50">{{ $store->name }}</h3>
