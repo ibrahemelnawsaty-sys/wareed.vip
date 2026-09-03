@@ -87,6 +87,12 @@
         .section-title::before { content: ""; width: 1.2mm; height: 5mm; border-radius: 2px; background: var(--grad); }
         .section-title .en { font-size: 7.4pt; font-weight: 600; letter-spacing: 2px; color: var(--faint); margin-inline-start: auto; }
 
+        /* الجداول الكثيفة (بنود، جداول زمنية، دفعات) لها عرض أدنى ثابت بالمليمتر؛ على الجوّال
+           تصير قابلة للتمرير أفقياً داخل حدودها (أدناه) بدل أن تُخرج الصفحة كلها عن عرضها.
+           التفعيل يبقى مقصوراً على الجوّال لأنه ينشئ سياق تنسيق جديداً يمنع دمج الهوامش
+           المتجاورة (margin collapsing)، فتفعيله دائماً يزيد ارتفاع الصفحة المطبوعة بلا داع */
+        .tbl-wrap { max-width: 100%; }
+
         table.items { width: 100%; border-collapse: collapse; margin-top: 3mm; }
         table.items th {
             background: var(--band); color: #fff; font-size: 8.4pt; font-weight: 600;
@@ -172,13 +178,6 @@
 
         .foot { margin-top: auto; padding-top: 4.5mm; }
         .foot-note { font-size: 7.2pt; color: var(--faint); line-height: 1.65; border-top: 1px solid var(--line); padding-top: 3mm; }
-        .run-foot {
-            display: none; position: fixed; inset-inline: 0; bottom: 0; height: 9mm;
-            align-items: center; justify-content: space-between; gap: 4mm;
-            padding: 0 12mm; font-size: 7pt; color: var(--faint);
-            border-top: 1px solid var(--line-soft); background: #fff;
-        }
-        .run-foot b { color: var(--muted); font-weight: 600; letter-spacing: .4px; }
         .foot-bar {
             margin-top: 3mm; padding-top: 2.6mm; border-top: 2px solid var(--band);
             display: flex; align-items: center; justify-content: space-between; gap: 6mm; font-size: 7.8pt; color: var(--muted);
@@ -353,7 +352,7 @@
             body.paged .pg::before {
                 content: ""; position: absolute; inset-inline: 0; top: 0; height: 4mm; background: var(--grad);
             }
-            body.paged .pg > .pg-body { flex: 1; min-height: 0; }
+            body.paged .pg > .pg-body { flex: 1; min-height: 0; overflow: hidden; }
             body.paged .pg > .pg-head { display: flex !important; }
             body.paged .pg > .pg-foot { display: flex !important; margin-top: auto; }
             /* الصفحة الأولى تحمل ترويسة المستند الكاملة لا المصغّرة */
@@ -369,18 +368,39 @@
             .section-title { break-after: avoid; }
             .totals, .bank, .term-box, .refbar, .party, footer.foot { break-inside: avoid; }
             .parties, section.pay, .terms { break-inside: auto; }
-
-            /* التذييل يُبنى لكل صفحة على حدة بالسكربت، فلا نحتاج الشريط الجاري */
-            .run-foot { display: none !important; }
-            .pg-foot { display: flex !important; }
         }
         @media screen and (max-width: 230mm) {
+            /* شبكة أمان: أي عنصر يفلت بعرضه (نادراً، بعد تمرير الجداول الكثيفة أدناه)
+               يبقى قابلاً للتمرير داخل حدوده بدل أن يُخرج الصفحة كلها عن عرض الشاشة ويصغّرها */
+            html, body { overflow-x: hidden; }
             body { padding: 14px 8px 40px; }
             .sheet { width: 100%; min-height: auto; padding: 9mm 7mm; }
             .parties, .terms, .pay { grid-template-columns: 1fr; }
             .refbar { flex-wrap: wrap; }
             .refbar-meta, .refbar-qr { border-inline-start: 0; border-top: 1px solid var(--line); }
             .totals table { width: 100%; }
+            .tbl-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+        }
+        /* الجوّال تحديداً: نصوص العرض والطباعة بمقاس المليمتر مريحة على A4 لكنها صغيرة على شاشة
+           بهذا الحجم، فتُكبَّر أهم العناصر التي يقرؤها العميل فعلياً — البنود والإجماليات والعناوين */
+        @media screen and (max-width: 480px) {
+            body { font-size: 15px; }
+            .head-title h1 { font-size: 19pt; }
+            .section-title { font-size: 12pt; }
+            .party-name { font-size: 12.5pt; }
+            .party-row { font-size: 9.6pt; }
+            table.items th, table.pay-table th { font-size: 9.4pt; padding: 2.8mm 3mm; }
+            table.items td, table.pay-table td { font-size: 10pt; padding: 3mm 3mm; }
+            td.it small { font-size: 8.8pt; }
+            table.pay-table td small { font-size: 8.4pt; }
+            tr.phase .ph-name { font-size: 9.6pt; }
+            tr.phase .ph-sum { font-size: 9pt; }
+            .totals td { font-size: 10.5pt; padding: 2.6mm 4mm; }
+            .totals tr.grand td { font-size: 13pt; }
+            .opt-totals td { font-size: 9.6pt; }
+            .note-list li, .term-box p, .opt-note { font-size: 9.4pt; }
+            .bank .brow { font-size: 9.2pt; }
+            .refbar-num { font-size: 14pt; }
         }
     </style>
 </head>
@@ -400,7 +420,7 @@
 </div>
 
 <article class="sheet">
-    <header class="head">
+    <header class="head" data-pg-unit="head">
         <div class="head-title">
             <h1>عرض سعر</h1>
             <div class="en">PRICE QUOTATION</div>
@@ -431,7 +451,7 @@
         </div>
     </header>
 
-    <section class="refbar">
+    <section class="refbar" data-pg-unit="refbar">
         <div class="refbar-main">
             <div class="refbar-label">الرقم المرجعي · REFERENCE No.</div>
             <div class="refbar-num">{{ $sr->reference }}</div>
@@ -447,7 +467,7 @@
         </div>
     </section>
 
-    <section class="parties">
+    <section class="parties" data-pg-unit="parties">
         <div class="party to">
             <div class="party-head">مقدَّم إلى</div>
             <div class="party-body">
@@ -472,11 +492,12 @@
         </div>
     </section>
 
-    <div class="section-title">
+    <div class="section-title" data-pg-unit="items-title">
         بنود عرض السعر
         <span class="en">QUOTATION ITEMS</span>
     </div>
-    <table class="items">
+    <div class="tbl-wrap">
+    <table class="items" data-pg-unit="items-table">
         <thead>
             <tr>
                 <th style="width:9mm">م</th>
@@ -529,8 +550,9 @@
             @endforeach
         </tbody>
     </table>
+    </div>
 
-    <div class="totals">
+    <div class="totals" data-pg-unit="totals">
         <table>
             <tr><td>الإجمالي قبل الخصم</td><td>{{ $money($quote['subtotal']) }} {{ $cur }}</td></tr>
             @if ($quote['discount'] > 0)
@@ -544,6 +566,7 @@
     </div>
 
     @if ($quote['extras'])
+        <div class="pg-unit" data-pg-unit="extras">
         <div class="section-title">
             خدمات إضافية اختيارية
             <span class="en">OPTIONAL ADD-ONS</span>
@@ -552,6 +575,7 @@
             بنود معروضة للاطلاع فقط ولم تُحتسب ضمن الإجمالي المستحق أعلاه.
             يمكن إضافة أيٍّ منها لاحقاً بطلب منكم، ويُصدَر لها ملحق مستقل للعرض.
         </p>
+        <div class="tbl-wrap">
         <table class="pay-table sched opt">
             <thead>
                 <tr>
@@ -581,6 +605,7 @@
                 @endforeach
             </tbody>
         </table>
+        </div>
         <div class="opt-totals">
             <table>
                 <tr>
@@ -606,14 +631,17 @@
             </table>
             <span class="opt-flag">غير مشمولة في الإجمالي المستحق</span>
         </div>
+        </div>
     @endif
 
     @if ($quote['schedule'])
+        <div class="pg-unit" data-pg-unit="schedule">
         <div class="section-title">
             الجدول الزمني للتسليم
             <span class="en">DELIVERY SCHEDULE</span>
         </div>
         @php $showScheduleStatus = ($decision['choice'] ?? null) === 'approved'; @endphp
+        <div class="tbl-wrap">
         <table class="pay-table sched">
             <thead>
                 <tr>
@@ -653,9 +681,12 @@
                 @endforeach
             </tbody>
         </table>
+        </div>
+        </div>
     @endif
 
     @if ($quote['payments'] || $bank['has'])
+        <div class="pg-unit" data-pg-unit="payments">
         <div class="section-title">
             الدفعات وطريقة السداد
             <span class="en">PAYMENT TERMS</span>
@@ -663,6 +694,7 @@
         @php $hasDue = collect($quote['payments'])->contains(fn ($p) => (bool) $p['due']); @endphp
         <section @class(['pay', 'with-due' => $hasDue])>
             @if ($quote['payments'])
+                <div class="tbl-wrap">
                 <table class="pay-table">
                     <thead>
                         <tr>
@@ -688,6 +720,7 @@
                         @endforeach
                     </tbody>
                 </table>
+                </div>
             @endif
 
             @if ($bank['has'])
@@ -701,9 +734,10 @@
                 </div>
             @endif
         </section>
+        </div>
     @endif
 
-    <section class="terms">
+    <section class="terms" data-pg-unit="terms">
         <div class="term-box">
             <h4>شروط العرض</h4>
             <p>
@@ -733,7 +767,7 @@
         </div>
     </section>
 
-    <footer class="foot">
+    <footer class="foot" data-pg-unit="footer">
         <p class="foot-note">
             هذا المستند نسخة العميل من عرض سعر صادر إلكترونياً عن منصة وريد، ويُعدّ ساري المفعول خلال مدة صلاحيته المذكورة أعلاه.
             يمكن التحقق من العرض بالرقم المرجعي أو رمز QR. أي تعديل على نطاق العمل قد يستوجب مراجعة الأسعار.
@@ -949,11 +983,152 @@
 })();
 </script>
 
-{{-- شريط جارٍ يتكرر أسفل كل صفحة عند الطباعة (مخفي على الشاشة) --}}
-<div class="run-foot" aria-hidden="true">
-    <span>وريد لتقنية المعلومات · {{ $contactEmail }}</span>
-    <b>عرض سعر · {{ $sr->reference }}</b>
-</div>
+<script>
+/*
+ * تقسيم الطباعة إلى صفحات A4 مستقلة، كل واحدة بترويستها المصغّرة (من الصفحة الثانية)
+ * وتذييلها المرقّم «صفحة X من Y»، دون قصّ أي محتوى مهما طال جدول البنود.
+ *
+ * يعمل بقياس فعلي: يُستنسخ كل عنصر (رأس المستند، جدول البنود صفاً صفاً، الإجماليات،
+ * الباقات الاختيارية، الجدول الزمني، الدفعات، الشروط، التذييل القانوني) داخل صفحة
+ * جارية، فإن فاض بها المحتوى (scrollHeight أكبر من المساحة المتاحة) يُنقل العنصر
+ * لصفحة جديدة. يُبنى فقط عند الطباعة الفعلية (beforeprint) ويُزال بعدها (afterprint)
+ * فتبقى الصفحة التفاعلية على الشاشة كما هي دون أي أثر.
+ *
+ * الأصل يبقى دون تعديل (نسخ لا نقل)، فإن تعطّل هذا السكربت لأي سبب يطبع المتصفح
+ * التدفّق الواحد العادي بقواعد الطباعة الأساسية (تكرار رأس الجدول، منع القطع
+ * منتصف صفّ) — نتيجة سليمة أيضاً وإن بلا ترقيم صفحات.
+ */
+(function () {
+    'use strict';
+
+    var REFERENCE = @json($sr->reference);
+    var CONTACT_EMAIL = @json($contactEmail);
+
+    var UNITS_BEFORE_ITEMS = ['head', 'refbar', 'parties', 'items-title'];
+    var UNITS_AFTER_ITEMS = ['totals', 'extras', 'schedule', 'payments', 'terms', 'footer'];
+
+    function fits(body) {
+        return body.scrollHeight <= body.clientHeight + 1;
+    }
+
+    function markMarkup() {
+        var mark = document.querySelector('[data-pg-unit="head"] .head-org .mark');
+        return mark ? mark.outerHTML : '';
+    }
+
+    function makePage(isFirst) {
+        var pg = document.createElement('div');
+        pg.className = 'pg';
+
+        var head = document.createElement('div');
+        head.className = 'pg-head';
+        if (!isFirst) {
+            head.innerHTML =
+                '<span class="who">' + markMarkup() + ' وريد</span>' +
+                '<span class="ref" dir="ltr">' + REFERENCE + '</span>';
+        }
+
+        var body = document.createElement('div');
+        body.className = 'pg-body';
+
+        var foot = document.createElement('div');
+        foot.className = 'pg-foot';
+        foot.innerHTML =
+            '<span>وريد لتقنية المعلومات · ' + CONTACT_EMAIL + '</span>' +
+            '<span>عرض سعر · <b dir="ltr">' + REFERENCE + '</b> — صفحة ' +
+            '<span class="no" data-pg-cur></span> من <span class="no" data-pg-total></span></span>';
+
+        pg.appendChild(head);
+        pg.appendChild(body);
+        pg.appendChild(foot);
+        document.body.appendChild(pg);
+
+        return {el: pg, body: body, foot: foot};
+    }
+
+    /* يستنسخ عنصراً في متن الصفحة الجارية؛ فإن فاض بها ولم يكن أول محتوى فيها ينتقل لصفحة جديدة */
+    function place(pages, original) {
+        var page = pages[pages.length - 1];
+        var clone = original.cloneNode(true);
+        page.body.appendChild(clone);
+
+        if (page.body.children.length === 1 || fits(page.body)) {
+            return;
+        }
+
+        page.body.removeChild(clone);
+        page = makePage(false);
+        pages.push(page);
+        page.body.appendChild(clone);
+    }
+
+    function newItemsTable(pages, originalThead) {
+        var table = document.createElement('table');
+        table.className = 'items';
+        table.appendChild(originalThead.cloneNode(true));
+        var tbody = document.createElement('tbody');
+        table.appendChild(tbody);
+        pages[pages.length - 1].body.appendChild(table);
+
+        return tbody;
+    }
+
+    function paginate() {
+        var sheet = document.querySelector('.sheet');
+        var table = sheet && sheet.querySelector('[data-pg-unit="items-table"]');
+        if (!sheet || !table) return;
+
+        var originalThead = table.querySelector('thead');
+        var rows = Array.prototype.slice.call(table.querySelectorAll('tbody tr'));
+
+        document.body.classList.add('paged');
+        var pages = [makePage(true)];
+
+        UNITS_BEFORE_ITEMS.forEach(function (key) {
+            var node = sheet.querySelector('[data-pg-unit="' + key + '"]');
+            if (node) place(pages, node);
+        });
+
+        var currentTbody = newItemsTable(pages, originalThead);
+        rows.forEach(function (row) {
+            var clone = row.cloneNode(true);
+            currentTbody.appendChild(clone);
+
+            var page = pages[pages.length - 1];
+            if (currentTbody.children.length === 1 || fits(page.body)) {
+                return;
+            }
+
+            currentTbody.removeChild(clone);
+            page = makePage(false);
+            pages.push(page);
+            currentTbody = newItemsTable(pages, originalThead);
+            currentTbody.appendChild(clone);
+        });
+
+        UNITS_AFTER_ITEMS.forEach(function (key) {
+            var node = sheet.querySelector('[data-pg-unit="' + key + '"]');
+            if (node) place(pages, node);
+        });
+
+        pages.forEach(function (page, i) {
+            page.foot.querySelector('[data-pg-cur]').textContent = i + 1;
+            page.foot.querySelector('[data-pg-total]').textContent = pages.length;
+        });
+    }
+
+    function unpaginate() {
+        document.querySelectorAll('.pg').forEach(function (pg) { pg.remove(); });
+        document.body.classList.remove('paged');
+    }
+
+    window.addEventListener('beforeprint', function () {
+        unpaginate();
+        paginate();
+    });
+    window.addEventListener('afterprint', unpaginate);
+})();
+</script>
 
 </body>
 </html>

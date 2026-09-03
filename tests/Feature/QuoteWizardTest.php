@@ -638,8 +638,9 @@ it('prints the delivery schedule and payment due dates in the proposal', functio
         ->assertSee('<td class="due">—</td>', false)
         ->assertSee('<td class="due">1 أكتوبر 2026م</td>', false)
         ->assertSee('مواعيد بدء المراحل وتسليمها موضّحة في الجدول الزمني أعلاه')
-        // شريط جارٍ يحمل الرقم المرجعي أسفل كل صفحة مطبوعة
-        ->assertSee('عرض سعر · '.$sr->fresh()->reference);
+        // سكربت تقسيم الطباعة يبني ترويسة وتذييلاً مرقّماً لكل صفحة عند الطباعة الفعلية،
+        // ويحمل الرقم المرجعي نفسه
+        ->assertSee('var REFERENCE = '.json_encode($sr->fresh()->reference), false);
 });
 
 it('falls back to the legacy timeline text when no schedule is set', function () {
@@ -968,6 +969,31 @@ it('does not start execution when the client asks for a discount or declines', f
 
         expect(QuoteController::flowOf($sr->fresh())['stage'])->toBe('awaiting_approval')
             ->and($sr->fresh()->status)->not->toBe('won');
+    }
+});
+
+it('marks every section the print paginator moves between pages', function () {
+    Mail::fake();
+    submitInvite()->assertOk();
+    $sr = ServiceRequest::sole();
+
+    $sr->update(['payload' => array_merge((array) $sr->payload, [
+        '_quote' => [
+            'items' => [['name' => 'تجهيز المتجر', 'qty' => 1, 'price' => 20000]],
+            'schedule' => [['phase' => 'المرحلة الأولى', 'start' => '2026-09-10', 'end' => '2026-11-30']],
+            'payments' => [['label' => 'دفعة مقدّمة', 'percent' => 50]],
+            'extras' => [['name' => 'باقة إضافية', 'qty' => 1, 'price' => 1000]],
+            'vat_percent' => 0, 'currency' => 'ج.م', 'valid_days' => 30,
+            'issued_at' => now()->toIso8601String(),
+        ],
+    ])]);
+
+    // كل قسم يحتاج علامة data-pg-unit كي يستطيع سكربت التقسيم نقله ككتلة واحدة؛
+    // فقدان أي منها يعطّل ترقيم الصفحات بصمت دون أن يظهر أثره في الاختبارات الأخرى
+    $response = $this->get('/quote/hajar-salama/proposal')->assertOk();
+
+    foreach (['head', 'refbar', 'parties', 'items-title', 'items-table', 'totals', 'extras', 'schedule', 'payments', 'terms', 'footer'] as $unit) {
+        $response->assertSee('data-pg-unit="'.$unit.'"', false);
     }
 });
 
