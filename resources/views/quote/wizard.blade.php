@@ -1,5 +1,5 @@
 {{--
-    نموذج عرض السعر التفاعلي — سؤال واحد في كل شاشة (وضع أبيض بهوية وريد، خط IBM Plex Sans Arabic).
+    نموذج عرض السعر التفاعلي — سؤال واحد في كل شاشة (وضع أبيض بهوية وريد، خط ثمانية).
     يُبنى من مصفوفة الأسئلة في QuoteController (مصدر الحقيقة الوحيد).
 --}}
 @php
@@ -27,8 +27,7 @@
     <meta name="theme-color" content="#ffffff">
     <title>{{ $client ? 'نموذج '.$client['name'] : 'طلب عرض سعر متجر إلكتروني' }} — وريد</title>
     <link rel="icon" type="image/svg+xml" href="{{ asset('favicon.svg') }}">
-    <link rel="preconnect" href="https://fonts.bunny.net" crossorigin>
-    <link href="https://fonts.bunny.net/css?family=ibm-plex-sans-arabic:400,500,600,700&display=swap" rel="stylesheet">
+@include('quote._fonts')
     <style>
         :root {
             --blue: #3b82f6; --blue-deep: #2563eb; --violet: #8b5cf6; --teal: #14b8a6;
@@ -43,7 +42,7 @@
         * { margin: 0; padding: 0; box-sizing: border-box; }
         html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
         body {
-            font-family: 'IBM Plex Sans Arabic', 'Tajawal', ui-sans-serif, system-ui, sans-serif;
+            font-family: 'Thmanyah', 'IBM Plex Sans Arabic', ui-sans-serif, system-ui, sans-serif;
             background: var(--bg); color: var(--ink);
             line-height: 1.85; min-height: 100svh;
             -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
@@ -255,9 +254,10 @@
         .q-nav { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin-top: 28px; }
         .btn {
             display: inline-flex; align-items: center; justify-content: center; gap: 9px;
-            padding: 13px 30px; border-radius: 15px; border: 1px solid transparent;
+            padding: 13px 32px; border-radius: 999px; border: 1px solid transparent;
             font-weight: 700; font-size: 1rem; cursor: pointer;
-            transition: transform .22s, box-shadow .3s, background-position .4s, border-color .25s, opacity .2s;
+            transition: transform .38s cubic-bezier(.22,1,.36,1), box-shadow .38s cubic-bezier(.22,1,.36,1),
+                        background-position .45s, border-color .28s, opacity .2s;
         }
         .btn:disabled { opacity: .65; cursor: wait; transform: none !important; }
         /* ‏display على .btn يغلب سمة hidden، فيظهر رابط المستند قبل جاهزيته وهو يشير إلى # */

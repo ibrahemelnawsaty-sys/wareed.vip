@@ -15,7 +15,12 @@ class Setting extends Model
     protected $fillable = ['key', 'value', 'type', 'group'];
 
     /**
-     * قراءة إعداد حسب اللغة الحالية، مع الرجوع للعربية ثم الافتراضي.
+     * قراءة إعداد حسب اللغة الحالية.
+     *
+     * الترتيب: لغة الزائر ← العربية ← الإنجليزية ← أي ترجمة محفوظة ← الافتراضي.
+     * الرجوع إلى «أي ترجمة محفوظة» ضروري: الإعداد يُحفظ باللغة النشطة وقت الحفظ
+     * من اللوحة، فلو حُفظ بالإنجليزية وزار الموقعَ زائر عربي لاختفت القيمة
+     * تماماً (اسم الموقع، البريد الإلكتروني، الرقم الضريبي، بيانات البنك…).
      */
     public static function get(string $key, mixed $default = null): mixed
     {
@@ -30,9 +35,18 @@ class Setting extends Model
         }
 
         $locale = app()->getLocale();
-        $value = ($translations[$locale] ?? null) ?: ($translations['ar'] ?? null);
+        $candidates = array_merge(
+            [$translations[$locale] ?? null, $translations['ar'] ?? null, $translations['en'] ?? null],
+            array_values($translations),
+        );
 
-        return ($value === null || $value === '') ? $default : $value;
+        foreach ($candidates as $value) {
+            if ($value !== null && $value !== '') {
+                return $value;
+            }
+        }
+
+        return $default;
     }
 
     public static function set(string $key, mixed $value, string $group = 'general', string $type = 'text'): void

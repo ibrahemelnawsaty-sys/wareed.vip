@@ -5,6 +5,8 @@
     $siteName = setting('site_name', 'وريد');
     // الزر الأساسي ينقل إلى قسم الخدمات ليختار الزائر خدمته ثم يفتح نموذجها
     $primaryCta = __('ابدأ مشروعك');
+    // أيقونة الخدمة: تُترجم من القيمة المخزّنة، وبديلها ثابت حسب مفتاح الخدمة
+    $svcIcon = fn ($s) => \App\Support\Icons::name($s->icon, \App\Support\Icons::forServiceKey($s->key));
 @endphp
 
 {{-- ===== HERO ===== --}}
@@ -17,23 +19,14 @@
             <div class="hero-cta">
                 <a href="#services" class="btn btn-gold">
                     {{ $primaryCta }}
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M6 13l6 6 6-6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    <x-w-icon name="arrow-down" />
                 </a>
                 <a href="{{ url('/contact') }}" class="btn btn-ghost">{{ __('تحدث مع خبير') }}</a>
             </div>
             <div class="hero-trust">
-                <span>
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                    {{ __('استشارة أولى مجانية') }}
-                </span>
-                <span>
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                    {{ __('عرض سعر خلال 3 أيام عمل') }}
-                </span>
-                <span>
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                    {{ __('دعم بشري طوال المشروع') }}
-                </span>
+                <span><x-w-icon name="check" /> {{ __('استشارة أولى مجانية') }}</span>
+                <span><x-w-icon name="check" /> {{ __('عرض سعر خلال 3 أيام عمل') }}</span>
+                <span><x-w-icon name="check" /> {{ __('دعم بشري طوال المشروع') }}</span>
             </div>
         </div>
 
@@ -73,10 +66,12 @@
                     <circle cx="92" cy="120" r="9" fill="url(#gNode2)"/>
                     <circle cx="80" cy="222" r="9" fill="url(#gNode2)"/>
                     <circle cx="92" cy="320" r="9" fill="url(#gNode2)"/>
-                    <g font-family="'El Messiri','IBM Plex Sans Arabic',sans-serif" font-weight="700" font-size="16" fill="#0d1830" text-anchor="end">
-                        <text x="74" y="116">{{ __('متاجر') }}</text>
-                        <text x="62" y="218">{{ __('حلول') }}</text>
-                        <text x="74" y="316">{{ __('تدريب') }}</text>
+                    {{-- ‏direction:ltr ضرورية: في صفحة RTL تنقلب دلالة text-anchor=end
+                         فتزحف التسميات فوق العقد بدل أن تقف يمينها --}}
+                    <g style="direction: ltr" font-family="'Thmanyah','IBM Plex Sans Arabic',sans-serif" font-weight="700" font-size="15" fill="#0d1830" text-anchor="end">
+                        <text x="76" y="102">{{ __('متاجر') }}</text>
+                        <text x="64" y="204">{{ __('حلول') }}</text>
+                        <text x="76" y="302">{{ __('تدريب') }}</text>
                     </g>
                 </svg>
             </div>
@@ -97,21 +92,18 @@
             @foreach($services as $service)
                 <article class="card" data-reveal>
                     <span class="num">{{ str_pad($loop->iteration, 2, '0', STR_PAD_LEFT) }}</span>
-                    <div class="icon">{{ $service->icon ?? '◆' }}</div>
+                    <div class="icon"><span class="ic-box"><x-w-icon :name="$svcIcon($service)" /></span></div>
                     <h3>{{ $service->name }}</h3>
                     <p>{{ $service->summary }}</p>
                     <ul>
                         @foreach(array_slice((array) $service->features, 0, 3) as $f)
-                            <li>
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                                {{ tleaf($f['title']) }}
-                            </li>
+                            <li><x-w-icon name="check" />{{ tleaf($f['title']) }}</li>
                         @endforeach
                     </ul>
                     {{-- دعوة خاصة بكل خدمة، نصّها من إعدادات الخدمة نفسها --}}
                     <a class="btn btn-gold card-cta" href="{{ url('/services/'.$service->slug) }}">
                         {{ $service->cta_label ?: __('اعرف المزيد') }}
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5m7-7-7 7 7 7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                        <x-w-icon name="arrow-left" />
                     </a>
                 </article>
             @endforeach
@@ -167,14 +159,14 @@
         </div>
         <div class="why">
             @php $feats = [
-                ['⚡','سرعة فائقة','أداء خفيف محسَّن يرفع تجربتك وترتيبك في محركات البحث.'],
-                ['🛡️','أمان وعزل','عزل بنيوي صارم لبيانات كل متجر وكل عميل، بمعايير موثوقة.'],
-                ['🤝','دعم بشري حقيقي','فريق متخصص يفهم احتياجك ويرافقك خطوة بخطوة، لا روبوتات فقط.'],
-                ['📈','نموّ مستدام','حلول قابلة للتوسّع تكبر مع أعمالك من أول متجر إلى منظومة كاملة.'],
+                ['bolt','سرعة فائقة','أداء خفيف محسَّن يرفع تجربتك وترتيبك في محركات البحث.'],
+                ['shield','أمان وعزل','عزل بنيوي صارم لبيانات كل متجر وكل عميل، بمعايير موثوقة.'],
+                ['support','دعم بشري حقيقي','فريق متخصص يفهم احتياجك ويرافقك خطوة بخطوة، لا روبوتات فقط.'],
+                ['trend','نموّ مستدام','حلول قابلة للتوسّع تكبر مع أعمالك من أول متجر إلى منظومة كاملة.'],
             ]; @endphp
             @foreach($feats as $f)
                 <div class="feat" data-reveal>
-                    <div class="fi">{{ $f[0] }}</div>
+                    <div class="fi"><span class="ic-box ic-box-sm ic-box-teal"><x-w-icon :name="$f[0]" /></span></div>
                     <h3>{{ __($f[1]) }}</h3>
                     <p>{{ __($f[2]) }}</p>
                 </div>
@@ -199,7 +191,7 @@
             ]; @endphp
             @foreach($faqs as $q)
                 <details>
-                    <summary>{{ __($q[0]) }}</summary>
+                    <summary>{{ __($q[0]) }}<x-w-icon name="chevron-down" /></summary>
                     <div class="fa">{{ __($q[1]) }}</div>
                 </details>
             @endforeach

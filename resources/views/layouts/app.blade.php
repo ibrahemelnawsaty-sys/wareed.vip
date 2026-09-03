@@ -51,8 +51,9 @@
     <meta name="twitter:title" content="{{ $pageTitle }}">
     <meta name="twitter:description" content="{{ $pageDesc }}">
 
-    <link rel="preconnect" href="https://fonts.bunny.net" crossorigin>
-    <link href="https://fonts.bunny.net/css?family=ibm-plex-sans-arabic:400,500,600,700|el-messiri:500,600,700|tajawal:400,500,700&display=swap" rel="stylesheet">
+    {{-- خط ثمانية مستضاف ذاتياً: لا طلب لخدمة خارجية، ونحمّل الوزنين الأكثر ظهوراً مبكراً --}}
+    <link rel="preload" as="font" type="font/woff2" href="{{ asset('fonts/thmanyah/ThmanyahSans-Regular.woff2') }}" crossorigin>
+    <link rel="preload" as="font" type="font/woff2" href="{{ asset('fonts/thmanyah/ThmanyahSans-Bold.woff2') }}" crossorigin>
     <link rel="icon" type="image/svg+xml" href="{{ asset('favicon.svg') }}">
 
     {{-- JSON-LD: المنظمة (دستور §11) --}}
@@ -63,6 +64,7 @@
     @stack('head')
 </head>
 <body class="antialiased">
+    @include('partials.icons')
     @include('partials.header')
 
     <main>
@@ -73,10 +75,9 @@
 
     {{-- زر واتساب عائم --}}
     @php $wa = preg_replace('/[^0-9]/', '', setting('contact_whatsapp', '201055789056')); @endphp
-    <a href="https://wa.me/{{ $wa }}" target="_blank" rel="noopener"
-       class="fixed bottom-6 left-6 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-emerald-500 text-ink-950 shadow-2xl transition hover:scale-110"
+    <a href="https://wa.me/{{ $wa }}" target="_blank" rel="noopener" class="wa-float"
        aria-label="{{ __('تواصل عبر واتساب') }}">
-        <svg viewBox="0 0 24 24" class="h-7 w-7" fill="currentColor"><path d="M.057 24l1.687-6.163a11.867 11.867 0 01-1.587-5.946C.16 5.335 5.495 0 12.05 0a11.82 11.82 0 018.413 3.488 11.82 11.82 0 013.48 8.414c-.003 6.557-5.338 11.892-11.893 11.892a11.9 11.9 0 01-5.688-1.448L.057 24zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884a9.86 9.86 0 001.51 5.26l-.999 3.648 3.737-.97a9.86 9.86 0 00.241.263z"/></svg>
+        <x-w-icon name="whatsapp" />
     </a>
 
     @stack('scripts')

@@ -19,8 +19,7 @@
     <meta name="robots" content="noindex, nofollow">
     <title>{{ $sr->reference }} — طلب متجر إلكتروني | وريد</title>
     <link rel="icon" type="image/svg+xml" href="{{ asset('favicon.svg') }}">
-    <link rel="preconnect" href="https://fonts.bunny.net" crossorigin>
-    <link href="https://fonts.bunny.net/css?family=ibm-plex-sans-arabic:400,500,600,700&display=swap" rel="stylesheet">
+@include('quote._fonts')
     <style>
         :root {
             --ink: #0d1830; --muted: #55638a; --faint: #8493b5;
@@ -31,7 +30,7 @@
         }
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            font-family: 'IBM Plex Sans Arabic', 'Tajawal', ui-sans-serif, system-ui, sans-serif;
+            font-family: 'Thmanyah', 'IBM Plex Sans Arabic', ui-sans-serif, system-ui, sans-serif;
             background: #eef2f9; color: var(--ink); line-height: 1.65;
             -webkit-font-smoothing: antialiased; padding: 26px 14px 60px;
         }

@@ -12,9 +12,27 @@
     $wa = preg_replace('/[^0-9]/', '', (string) $sr->phone);
     $rowLabel = 'style="padding:9px 12px;background:#f4f6fb;color:#65718f;font-size:13px;width:38%;border-bottom:1px solid #eef2fb;"';
     $rowVal = 'style="padding:9px 12px;color:#1a2547;font-size:14px;font-weight:600;border-bottom:1px solid #eef2fb;"';
+
+    // إجابات العميل فقط: المفاتيح التي تبدأ بشرطة سفلية بيانات داخلية
+    // (‏_quote و_flow و_decision و_requirements و_views) لا مكان لها في بريد الإشعار.
+    $answers = array_filter(
+        (array) $sr->payload,
+        fn ($key) => ! str_starts_with((string) $key, '_'),
+        ARRAY_FILTER_USE_KEY
+    );
+
+    // إجابة متعددة الاختيارات تُعرض مفصولة، وأي قيمة متداخلة تُسطَّح بأمان
+    // بدل أن يتحوّل المصفوف إلى الكلمة Array وينبّه PHP.
+    $flatten = function ($value) use (&$flatten): string {
+        if (is_array($value)) {
+            return implode('، ', array_filter(array_map($flatten, $value), fn ($v) => $v !== ''));
+        }
+
+        return is_bool($value) ? ($value ? 'نعم' : 'لا') : trim((string) $value);
+    };
 @endphp
 
-<h2 style="margin:0 0 6px;font-size:20px;color:#1a2547;">🔔 طلب جديد من المنصة</h2>
+<h2 style="margin:0 0 6px;font-size:20px;color:#1a2547;">طلب جديد من المنصة</h2>
 <p style="margin:0 0 18px;color:#65718f;font-size:14px;">وصلك طلب جديد عبر منصة وريد، تفاصيله كالتالي:</p>
 
 <table style="width:100%;border-collapse:collapse;border:1px solid #eef2fb;border-radius:10px;overflow:hidden;">
@@ -24,8 +42,11 @@
     @if($sr->email)<tr><td {!! $rowLabel !!}>البريد الإلكتروني</td><td {!! $rowVal !!}><span dir="ltr">{{ $sr->email }}</span></td></tr>@endif
     @if($sr->company)<tr><td {!! $rowLabel !!}>الشركة / النشاط</td><td {!! $rowVal !!}>{{ $sr->company }}</td></tr>@endif
     @if($sr->budget)<tr><td {!! $rowLabel !!}>الميزانية</td><td {!! $rowVal !!}>{{ $sr->budget }}</td></tr>@endif
-    @foreach((array) $sr->payload as $k => $v)
-        <tr><td {!! $rowLabel !!}>{{ $k }}</td><td {!! $rowVal !!}>{{ is_array($v) ? implode('، ', $v) : $v }}</td></tr>
+    @foreach($answers as $k => $v)
+        @php $text = $flatten($v); @endphp
+        @if($text !== '')
+            <tr><td {!! $rowLabel !!}>{{ $k }}</td><td {!! $rowVal !!}>{{ $text }}</td></tr>
+        @endif
     @endforeach
     @if($sr->message)<tr><td {!! $rowLabel !!}>الرسالة</td><td {!! $rowVal !!}>{{ $sr->message }}</td></tr>@endif
     <tr><td {!! $rowLabel !!}>المصدر</td><td {!! $rowVal !!}>{{ $sr->source ?? '—' }}</td></tr>
@@ -33,7 +54,7 @@
 </table>
 
 <div style="margin-top:22px;text-align:center;">
-    <a href="https://wa.me/{{ $wa }}" style="display:inline-block;background:#25d366;color:#fff;text-decoration:none;font-weight:bold;padding:11px 22px;border-radius:10px;font-size:14px;">💬 تواصل مع العميل عبر واتساب</a>
+    <a href="https://wa.me/{{ $wa }}" style="display:inline-block;background:#25d366;color:#fff;text-decoration:none;font-weight:bold;padding:11px 22px;border-radius:10px;font-size:14px;">تواصل مع العميل عبر واتساب</a>
 </div>
 <p style="margin:18px 0 0;color:#8a99bb;font-size:12px;text-align:center;">يمكنك أيضاً متابعة الطلب من لوحة التحكم: <a href="https://wareed.vip/admin" style="color:#3b82f6;">wareed.vip/admin</a></p>
 @endsection

@@ -24,8 +24,7 @@
     <meta name="robots" content="noindex, nofollow">
     <title>عرض سعر {{ $sr->reference }} — وريد</title>
     <link rel="icon" type="image/svg+xml" href="{{ asset('favicon.svg') }}">
-    <link rel="preconnect" href="https://fonts.bunny.net" crossorigin>
-    <link href="https://fonts.bunny.net/css?family=ibm-plex-sans-arabic:400,500,600,700&display=swap" rel="stylesheet">
+@include('quote._fonts')
     <style>
         :root {
             --ink: #0d1830; --muted: #55638a; --faint: #8493b5;
@@ -36,7 +35,7 @@
         }
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            font-family: 'IBM Plex Sans Arabic', 'Tajawal', ui-sans-serif, system-ui, sans-serif;
+            font-family: 'Thmanyah', 'IBM Plex Sans Arabic', ui-sans-serif, system-ui, sans-serif;
             background: #eef2f9; color: var(--ink); line-height: 1.6;
             -webkit-font-smoothing: antialiased; padding: 26px 14px 60px;
         }
@@ -188,7 +187,7 @@
         .toolbar {
             position: sticky; top: 12px; z-index: 10; width: 210mm; max-width: 100%; margin: 0 auto 16px;
             display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
-            background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 11px 18px;
+            background: #fff; border: 1px solid var(--line); border-radius: 18px; padding: 11px 18px;
             box-shadow: 0 12px 30px -18px rgba(13, 24, 48, .4);
         }
         .toolbar p { font-size: .82rem; color: var(--muted); }
@@ -196,8 +195,9 @@
         .tb-actions { display: flex; gap: 9px; flex-wrap: wrap; }
         .tb-btn {
             display: inline-flex; align-items: center; gap: 7px; cursor: pointer;
-            padding: 9px 20px; border-radius: 11px; border: 1px solid transparent;
+            padding: 9px 22px; border-radius: 999px; border: 1px solid transparent;
             font: inherit; font-size: .88rem; font-weight: 700;
+            transition: transform .32s cubic-bezier(.22,1,.36,1), box-shadow .32s cubic-bezier(.22,1,.36,1), border-color .28s;
         }
         .tb-primary { background: var(--grad); color: #fff; }
         .tb-ghost { background: #fff; color: var(--muted); border-color: var(--line); }
@@ -218,7 +218,7 @@
             --d: #047857; --d-bg: #ecfdf5; --d-line: #a7f3d0; --d-ring: rgba(4, 120, 87, .14);
             position: relative; display: block; cursor: pointer; overflow: hidden;
             padding: .85rem .95rem; padding-inline-start: 1.15rem;
-            border: 1.5px solid var(--line); border-radius: 12px; background: #fff; transition: .15s;
+            border: 1.5px solid var(--line); border-radius: 14px; background: #fff; transition: .22s cubic-bezier(.22,1,.36,1);
         }
         .d-opt[data-opt="discount"] { --d: #b45309; --d-bg: #fffbeb; --d-line: #fde68a; --d-ring: rgba(180, 83, 9, .14); }
         .d-opt[data-opt="declined"] { --d: #475569; --d-bg: #f8fafc; --d-line: #cbd5e1; --d-ring: rgba(71, 85, 105, .14); }
@@ -233,13 +233,13 @@
         .decide-note { margin-top: .9rem; }
         .decide-note label { display: block; font-size: .78rem; color: var(--muted); margin-bottom: .3rem; }
         .decide-note textarea {
-            width: 100%; padding: .6rem .8rem; border-radius: 10px; border: 1px solid var(--line);
+            width: 100%; padding: .65rem .9rem; border-radius: 14px; border: 1px solid var(--line);
             font: inherit; font-size: .86rem; color: var(--ink); background: #fff; resize: vertical;
         }
         .decide-note textarea:focus { outline: 2px solid rgba(37, 99, 235, .3); border-color: var(--blue); }
         .decide-send {
             margin-top: 1rem; display: inline-flex; align-items: center; gap: .45rem; cursor: pointer;
-            border: 0; border-radius: 10px; padding: .7rem 1.6rem; font: inherit; font-size: .9rem;
+            border: 0; border-radius: 999px; padding: .7rem 1.8rem; font: inherit; font-size: .9rem;
             font-weight: 700; color: #fff; background: var(--grad);
         }
         .decide-send:disabled { opacity: .45; cursor: not-allowed; }
@@ -346,25 +346,36 @@
         .pg-head .mark { width: 7mm; height: 7mm; }
         .pg-head .ref { font-size: 7.6pt; color: var(--faint); direction: ltr; }
 
+        /* ===== هندسة صفحات الطباعة =====
+           تعيش خارج @media print عمداً: المتصفّح يُطلق beforeprint قبل تطبيق أنماط
+           الطباعة، فلو كانت المقاسات داخلها لقاس المقسّم صفحاتٍ بلا ارتفاع (0)،
+           فظنّ أن كل المحتوى يسع صفحة واحدة وقصّ ما زاد صامتاً عند الطباعة. */
+        body.paged .pg {
+            display: flex; flex-direction: column;
+            width: 210mm; height: 297mm; padding: 11mm 12mm 8mm;
+            background: #fff; overflow: hidden; position: relative;
+        }
+        body.paged .pg::before {
+            content: ""; position: absolute; inset-inline: 0; top: 0; height: 4mm; background: var(--grad);
+        }
+        body.paged .pg > .pg-body { flex: 1; min-height: 0; overflow: hidden; }
+        body.paged .pg > .pg-head { display: flex; }
+        body.paged .pg > .pg-foot { display: flex; margin-top: auto; }
+        /* الصفحة الأولى تحمل ترويسة المستند الكاملة لا المصغّرة */
+        body.paged .pg:first-of-type > .pg-head { display: none; }
+
+        /* على الشاشة تُقاس الصفحات دون أن تُرى ودون أن تزيح المحتوى المعروض */
+        @media screen {
+            body.paged .pg { position: fixed; top: 0; inset-inline-start: -400vw; visibility: hidden; }
+        }
+
         @media print {
             @page { size: A4; margin: 0; }
 
             /* الصفحات المبنية بالسكربت تحلّ محلّ التدفّق الواحد */
             body.paged .sheet { display: none !important; }
-            body.paged .pg {
-                display: flex !important; flex-direction: column;
-                width: 210mm; height: 297mm; padding: 11mm 12mm 8mm;
-                background: #fff; overflow: hidden; break-after: page; position: relative;
-            }
+            body.paged .pg { break-after: page; }
             body.paged .pg:last-of-type { break-after: auto; }
-            body.paged .pg::before {
-                content: ""; position: absolute; inset-inline: 0; top: 0; height: 4mm; background: var(--grad);
-            }
-            body.paged .pg > .pg-body { flex: 1; min-height: 0; overflow: hidden; }
-            body.paged .pg > .pg-head { display: flex !important; }
-            body.paged .pg > .pg-foot { display: flex !important; margin-top: auto; }
-            /* الصفحة الأولى تحمل ترويسة المستند الكاملة لا المصغّرة */
-            body.paged .pg:first-of-type > .pg-head { display: none !important; }
             html, body { background: #fff; padding: 0; margin: 0; }
             .toolbar, .decide, .reqs { display: none !important; }
             .sheet { width: 210mm; min-height: 0; box-shadow: none; margin: 0; padding: 11mm 12mm 8mm; }

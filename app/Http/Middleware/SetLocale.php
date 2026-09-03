@@ -13,7 +13,9 @@ class SetLocale
     public function handle(Request $request, Closure $next)
     {
         $requested = $request->query('hl');
-        $locale = $requested ?: $request->cookie('locale') ?: config('app.locale', 'ar');
+        // اللغة الافتراضية للزائر الجديد عربية دائماً: الموقع عربي المصدر
+        // و`lang/en.json` ترجمة له، فلا يُقرأ app.locale (قيمته en في هيكل لارافل).
+        $locale = $requested ?: $request->cookie('locale') ?: 'ar';
 
         if (! in_array($locale, self::SUPPORTED, true)) {
             $locale = 'ar';

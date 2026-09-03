@@ -24,14 +24,19 @@
                 <p class="mt-4 text-sm leading-7 text-cloud-400">
                     {{ setting('site_description', 'شريان الحياة التقني لمصر — متاجر إلكترونية، حلول تقنية، وتدريب احترافي.') }}
                 </p>
-                <div class="mt-5 flex gap-3">
-                    <a href="https://wa.me/{{ preg_replace('/[^0-9]/','', setting('contact_whatsapp', '201055789056')) }}" target="_blank" rel="noopener" class="flex h-9 w-9 items-center justify-center rounded-lg glass text-emerald-400 transition hover:text-emerald-500" aria-label="WhatsApp">
-                        <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M.057 24l1.687-6.163a11.867 11.867 0 01-1.587-5.946C.16 5.335 5.495 0 12.05 0a11.82 11.82 0 018.413 3.488 11.82 11.82 0 013.48 8.414c-.003 6.557-5.338 11.892-11.893 11.892a11.9 11.9 0 01-5.688-1.448L.057 24zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884a9.86 9.86 0 001.51 5.26l-.999 3.648 3.737-.97a9.86 9.86 0 00.241.263z"/></svg>
+                <div class="socials">
+                    <a href="https://wa.me/{{ preg_replace('/[^0-9]/','', setting('contact_whatsapp', '201055789056')) }}" target="_blank" rel="noopener" aria-label="WhatsApp">
+                        <x-w-icon name="whatsapp" />
                     </a>
-                    @foreach(['social_facebook'=>'Facebook','social_instagram'=>'Instagram','social_linkedin'=>'LinkedIn','social_tiktok'=>'TikTok'] as $key=>$label)
+                    @foreach([
+                        'social_facebook' => ['Facebook', 'M13.5 21.9v-8.1h2.7l.4-3.2h-3.1V8.6c0-.9.3-1.5 1.6-1.5h1.6V4.2c-.3 0-1.3-.1-2.4-.1-2.4 0-4 1.4-4 4.1v2.3H7.6v3.2h2.7v8.1z'],
+                        'social_instagram' => ['Instagram', 'M12 7.6a4.4 4.4 0 1 0 0 8.8 4.4 4.4 0 0 0 0-8.8zm0 7.2a2.8 2.8 0 1 1 0-5.6 2.8 2.8 0 0 1 0 5.6zM17.9 6a1 1 0 1 1-2 0 1 1 0 0 1 2 0zM8.4 3.2h7.2a5.2 5.2 0 0 1 5.2 5.2v7.2a5.2 5.2 0 0 1-5.2 5.2H8.4a5.2 5.2 0 0 1-5.2-5.2V8.4a5.2 5.2 0 0 1 5.2-5.2z'],
+                        'social_linkedin' => ['LinkedIn', 'M7.1 20.4H4V9.6h3.1zM5.5 8.2A1.8 1.8 0 1 1 5.5 4.6a1.8 1.8 0 0 1 0 3.6zM20.4 20.4h-3.1v-5.3c0-1.3 0-2.9-1.8-2.9s-2 1.4-2 2.8v5.4H10.4V9.6h3v1.5h.1a3.3 3.3 0 0 1 3-1.6c3.2 0 3.8 2.1 3.8 4.8z'],
+                        'social_tiktok' => ['TikTok', 'M15.9 3.2h-2.8v11.6a2.6 2.6 0 1 1-2.6-2.6c.3 0 .5 0 .7.1V9.4a5.6 5.6 0 1 0 4.7 5.5V9.1a6.4 6.4 0 0 0 3.8 1.2V7.5a3.7 3.7 0 0 1-3.8-3.6z'],
+                    ] as $key => [$label, $path])
                         @if(setting($key))
-                            <a href="{{ setting($key) }}" target="_blank" rel="noopener" class="flex h-9 w-9 items-center justify-center rounded-lg glass text-cloud-300 transition hover:text-gold-500" aria-label="{{ $label }}">
-                                <span class="text-xs">{{ mb_substr($label,0,2) }}</span>
+                            <a href="{{ setting($key) }}" target="_blank" rel="noopener" aria-label="{{ $label }}">
+                                <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" stroke="none" d="{{ $path }}"/></svg>
                             </a>
                         @endif
                     @endforeach
@@ -63,16 +68,15 @@
             <div>
                 <h4 class="mb-4 text-sm font-bold text-cloud-100">{{ __('تواصل معنا') }}</h4>
                 @php $waNum = preg_replace('/[^0-9]/', '', setting('contact_whatsapp', '201055789056')); @endphp
-                <ul class="space-y-2.5 text-sm text-cloud-400">
-                    <li>📞 <span dir="ltr">{{ setting('contact_phone', '+201055789056') }}</span></li>
+                <ul class="foot-contact">
+                    <li><x-w-icon name="phone" /><span dir="ltr">{{ setting('contact_phone', '+201055789056') }}</span></li>
                     <li>
-                        <a href="https://wa.me/{{ $waNum }}" target="_blank" rel="noopener" class="inline-flex items-center gap-2 transition hover:text-emerald-400">
-                            <svg class="h-4 w-4 text-emerald-400" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M.057 24l1.687-6.163a11.867 11.867 0 01-1.587-5.946C.16 5.335 5.495 0 12.05 0a11.82 11.82 0 018.413 3.488 11.82 11.82 0 013.48 8.414c-.003 6.557-5.338 11.892-11.893 11.892a11.9 11.9 0 01-5.688-1.448L.057 24zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884a9.86 9.86 0 001.51 5.26l-.999 3.648 3.737-.97a9.86 9.86 0 00.241.263z"/></svg>
-                            <span dir="ltr">+{{ $waNum }}</span>
+                        <a href="https://wa.me/{{ $waNum }}" target="_blank" rel="noopener">
+                            <x-w-icon name="whatsapp" /><span dir="ltr">+{{ $waNum }}</span>
                         </a>
                     </li>
-                    <li>✉️ {{ setting('contact_email', 'info@wareed.vip') }}</li>
-                    <li>📍 {{ setting('contact_address', 'نعمل عن بُعد حول العالم') }}</li>
+                    <li><x-w-icon name="mail" /><span dir="ltr">{{ setting('contact_email', 'info@wareed.vip') }}</span></li>
+                    <li><x-w-icon name="pin" />{{ setting('contact_address', 'نعمل عن بُعد حول العالم') }}</li>
                 </ul>
                 <a href="{{ url('/contact') }}" class="btn btn-ghost mt-5 text-sm">{{ __('احجز استشارة مجانية') }}</a>
             </div>
