@@ -719,6 +719,47 @@ class QuoteRequests extends Page
         }
     }
 
+    /**
+     * إرسال تذكير بعرض السعر يدوياً — لا ينقل مرحلة الطلب ولا يُعيد إصدار العرض،
+     * فقط رسالة متابعة نصّها قالب awaiting_approval القابل للتعديل من صفحة قوالب
+     * البريد الإلكتروني، مرفقة بملخّص العرض ورابط مباشر لصفحته.
+     */
+    public function sendReminder(int $id): void
+    {
+        $sr = static::baseQuery()->whereKey($id)->firstOrFail();
+
+        if (! QuoteController::quoteOf($sr)) {
+            Notification::make()->title('لا يوجد عرض سعر صادر لهذا الطلب لإرسال تذكير به.')->danger()->send();
+
+            return;
+        }
+
+        if (! filter_var((string) $sr->email, FILTER_VALIDATE_EMAIL)) {
+            Notification::make()
+                ->title('لا بريد إلكتروني لهذا العميل')
+                ->body('أضف بريده في الطلب أولاً ليصله التذكير.')
+                ->warning()
+                ->send();
+
+            return;
+        }
+
+        if (MailTemplates::sendStage($sr, 'awaiting_approval', withSummary: true)) {
+            Notification::make()
+                ->title('أُرسل تذكير عرض السعر')
+                ->body('وصل إلى '.$sr->email.' — نصّه قابل للتعديل من صفحة قوالب البريد الإلكتروني.')
+                ->success()
+                ->send();
+        } else {
+            Notification::make()
+                ->title('تعذّر إرسال التذكير')
+                ->body('راجع إعدادات MAIL في ملف .env.')
+                ->danger()
+                ->persistent()
+                ->send();
+        }
+    }
+
     public function markStatus(int $id, string $status): void
     {
         abort_unless(in_array($status, ServiceRequest::STATUSES, true), 422);
