@@ -355,6 +355,10 @@
 
                             @case ('awaiting_approval')
                                 <span class="wq-when">بانتظار اعتماد العميل</span>
+                                <x-filament::button wire:click="sendReminder({{ $r['id'] }})" size="sm" color="gray" icon="heroicon-o-bell-alert"
+                                                    wire:confirm="سيُرسل تذكير بعرض السعر إلى بريد العميل الإلكتروني الآن. متابعة؟">
+                                    إرسال تذكير
+                                </x-filament::button>
                                 <input type="date" class="wq-dt" wire:model="flowInput.{{ $r['id'] }}.due_at">
                                 <x-filament::button wire:click="startExecution({{ $r['id'] }})" size="sm" color="success" icon="heroicon-o-play">
                                     اعتُمد — ابدأ التنفيذ

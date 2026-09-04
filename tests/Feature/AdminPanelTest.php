@@ -1,11 +1,13 @@
 <?php
 
+use App\Filament\Pages\EmailTemplates;
 use App\Filament\Pages\QuoteRequests;
 use App\Http\Controllers\QuoteController;
 use App\Mail\QuoteProposalIssued;
 use App\Mail\StageMessage;
 use App\Models\ServiceRequest;
 use App\Models\User;
+use App\Support\MailTemplates;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Mail;
 use Spatie\Permission\Models\Role;
@@ -173,6 +175,82 @@ it('يرفض إرسال عرض سعر غير موجود أو لعميل بلا �
     Mail::assertNotSent(QuoteProposalIssued::class);
     expect($noQuote->fresh()->status)->toBe('new')
         ->and($noEmail->fresh()->status)->toBe('new');
+});
+
+it('يرسل تذكيراً بعرض السعر عبر زر إرسال تذكير دون تغيير مرحلة الطلب أو حالته', function () {
+    Mail::fake();
+    $this->actingAs(adminUser());
+
+    $sr = ServiceRequest::create([
+        'service_type' => 'ecommerce', 'name' => 'أ. هاجر سلامة',
+        'phone' => '00201016031031', 'email' => 'hagersalma89@gmail.com', 'company' => 'متجر حواديت',
+        'status' => 'proposal', 'source' => 'quote_link:hajar-salama',
+        'payload' => [
+            '_flow' => ['stage' => 'awaiting_approval'],
+            '_quote' => [
+                'items' => [['name' => 'تجهيز المتجر', 'qty' => 1, 'price' => 20000]],
+                'vat_percent' => 0, 'currency' => 'ج.م', 'valid_days' => 30,
+                'issued_at' => now()->toIso8601String(),
+            ],
+        ],
+    ]);
+
+    Livewire\Livewire::test(QuoteRequests::class)->call('sendReminder', $sr->id);
+
+    // لا تغيير على مرحلة المسار ولا حالة الطلب — رسالة متابعة فقط
+    $fresh = $sr->fresh();
+    expect(QuoteController::flowOf($fresh)['stage'])->toBe('awaiting_approval')
+        ->and($fresh->status)->toBe('proposal');
+
+    Mail::assertSent(StageMessage::class, function ($mail) use ($sr) {
+        return $mail->hasTo('hagersalma89@gmail.com')
+            && $mail->hasFrom('info@wareed.vip')
+            && str_contains($mail->subjectLine, 'بخصوص عرض السعر')
+            // الرابط يشير لصفحة عرض السعر التفاعلية نفسها، لا رابط المتابعة العام
+            && $mail->link === QuoteController::proposalUrl($sr)
+            // ملخّص العرض (البنود والإجمالي) مرفق بالتذكير
+            && $mail->summaryOf?->is($sr);
+    });
+});
+
+it('يرفض إرسال تذكير لطلب بلا عرض سعر صادر أو بلا بريد إلكتروني للعميل', function () {
+    Mail::fake();
+    $this->actingAs(adminUser());
+
+    $noQuote = ServiceRequest::create([
+        'service_type' => 'ecommerce', 'name' => 'عميل', 'phone' => '—', 'email' => 'c@example.com',
+        'status' => 'new', 'source' => 'quote_form', 'payload' => [],
+    ]);
+
+    Livewire\Livewire::test(QuoteRequests::class)->call('sendReminder', $noQuote->id);
+
+    $noEmail = ServiceRequest::create([
+        'service_type' => 'ecommerce', 'name' => 'عميل آخر', 'phone' => '—', 'email' => '',
+        'status' => 'new', 'source' => 'quote_form', 'payload' => ['_quote' => [
+            'items' => [['name' => 'تجهيز المتجر', 'qty' => 1, 'price' => 20000]],
+            'vat_percent' => 0, 'currency' => 'ج.م', 'valid_days' => 30,
+            'issued_at' => now()->toIso8601String(),
+        ]],
+    ]);
+
+    Livewire\Livewire::test(QuoteRequests::class)->call('sendReminder', $noEmail->id);
+
+    Mail::assertNotSent(StageMessage::class);
+});
+
+it('يعرض قالب تذكير عرض السعر في محرّر قوالب البريد ويسمح بتعديله', function () {
+    $this->actingAs(adminUser());
+
+    Livewire\Livewire::test(EmailTemplates::class)
+        ->call('select', 'awaiting_approval')
+        ->assertSet('stage', 'awaiting_approval')
+        ->assertSet('subject', 'بخصوص عرض السعر — {الرقم_المرجعي}')
+        ->set('subject', 'تذكير: عرضك لا يزال بانتظارك — {الرقم_المرجعي}')
+        ->call('save')
+        ->assertSet('subject', 'تذكير: عرضك لا يزال بانتظارك — {الرقم_المرجعي}');
+
+    expect(MailTemplates::subject('awaiting_approval'))
+        ->toBe('تذكير: عرضك لا يزال بانتظارك — {الرقم_المرجعي}');
 });
 
 it('يحفظ عرض السعر دون إرسال بريد عند الطلب', function () {
