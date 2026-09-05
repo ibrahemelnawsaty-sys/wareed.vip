@@ -418,6 +418,9 @@
 
                     <div class="wq-quote-badge">
                         <x-filament::badge color="success">صدر عرض السعر</x-filament::badge>
+                        @if ($r['quote']['version'] > 1)
+                            <x-filament::badge color="warning">الإصدار {{ $r['quote']['version'] }} — مُحدَّث</x-filament::badge>
+                        @endif
                         <span class="amt">
                             {{ number_format($r['quote']['total'], $r['quote']['total'] == (int) $r['quote']['total'] ? 0 : 2) }}
                             {{ $r['quote']['currency'] }}

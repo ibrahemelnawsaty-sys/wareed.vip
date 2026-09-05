@@ -70,6 +70,25 @@
         .refbar-qr { flex: 0 0 auto; padding: 2.8mm; border-inline-start: 1px solid var(--line); background: #fbfcfe; display: flex; flex-direction: column; align-items: center; gap: 1mm; }
         .refbar-qr .qr { width: 19mm; height: 19mm; display: block; }
         .refbar-qr .cap { font-size: 6.2pt; color: var(--faint); }
+        .refbar-ver { margin-top: 1.6mm; font-size: 7.6pt; font-weight: 700; color: var(--faint); }
+        .refbar-ver b { color: var(--ink); font-variant-numeric: tabular-nums; }
+        .refbar-ver .tag {
+            display: inline-block; margin-inline-start: 1.4mm; padding: .5mm 2.4mm; border-radius: 99px;
+            font-size: 6.8pt; font-weight: 700; color: var(--blue);
+            background: rgba(37, 99, 235, .09); border: 1px solid rgba(37, 99, 235, .28);
+        }
+
+        /* تنويه إعادة الإصدار: يظهر فقط من الإصدار الثاني فصاعداً */
+        .revision {
+            margin-top: 4mm; padding: 3.4mm 5mm; border-radius: 3mm; position: relative; overflow: hidden;
+            background: rgba(37, 99, 235, .045); border: 1px solid rgba(37, 99, 235, .22);
+        }
+        .revision::before { content: ""; position: absolute; inset-block: 0; inset-inline-start: 0; width: 1.1mm; background: var(--blue); }
+        .revision-badge {
+            display: inline-block; margin-bottom: 1.2mm; padding: .8mm 3mm; border-radius: 99px;
+            font-size: 7.4pt; font-weight: 700; color: #fff; background: var(--blue);
+        }
+        .revision p { font-size: 8.2pt; color: var(--ink); line-height: 1.7; }
 
         .parties { margin-top: 5mm; display: grid; grid-template-columns: 1fr 1fr; gap: 4mm; }
         .party { border: 1px solid var(--line); border-radius: 3mm; overflow: hidden; }
@@ -420,6 +439,8 @@
             .note-list li, .term-box p, .opt-note { font-size: 9.4pt; }
             .bank .brow { font-size: 9.2pt; }
             .refbar-num { font-size: 14pt; }
+            .revision-badge { font-size: 8.4pt; }
+            .revision p { font-size: 9.6pt; }
         }
     </style>
 </head>
@@ -474,6 +495,10 @@
         <div class="refbar-main">
             <div class="refbar-label">الرقم المرجعي · REFERENCE No.</div>
             <div class="refbar-num">{{ $sr->reference }}</div>
+            <div class="refbar-ver">
+                الإصدار <b>{{ $quote['version'] }}</b>
+                @if ($quote['version'] > 1)<span class="tag">مُحدَّث</span>@endif
+            </div>
         </div>
         <div class="refbar-meta">
             <div>تاريخ العرض: <b>{{ $fmt($issued) }}</b></div>
@@ -485,6 +510,20 @@
             <span class="cap">امسح للتحقق</span>
         </div>
     </section>
+
+    @if ($quote['version'] > 1)
+        <section class="revision" data-pg-unit="revision">
+            <span class="revision-badge">الإصدار {{ $quote['version'] }} — عرض مُحدَّث</span>
+            <p>
+                @if (($decision['choice'] ?? null) === 'discount')
+                    هذا عرض مُحدَّث بعد طلبك تخفيضاً على السعر السابق، ويحلّ محلّه بالكامل —
+                @else
+                    هذا عرض مُحدَّث يحلّ محلّ أي عرض سابق وصلك على هذا الطلب —
+                @endif
+                يرجى مراجعة البنود والإجمالي الجديدين أدناه قبل اتخاذ قرارك.
+            </p>
+        </section>
+    @endif
 
     <section class="parties" data-pg-unit="parties">
         <div class="party to">
@@ -1023,7 +1062,7 @@
     var REFERENCE = @json($sr->reference);
     var CONTACT_EMAIL = @json($contactEmail);
 
-    var UNITS_BEFORE_ITEMS = ['head', 'refbar', 'parties', 'items-title'];
+    var UNITS_BEFORE_ITEMS = ['head', 'refbar', 'revision', 'parties', 'items-title'];
     var UNITS_AFTER_ITEMS = ['totals', 'extras', 'schedule', 'payments', 'terms', 'footer'];
 
     function fits(body) {

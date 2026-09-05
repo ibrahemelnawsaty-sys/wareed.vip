@@ -125,6 +125,94 @@ it('يُصدر عرض السعر من اللوحة ويرسله للعميل ب�
     );
 });
 
+it('يزيد رقم إصدار العرض عند إعادة إصداره بعد طلب تخفيض، ويوضّح ذلك في البريد', function () {
+    Mail::fake();
+    $this->actingAs(adminUser());
+
+    $sr = ServiceRequest::create([
+        'service_type' => 'ecommerce', 'name' => 'أ. هاجر سلامة',
+        'phone' => '00201016031031', 'email' => 'hagersalma89@gmail.com', 'company' => 'متجر حواديت',
+        'status' => 'new', 'source' => 'quote_link:hajar-salama', 'payload' => [],
+    ]);
+
+    // الإصدار الأول
+    Livewire\Livewire::test(QuoteRequests::class)
+        ->call('openQuote', $sr->id)
+        ->set('draft.items.0.name', 'تجهيز المتجر')
+        ->set('draft.items.0.price', 20000)
+        ->call('issueQuote', true);
+
+    expect(QuoteController::quoteOf($sr->fresh())['version'])->toBe(1);
+
+    Mail::assertSent(QuoteProposalIssued::class, function ($mail) {
+        // لا سابقة "(مُحدَّث)" على الإصدار الأول
+        return ! str_starts_with($mail->envelope()->subject, '(مُحدَّث)');
+    });
+
+    // العميل يطلب تخفيضاً على السعر الحالي — نقرأ الحمولة الفعلية أولاً كي لا نمحو
+    // عرض السعر الذي حُفظ للتوّ داخل مكوّن Livewire منفصل عن هذا الكائن في الذاكرة
+    $sr = $sr->fresh();
+    $sr->update(['payload' => array_merge((array) $sr->payload, [
+        '_decision' => ['choice' => 'discount', 'note' => 'ميزانيتي أقل', 'at' => now()->toIso8601String()],
+    ])]);
+
+    // الفريق يراجع السعر ويُصدر عرضاً محدَّثاً
+    Livewire\Livewire::test(QuoteRequests::class)
+        ->call('openQuote', $sr->id)
+        ->set('draft.items.0.price', 16000)
+        ->call('issueQuote', true);
+
+    $quote = QuoteController::quoteOf($sr->fresh());
+    expect($quote['version'])->toBe(2)
+        // السعر الجديد + ضريبة 14% الافتراضية المحمولة من الإصدار الأول
+        ->and($quote['total'])->toBe(18240.0);
+
+    Mail::assertSent(QuoteProposalIssued::class, function ($mail) use ($sr) {
+        $html = $mail->render();
+
+        return str_starts_with($mail->envelope()->subject, '(مُحدَّث)')
+            // البريد يوضّح أن هذا عرض محدَّث بعد طلب التخفيض تحديداً
+            && str_contains($html, 'الإصدار 2')
+            && str_contains($html, 'بعد طلبك تخفيضاً')
+            && str_contains($html, QuoteController::proposalUrl($sr));
+    });
+});
+
+it('لا يزيد رقم إصدار العرض عند حفظ مسودّة دون إرسال أو عند إعادة إرسال العرض نفسه دون تعديل', function () {
+    Mail::fake();
+    $this->actingAs(adminUser());
+
+    $sr = ServiceRequest::create([
+        'service_type' => 'ecommerce', 'name' => 'عميل', 'phone' => '—', 'email' => 'c@example.com',
+        'status' => 'new', 'source' => 'quote_form', 'payload' => [],
+    ]);
+
+    Livewire\Livewire::test(QuoteRequests::class)
+        ->call('openQuote', $sr->id)
+        ->set('draft.items.0.name', 'تجهيز المتجر')
+        ->set('draft.items.0.price', 10000)
+        ->call('issueQuote', true);
+
+    expect(QuoteController::quoteOf($sr->fresh())['version'])->toBe(1);
+
+    // حفظ تعديل بسيط دون إرسال — لا يُعدّ إصداراً جديداً
+    Livewire\Livewire::test(QuoteRequests::class)
+        ->call('openQuote', $sr->id)
+        ->set('draft.items.0.desc', 'وصف إضافي')
+        ->call('issueQuote', false);
+
+    expect(QuoteController::quoteOf($sr->fresh())['version'])->toBe(1);
+
+    // إعادة إرسال العرض كما هو عبر الزر المخصّص — لا يُعدّ إصداراً جديداً أيضاً
+    Livewire\Livewire::test(QuoteRequests::class)->call('sendQuote', $sr->id);
+
+    expect(QuoteController::quoteOf($sr->fresh())['version'])->toBe(1);
+
+    Mail::assertSent(QuoteProposalIssued::class, function ($mail) {
+        return ! str_starts_with($mail->envelope()->subject, '(مُحدَّث)');
+    });
+});
+
 it('يُعيد إرسال عرض السعر الصادر إلى العميل عبر زر إرسال عرض السعر', function () {
     Mail::fake();
     $this->actingAs(adminUser());

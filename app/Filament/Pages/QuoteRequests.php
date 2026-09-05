@@ -447,6 +447,11 @@ class QuoteRequests extends Page
         }
 
         $payload = (array) $sr->payload;
+        $prevQuote = $payload['_quote'] ?? [];
+        // إصدار جديد: أول عرض يُنشأ، أو كل إصدار فعلي (send=true) — لا عند مجرد حفظ مسوّدة.
+        // نفس شرط تحديث issued_at أدناه بالضبط، فكلاهما يعبّران عن المعنى نفسه: عرض جديد وصل العميل.
+        $isReissue = ! isset($prevQuote['issued_at']) || $send;
+
         $payload['_quote'] = [
             'items' => array_map(fn ($i) => [
                 'phase' => trim((string) ($i['phase'] ?? '')),
@@ -499,9 +504,12 @@ class QuoteRequests extends Page
                 $this->draft['payments'] ?? [],
                 fn ($p) => trim((string) ($p['label'] ?? '')) !== '' && (float) ($p['percent'] ?? 0) > 0
             ))),
-            'issued_at' => ($payload['_quote']['issued_at'] ?? null) && ! $send
-                ? $payload['_quote']['issued_at']
-                : now()->toIso8601String(),
+            'issued_at' => $isReissue ? now()->toIso8601String() : $prevQuote['issued_at'],
+            // رقم إصدار العرض: يظهر في المستند والبريد عند إعادة الإصدار (بعد طلب تخفيض مثلاً)
+            // ليتضح للعميل أن هذا سعر مُحدَّث لا تكرار لما رآه سابقاً.
+            'version' => $isReissue
+                ? (int) ($prevQuote['version'] ?? 0) + 1
+                : max(1, (int) ($prevQuote['version'] ?? 1)),
         ];
 
         // إصدار العرض ينقل مسار الطلب تلقائياً إلى مرحلة اعتماد العميل
