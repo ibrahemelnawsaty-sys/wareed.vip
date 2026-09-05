@@ -11,7 +11,12 @@
 @if ($sum)
     <div style="border-top:1px solid #eef2fa;margin-top:22px;padding-top:4px;"></div>
 
-    <p style="{{ $cap }}">بنود العرض</p>
+    <p style="{{ $cap }}">
+        بنود العرض
+        @if ($sum['version'] > 1)
+            <span style="font-weight:normal;font-size:11px;color:#2563eb;"> · الإصدار {{ $sum['version'] }} (مُحدَّث)</span>
+        @endif
+    </p>
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
            style="border-collapse:collapse;border:1px solid #eef2fa;border-radius:8px;overflow:hidden;">
         <tr>

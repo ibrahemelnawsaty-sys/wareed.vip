@@ -7,6 +7,27 @@
 
     <h2 style="margin:0 0 14px;font-size:20px;color:#0d1830;">عرض سعر متجرك الإلكتروني</h2>
 
+    @if ($quote['version'] > 1)
+        @php $decision = \App\Http\Controllers\QuoteController::decisionOf($sr); @endphp
+        <table role="presentation" width="100%" style="border-collapse:collapse;margin:0 0 18px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:12px;">
+            <tr>
+                <td style="padding:14px 18px;">
+                    <span style="display:inline-block;margin-bottom:8px;padding:3px 11px;border-radius:99px;font-size:11px;font-weight:bold;color:#ffffff;background:#2563eb;">
+                        الإصدار {{ $quote['version'] }} — عرض مُحدَّث
+                    </span>
+                    <p style="margin:0;font-size:13px;color:#0d1830;line-height:1.8;">
+                        @if (($decision['choice'] ?? null) === 'discount')
+                            هذا عرضك المُحدَّث بعد طلبك تخفيضاً على السعر السابق، ويحلّ محلّه بالكامل.
+                        @else
+                            هذا عرضك المُحدَّث، ويحلّ محلّ أي عرض سابق وصلك على هذا الطلب.
+                        @endif
+                        راجع البنود والإجمالي الجديدين أدناه.
+                    </p>
+                </td>
+            </tr>
+        </table>
+    @endif
+
     {{-- المقدّمة قابلة للتعديل من: لوحة التحكم ← قوالب البريد الإلكتروني ← إرسال عرض السعر --}}
     {!! \App\Support\MailTemplates::html(\App\Support\MailTemplates::render(
         \App\Support\MailTemplates::body('proposal_sent'),
@@ -49,7 +70,7 @@
     <p style="text-align:center;margin:0 0 20px;">
         <a href="{{ $proposalUrl }}"
            style="display:inline-block;background:#2563eb;color:#ffffff;text-decoration:none;font-weight:bold;font-size:15px;padding:13px 30px;border-radius:10px;">
-            عرض السعر التفصيلي وتحميله PDF
+            {{ $quote['version'] > 1 ? 'عرض السعر المُحدَّث وتحميله PDF' : 'عرض السعر التفصيلي وتحميله PDF' }}
         </a>
     </p>
 

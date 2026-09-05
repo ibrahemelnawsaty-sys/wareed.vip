@@ -26,14 +26,23 @@ class QuoteProposalIssued extends Mailable
     {
         $from = (string) setting('contact_email', 'info@wareed.vip');
 
+        // العنوان قابل للتعديل من: لوحة التحكم ← قوالب البريد الإلكتروني ← إرسال عرض السعر
+        $subject = MailTemplates::render(
+            MailTemplates::subject('proposal_sent'),
+            MailTemplates::variables($this->sr),
+        );
+
+        // من الإصدار الثاني فصاعداً (بعد طلب تخفيض مثلاً) نُميّز العنوان في صندوق الوارد
+        // قبل أن يفتح العميل الرسالة أصلاً، فوق التوضيح الكامل داخل جسمها.
+        $quote = QuoteController::quoteOf($this->sr);
+        if ($quote && $quote['version'] > 1) {
+            $subject = '(مُحدَّث) '.$subject;
+        }
+
         return new Envelope(
             from: new Address($from, 'وريد لتقنية المعلومات'),
             replyTo: [new Address($from, 'وريد لتقنية المعلومات')],
-            // العنوان قابل للتعديل من: لوحة التحكم ← قوالب البريد الإلكتروني ← إرسال عرض السعر
-            subject: MailTemplates::render(
-                MailTemplates::subject('proposal_sent'),
-                MailTemplates::variables($this->sr),
-            ),
+            subject: $subject,
         );
     }
 

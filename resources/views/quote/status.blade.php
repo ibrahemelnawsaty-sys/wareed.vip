@@ -265,6 +265,7 @@
                     <span class="qmeta">
                         {{ count($quote['items']) }} بنود · صالح حتى {{ $quote['valid_until']->format('Y/m/d') }}
                         @if ($quote['timeline']) · مدة التنفيذ: {{ $quote['timeline'] }} @endif
+                        @if ($quote['version'] > 1) · الإصدار {{ $quote['version'] }} (مُحدَّث) @endif
                     </span>
                 </div>
                 <a class="btn btn-primary" href="{{ route('quote.proposal', $inviteSlug) }}" target="_blank" rel="noopener">

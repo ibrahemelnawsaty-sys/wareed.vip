@@ -597,6 +597,9 @@ class QuoteController extends Controller
             'valid_days' => max(1, (int) ($q['valid_days'] ?? 30)),
             'issued_at' => $issuedAt,
             'valid_until' => $issuedAt->copy()->addDays(max(1, (int) ($q['valid_days'] ?? 30))),
+            // رقم إصدار العرض: يزيد مع كل إعادة إصدار فعلية. العروض الصادرة قبل هذا التغيير
+            // لا تحمل القيمة فتُقرأ كإصدار أول (توافق خلفي).
+            'version' => max(1, (int) ($q['version'] ?? 1)),
         ];
     }
 
