@@ -404,19 +404,25 @@ class QuoteRequests extends Page
     /** مجاميع المسوّدة لعرضها مباشرة أثناء التحرير. */
     public function getDraftTotalsProperty(): array
     {
+        return $this->totalsOf($this->draft);
+    }
+
+    /** مجاميع مسوّدة بعينها — تُحسب مباشرة بلا حفظ، فتصلح للعرض ولاشتقاق النسب من القيم. */
+    private function totalsOf(array $draft): array
+    {
         $subtotal = 0.0;
 
-        foreach ($this->draft['items'] ?? [] as $item) {
+        foreach ($draft['items'] ?? [] as $item) {
             if ($item['free'] ?? false) {
                 continue;
             }
             $subtotal += max(1, (int) ($item['qty'] ?? 1)) * max(0, (float) ($item['price'] ?? 0));
         }
 
-        $discountPercent = max(0, min(100, (float) ($this->draft['discount_percent'] ?? 0)));
+        $discountPercent = max(0, min(100, (float) ($draft['discount_percent'] ?? 0)));
         $discount = round($subtotal * $discountPercent / 100, 2);
         $afterDiscount = $subtotal - $discount;
-        $vat = round($afterDiscount * max(0, (float) ($this->draft['vat_percent'] ?? 0)) / 100, 2);
+        $vat = round($afterDiscount * max(0, (float) ($draft['vat_percent'] ?? 0)) / 100, 2);
 
         $total = $afterDiscount + $vat;
 
@@ -424,17 +430,17 @@ class QuoteRequests extends Page
             'label' => (string) ($p['label'] ?? ''),
             'percent' => (float) ($p['percent'] ?? 0),
             'amount' => round($total * max(0, (float) ($p['percent'] ?? 0)) / 100, 2),
-        ], $this->draft['payments'] ?? []);
+        ], $draft['payments'] ?? []);
 
         // إجماليات الخدمات الاختيارية تُعرض وحدها ولا تمسّ الإجمالي المستحق
         $extrasSubtotal = 0.0;
-        foreach ($this->draft['extras'] ?? [] as $extra) {
+        foreach ($draft['extras'] ?? [] as $extra) {
             $extrasSubtotal += max(1, (int) ($extra['qty'] ?? 1)) * max(0, (float) ($extra['price'] ?? 0));
         }
 
-        $extrasDiscountPercent = max(0, min(100, (float) ($this->draft['extras_discount_percent'] ?? 0)));
+        $extrasDiscountPercent = max(0, min(100, (float) ($draft['extras_discount_percent'] ?? 0)));
         $extrasDiscount = round($extrasSubtotal * $extrasDiscountPercent / 100, 2);
-        $extrasVatPercent = max(0, (float) ($this->draft['extras_vat_percent'] ?? 0));
+        $extrasVatPercent = max(0, (float) ($draft['extras_vat_percent'] ?? 0));
         $extrasVat = round(($extrasSubtotal - $extrasDiscount) * $extrasVatPercent / 100, 2);
         $extrasTotal = $extrasSubtotal - $extrasDiscount + $extrasVat;
 
@@ -448,10 +454,50 @@ class QuoteRequests extends Page
             'extras_total' => $extrasTotal,
             'vat' => $vat,
             'total' => $total,
-            'currency' => $this->draft['currency'] ?? 'ج.م',
+            'currency' => $draft['currency'] ?? 'ج.م',
             'payments' => $payments,
             'payments_percent' => array_sum(array_column($payments, 'percent')),
         ];
+    }
+
+    /**
+     * النسبة المقابلة لقيمة من أصل — المخزَّن دائماً نسبة، والقيمة مجرد طريقة إدخال لها.
+     *
+     * تُحفظ بستّ منازل عشرية لا منزلتين: منزلتان تعنيان أن أصغر خطوة في الخصم تساوي
+     * جزءاً من عشرة آلاف من الإجمالي (جنيهاً كاملاً في عرض بعشرين ألفاً)، فيتعذّر ضبط
+     * الإجمالي على رقم متفق عليه بالضبط. ستّ منازل تُعيد القيمة كما كُتبت حتى القرش.
+     */
+    private function percentOf(mixed $amount, float $base): float
+    {
+        $amount = max(0, (float) $amount);
+
+        if ($base <= 0) {
+            return 0.0;
+        }
+
+        return round(min($amount, $base) / $base * 100, 6);
+    }
+
+    /** كتابة قيمة الخصم بدل نسبته — تُشتقّ منها النسبة وتُحدَّث المجاميع فوراً. */
+    public function setDiscountAmount(mixed $amount): void
+    {
+        $this->draft['discount_percent'] = $this->percentOf($amount, $this->totalsOf($this->draft)['subtotal']);
+    }
+
+    /** كتابة قيمة خصم الباقات الاختيارية بدل نسبته. */
+    public function setExtrasDiscountAmount(mixed $amount): void
+    {
+        $this->draft['extras_discount_percent'] = $this->percentOf($amount, $this->totalsOf($this->draft)['extras_subtotal']);
+    }
+
+    /** كتابة قيمة الدفعة بدل نسبتها — النسبة من الإجمالي المستحق (وهو لا يتأثر بالدفعات). */
+    public function setPaymentAmount(int $index, mixed $amount): void
+    {
+        if (! isset($this->draft['payments'][$index])) {
+            return;
+        }
+
+        $this->draft['payments'][$index]['percent'] = $this->percentOf($amount, $this->totalsOf($this->draft)['total']);
     }
 
     /**

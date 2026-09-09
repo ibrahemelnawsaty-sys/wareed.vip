@@ -9,7 +9,7 @@
     $fmtShort = fn ($d) => $d->day.' '.$months[(int) $d->month].' '.$d->year.'م';
     $cur = $quote['currency'];
     $money = fn ($n) => number_format((float) $n, ((float) $n == (int) $n) ? 0 : 2);
-    $pct = fn ($n) => rtrim(rtrim(number_format((float) $n, 2), '0'), '.');
+    $pct = fn ($n) => rtrim(rtrim(number_format((float) $n, 4), '0'), '.');
     $contactEmail = setting('contact_email', 'info@wareed.vip');
     $contactPhone = setting('contact_phone', '+201055789056');
     $legalName = setting('legal_name');

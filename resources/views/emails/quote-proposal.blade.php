@@ -69,7 +69,7 @@
                     <td style="padding:8px 10px;border-bottom:1px solid #eef2fa;font-size:12px;{{ $vStyle }}">{{ number_format($ver['subtotal'], ($ver['subtotal'] == (int) $ver['subtotal']) ? 0 : 2) }} {{ $ver['currency'] }}</td>
                     <td style="padding:8px 10px;border-bottom:1px solid #eef2fa;font-size:12px;{{ $vStyle }}">
                         @if ($ver['discount'] > 0)
-                            {{ rtrim(rtrim(number_format($ver['discount_percent'], 2), '0'), '.') }}% — {{ number_format($ver['discount'], ($ver['discount'] == (int) $ver['discount']) ? 0 : 2) }} {{ $ver['currency'] }}
+                            {{ rtrim(rtrim(number_format($ver['discount_percent'], 4), '0'), '.') }}% — {{ number_format($ver['discount'], ($ver['discount'] == (int) $ver['discount']) ? 0 : 2) }} {{ $ver['currency'] }}
                         @else
                             بلا خصم
                         @endif
