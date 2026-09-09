@@ -436,7 +436,8 @@ it('يرفض إرسال تذكير لطلب بلا عرض سعر صادر أو �
 
     Livewire\Livewire::test(QuoteRequests::class)->call('sendReminder', $noEmail->id);
 
-    Mail::assertNotSent(StageMessage::class);
+    // لا تذكير في الحالتين — بريد استلام الطلب عند إنشائه لا يُحتسب
+    Mail::assertNotSent(StageMessage::class, fn ($mail) => str_contains($mail->subjectLine, 'بخصوص عرض السعر'));
 });
 
 it('يعرض قالب تذكير عرض السعر في محرّر قوالب البريد ويسمح بتعديله', function () {

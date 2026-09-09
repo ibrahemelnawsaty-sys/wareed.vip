@@ -50,6 +50,12 @@ Route::get('/quote/contract/{serviceRequest}', [ContractController::class, 'revi
     ->middleware('signed')->name('quote.contract.signed');
 Route::post('/quote/contract/{serviceRequest}', [ContractController::class, 'decisionSigned'])
     ->middleware(['signed', 'throttle:10,1'])->name('quote.contract.decision.signed');
+// النسخة الموقّعة من العقد: يرفع العميل نسخته بعد استلام نسخة الشركة الموقّعة
+Route::post('/quote/contract/{serviceRequest}/copy', [ContractController::class, 'signedCopySigned'])
+    ->middleware(['signed', 'throttle:10,1'])->name('quote.contract.copy.signed');
+// صفحة متابعة الطلب (المراحل والعدّاد والروابط) عبر رابط موقّع — لعملاء الخدمات الثلاث بلا رابط مخصّص
+Route::get('/quote/status/{serviceRequest}', [QuoteController::class, 'statusSigned'])
+    ->middleware('signed')->name('quote.status.signed');
 Route::get('/quote/{invite}', [QuoteController::class, 'show'])->name('quote.invite');
 Route::post('/quote/{invite}', [QuoteController::class, 'submit'])
     ->middleware('throttle:10,1')->name('quote.invite.submit');
@@ -65,6 +71,8 @@ Route::post('/quote/{invite}/requirements', [QuoteController::class, 'requiremen
 Route::get('/quote/{invite}/contract', [ContractController::class, 'review'])->name('quote.contract');
 Route::post('/quote/{invite}/contract', [ContractController::class, 'decision'])
     ->middleware('throttle:10,1')->name('quote.contract.decision');
+Route::post('/quote/{invite}/contract/copy', [ContractController::class, 'signedCopy'])
+    ->middleware('throttle:10,1')->name('quote.contract.copy');
 // اختصار شخصي يُشارك مع العميلة مباشرة
 Route::redirect('/hajar-salama', '/quote/hajar-salama');
 

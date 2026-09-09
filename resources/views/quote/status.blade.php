@@ -1,9 +1,9 @@
 {{--
-    صفحة حالة الطلب — تُعرض للعميل عند فتح رابطه المخصّص بعد إرسال طلبه.
-    الرابط يقبل طلباً واحداً فقط، فتحلّ هذه الصفحة محل النموذج.
+    صفحة حالة الطلب — تُعرض للعميل عند فتح رابطه المخصّص بعد إرسال طلبه (الرابط يقبل
+    طلباً واحداً فتحلّ هذه الصفحة محل النموذج)، أو عبر رابطه الموقّع لعملاء الخدمات الثلاث.
 --}}
 @php
-    $f = ($client['gender'] ?? null) === 'f';
+    $shortName = $client['short_name'] ?? $sr->name;
     $issued = $sr->created_at;
     $months = [1=>'يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
     $fmt = fn ($d) => $d->day.' '.$months[(int) $d->month].' '.$d->year.' — '.$d->format('H:i');
@@ -211,7 +211,7 @@
         </svg>
         <span class="grad-text">وريد</span>
     </a>
-    <span class="top-tag"><svg class="ic" style="width:15px;height:15px"><use href="#i-document"/></svg> حالة طلب المتجر</span>
+    <span class="top-tag"><svg class="ic" style="width:15px;height:15px"><use href="#i-document"/></svg> حالة الطلب · {{ $profile['label'] }}</span>
 </header>
 
 <main class="wrap">
@@ -219,16 +219,7 @@
         @php
             $stage = $flow['stage'];
             $stageInfo = $stages[$stage];
-            $headline = match ($stage) {
-                'awaiting_meeting' => 'تم استلام طلبك يا',
-                'meeting_scheduled' => 'اجتماعنا محدّد يا',
-                'quote_due' => 'نجهّز عرض سعرك الآن يا',
-                'awaiting_approval' => 'عرض سعر متجرك جاهز يا',
-                'awaiting_contract' => 'اعتُمد عرض متجرك يا',
-                'awaiting_requirements' => 'اعتُمد عقد متجرك يا',
-                'in_progress' => 'بدأ تنفيذ متجرك يا',
-                'delivered' => 'تم تسليم متجرك يا',
-            };
+            $headline = $profile['headlines'][$stage] ?? 'حالة طلبك يا';
         @endphp
 
         <div class="seal"><svg class="ic"><use href="#i-{{ $stageInfo['icon'] }}"/></svg></div>
@@ -238,7 +229,7 @@
             @endif
             {{ $stageInfo['label'] }}
         </span>
-        <h1>{{ $headline }} <span class="grad-text">{{ $client['short_name'] }}</span></h1>
+        <h1>{{ $headline }} <span class="grad-text">{{ $shortName }}</span></h1>
         <p class="lead">{{ $stageInfo['client'] }}</p>
 
         <div class="ref-box">
@@ -251,7 +242,7 @@
             <div class="meet-card">
                 <svg class="ic"><use href="#i-calendar"/></svg>
                 <div>
-                    <span class="ml">موعد الاجتماع التعريفي</span>
+                    <span class="ml">موعد {{ $stages['meeting_scheduled']['label'] }}</span>
                     <b class="mv">{{ $fmt($flow['meeting_at']) }}</b>
                 </div>
             </div>
@@ -269,7 +260,7 @@
                         @if ($quote['version'] > 1) · الإصدار {{ $quote['version'] }} (مُحدَّث) @endif
                     </span>
                 </div>
-                <a class="btn btn-primary" href="{{ route('quote.proposal', $inviteSlug) }}" target="_blank" rel="noopener">
+                <a class="btn btn-primary" href="{{ $proposalUrl }}" target="_blank" rel="noopener">
                     <svg class="ic"><use href="#i-download"/></svg> استعراض عرض السعر وتحميله
                 </a>
             </div>
@@ -284,7 +275,11 @@
                         <small dir="ltr">{{ $contract['number'] }}</small>
                     </b>
                     <span class="qmeta">
-                        @if ($contract['is_approved'])
+                        @if ($contract['fully_signed'])
+                            {{ $contract['count'] }} بنداً · اكتمل توقيع العقد من الطرفين — أصبح العقد نافذاً
+                        @elseif ($contract['is_approved'] && $contract['signed']['company'])
+                            {{ $contract['count'] }} بنداً · وصلتك النسخة الموقّعة من الشركة — حمّلها ووقّعها ثم ارفع نسختك الموقّعة
+                        @elseif ($contract['is_approved'])
                             {{ $contract['count'] }} بنداً · اعتُمد {{ $contract['approved_at']?->format('Y/m/d') }} — ستصلك نسخة موقّعة من الشركة للتوقيع
                         @elseif ($contract['status'] === 'feedback')
                             وصلت ملاحظاتك لفريق وريد — تصلك النسخة المعدَّلة قريباً
@@ -295,7 +290,10 @@
                 </div>
                 <a class="btn btn-primary" href="{{ $contractUrl }}" target="_blank" rel="noopener">
                     <svg class="ic"><use href="#i-{{ $contract['is_approved'] ? 'download' : 'edit' }}"/></svg>
-                    {{ $contract['is_approved'] ? 'استعراض العقد وتحميله' : 'مراجعة العقد الآن' }}
+                    @if (! $contract['is_approved']) مراجعة العقد الآن
+                    @elseif ($contract['signed']['company'] && ! $contract['signed']['client']) رفع نسختك الموقّعة
+                    @else استعراض العقد وتحميله
+                    @endif
                 </a>
             </div>
         @endif
@@ -304,12 +302,12 @@
             <div class="quote-card">
                 <div class="quote-total">
                     <span class="ql">الخطوة التالية</span>
-                    <b class="qv" style="font-size:1.15rem">ارفع متطلبات مشروعك</b>
+                    <b class="qv" style="font-size:1.15rem">{{ $profile['requirements']['cta'] }}</b>
                     <span class="qmeta">
                         @if (count($requirements))
                             رُفع {{ count($requirements) }} ملف حتى الآن — يمكنك إضافة المزيد
                         @else
-                            ملفات الهوية البصرية وبيانات المنتجات لتنطلق مرحلة التنفيذ
+                            {{ $profile['requirements']['short'] }}
                         @endif
                     </span>
                 </div>
@@ -323,7 +321,7 @@
             <div class="timer-title">
                 <svg class="ic"><use href="#i-clock"/></svg>
                 <span data-timer-title>
-                    {{ $flow['stage'] === 'in_progress' ? 'الوقت المتبقي لتسليم المتجر' : 'الوقت المتبقي لتسليم عرض السعر' }}
+                    {{ $flow['stage'] === 'in_progress' ? $profile['countdown_label'] : 'الوقت المتبقي لتسليم عرض السعر' }}
                 </span>
             </div>
             <div class="timer" data-timer
@@ -398,11 +396,11 @@
         </details>
 
         <div class="actions">
-            <a class="btn btn-primary" href="{{ route('quote.document', $inviteSlug) }}" target="_blank" rel="noopener">
+            <a class="btn btn-primary" href="{{ $documentUrl }}" target="_blank" rel="noopener">
                 <svg class="ic"><use href="#i-download"/></svg> تحميل مستند الطلب (PDF)
             </a>
             <a class="btn btn-wa" target="_blank" rel="noopener"
-               href="https://wa.me/{{ $whatsapp }}?text={{ rawurlencode('مرحباً فريق وريد، بخصوص طلب المتجر رقم '.$sr->reference) }}">
+               href="https://wa.me/{{ $whatsapp }}?text={{ rawurlencode('مرحباً فريق وريد، بخصوص الطلب رقم '.$sr->reference) }}">
                 <svg class="ic"><use href="#i-whatsapp"/></svg> استفسار عبر واتساب
             </a>
             <a class="btn btn-ghost" href="{{ url('/') }}">موقع وريد</a>

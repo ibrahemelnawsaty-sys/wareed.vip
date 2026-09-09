@@ -5,6 +5,7 @@ namespace App\Support;
 use App\Http\Controllers\QuoteController;
 use App\Mail\StageMessage;
 use App\Models\ServiceRequest;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
@@ -50,6 +51,17 @@ class Contracts
 
     /** أقصى طول لملاحظة العميل على البند الواحد. */
     public const NOTE_MAX = 2000;
+
+    /** أقصى حجم للنسخة الموقّعة من العقد (كيلوبايت) وامتداداتها المقبولة. */
+    public const SIGNED_MAX_KB = 10240;
+
+    public const SIGNED_MIMES = 'pdf,jpg,jpeg,png';
+
+    /** طرفا التوقيع على النسخة الموقّعة بعد الاعتماد الإلكتروني للبنود. */
+    public const SIGNED_PARTIES = [
+        'company' => 'النسخة الموقّعة من الشركة',
+        'client' => 'النسخة الموقّعة من العميل',
+    ];
 
     /** تحويل تاريخ مخزّن نصاً إلى Carbon، وتجاهل الفارغ أو غير الصالح بلا استثناء. */
     private static function parseDate(mixed $value): ?Carbon
@@ -98,7 +110,23 @@ class Contracts
         $objections = array_values(array_filter($clauses, fn ($cl) => in_array($cl['decision'], ['edited', 'deleted'], true)));
         $approved = array_values(array_filter($clauses, fn ($cl) => $cl['decision'] === 'approved'));
 
+        // النسخ الموقّعة بعد الاعتماد: من الشركة أولاً (تُرسل للعميل مرفقة) ثم من العميل
+        $signed = [
+            'company' => self::signedFile($c['signed']['company'] ?? null),
+            'client' => self::signedFile($c['signed']['client'] ?? null),
+            'sent_at' => self::parseDate($c['signed']['sent_at'] ?? null),
+        ];
+        $fullySigned = $signed['company'] !== null && $signed['client'] !== null;
+
         return [
+            'signed' => $signed,
+            'fully_signed' => $fullySigned,
+            'signing_label' => match (true) {
+                $status !== 'approved' => null,
+                $fullySigned => 'موقّع من الطرفين',
+                $signed['company'] !== null => 'موقّع من الشركة — بانتظار توقيع العميل',
+                default => 'بانتظار النسخة الموقّعة من الشركة',
+            },
             'number' => (string) ($c['number'] ?? ''),
             'status' => $status,
             'status_label' => self::STATUSES[$status],
@@ -125,6 +153,141 @@ class Contracts
                 'outcome' => in_array($r['outcome'] ?? null, ['approved', 'feedback'], true) ? $r['outcome'] : null,
             ], array_filter((array) ($c['rounds'] ?? []), 'is_array'))),
         ];
+    }
+
+    /** ملف نسخة موقّعة كما هو محفوظ، برابط تنزيل مؤقّت — أو null إن لم يُرفع بعد. */
+    private static function signedFile(mixed $file): ?array
+    {
+        $path = is_array($file) ? trim((string) ($file['path'] ?? '')) : '';
+
+        if ($path === '') {
+            return null;
+        }
+
+        $size = (int) ($file['size'] ?? 0);
+
+        return [
+            'name' => (string) (($file['name'] ?? '') ?: basename($path)),
+            'path' => $path,
+            'size' => $size,
+            'size_h' => $size >= 1048576
+                ? number_format($size / 1048576, 1).' م.ب'
+                : max(1, (int) round($size / 1024)).' ك.ب',
+            'uploaded_at' => self::parseDate($file['uploaded_at'] ?? null),
+            'url' => rescue(fn () => Storage::disk('local')->temporaryUrl($path, now()->addHours(6)), null, false),
+        ];
+    }
+
+    /**
+     * حفظ نسخة موقّعة من العقد المعتمد (من الشركة، أو من العميل) على القرص الخاص تحت
+     * مجلد العقد، وتحلّ محلّ النسخة السابقة للطرف نفسه إن وُجدت.
+     *
+     * @return array{ok: bool, error?: string}
+     */
+    public static function attachSigned(ServiceRequest $sr, string $party, UploadedFile $file): array
+    {
+        $contract = self::raw($sr);
+
+        if (! isset(self::SIGNED_PARTIES[$party])) {
+            return ['ok' => false, 'error' => 'طرف التوقيع غير معروف.'];
+        }
+
+        if (! $contract || ($contract['status'] ?? null) !== 'approved') {
+            return ['ok' => false, 'error' => 'تُرفع النسخ الموقّعة بعد اعتماد العميل لجميع بنود العقد.'];
+        }
+
+        // تُقرأ بيانات الملف قبل تخزينه: ملف Livewire المؤقّت يُنقَل لا يُنسَخ، فلا يبقى ما يُقرأ حجمه بعد النقل
+        $originalName = (string) $file->getClientOriginalName();
+        $size = (int) $file->getSize();
+        $ext = strtolower((string) ($file->getClientOriginalExtension() ?: $file->extension()));
+
+        $path = $file->storeAs(
+            'contracts/'.$contract['number'],
+            $party.'-signed-'.Str::uuid().($ext !== '' ? '.'.$ext : ''),
+            'local',
+        );
+
+        $previous = trim((string) ($contract['signed'][$party]['path'] ?? ''));
+        if ($previous !== '' && $previous !== $path) {
+            Storage::disk('local')->delete($previous);
+        }
+
+        $contract['signed'] = array_merge((array) ($contract['signed'] ?? []), [$party => [
+            'name' => $originalName,
+            'path' => $path,
+            'size' => $size,
+            'uploaded_at' => now()->toIso8601String(),
+        ]]);
+
+        self::store($sr, $contract);
+
+        return ['ok' => true];
+    }
+
+    /** إرسال النسخة الموقّعة من الشركة للعميل مرفقةً بالبريد الإلكتروني، مع طلب رفع نسخته الموقّعة. */
+    public static function sendSignedCopy(ServiceRequest $sr): bool
+    {
+        $contract = self::raw($sr);
+        $file = $contract['signed']['company'] ?? null;
+        $path = is_array($file) ? trim((string) ($file['path'] ?? '')) : '';
+
+        if ($path === '' || ! Storage::disk('local')->exists($path)) {
+            return false;
+        }
+
+        $ext = pathinfo($path, PATHINFO_EXTENSION);
+        $sent = MailTemplates::sendStage($sr, 'contract_signed_sent', attachment: [
+            'disk' => 'local',
+            'path' => $path,
+            'as' => $contract['number'].'-signed-by-wareed'.($ext !== '' ? '.'.$ext : ''),
+        ]);
+
+        if ($sent) {
+            $contract['signed']['sent_at'] = now()->toIso8601String();
+            self::store($sr, $contract);
+        }
+
+        return $sent;
+    }
+
+    /** إشعار فريق وريد برفع العميل نسخته الموقّعة — فشل الإرسال لا يُفقد الملف المحفوظ. */
+    public static function notifyClientSigned(ServiceRequest $sr): void
+    {
+        $contract = self::of($sr);
+        $file = $contract['signed']['client'] ?? null;
+
+        if (! $contract || ! $file) {
+            return;
+        }
+
+        try {
+            Mail::to((string) setting('contact_email', 'info@wareed.vip'))->send(new StageMessage(
+                subjectLine: 'رفع العميل نسخته الموقّعة من العقد '.$contract['number'].' — '.$sr->reference,
+                bodyText: implode("\n\n", [
+                    'رفع العميل نسخته الموقّعة من العقد '.$contract['number'].' ('.$file['name'].' — '.$file['size_h'].').',
+                    'العميل: '.$sr->name.($sr->company ? ' — '.$sr->company : '').($sr->email ? ' · '.$sr->email : ''),
+                    $contract['fully_signed']
+                        ? 'اكتمل توقيع العقد من الطرفين — النسختان محفوظتان في صفحة العقود.'
+                        : 'لم تُرفع النسخة الموقّعة من الشركة بعد — ارفعها من صفحة العقود لاكتمال التوقيع.',
+                ]),
+                link: route('filament.admin.pages.contracts'),
+                linkLabel: 'فتح صفحة العقود',
+            ));
+        } catch (\Throwable $e) {
+            report($e);
+        }
+    }
+
+    /** رابط رفع نسخة العميل الموقّعة: مخصّص عبر الدعوة، أو موقّع للنموذج العام. */
+    public static function signedCopyUrl(ServiceRequest $sr): string
+    {
+        $invite = str_starts_with((string) $sr->source, 'quote_link:')
+            ? substr((string) $sr->source, strlen('quote_link:'))
+            : null;
+
+        return $invite !== null
+            ? route('quote.contract.copy', $invite)
+            : URL::signedRoute('quote.contract.copy.signed', ['serviceRequest' => $sr->id]);
     }
 
     /** العقد كما هو مخزَّن (بنية خام للتحرير والحفظ) — مصفوفة فارغة إن لم يوجد. */

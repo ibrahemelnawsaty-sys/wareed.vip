@@ -185,6 +185,21 @@ class MailTemplates
             TXT,
         ],
 
+        'contract_signed_sent' => [
+            'label' => 'إرسال النسخة الموقّعة من الشركة',
+            'hint' => 'يُرسل عند الضغط على «إرسال النسخة الموقّعة للعميل» في صفحة العقود — الملف مرفق بالرسالة مع طلب رفع نسخة العميل الموقّعة.',
+            'subject' => 'نسخة عقدك الموقّعة من الشركة — {رقم_العقد}',
+            'body' => <<<'TXT'
+            مرحباً {العميل}،
+
+            مرفق مع هذه الرسالة نسخة العقد رقم {رقم_العقد} موقّعة ومختومة من شركة وريد لتقنية المعلومات.
+
+            نرجو طباعة النسخة وتوقيعها، ثم رفع النسخة الموقّعة من صفحة العقد عبر الزر أدناه — أو إرسالها لنا رداً على هذه الرسالة.
+
+            باكتمال التوقيع من الطرفين يصبح العقد نافذاً، ونمضي معكم في التنفيذ وفق ما اتُّفق عليه.
+            TXT,
+        ],
+
         'awaiting_requirements' => [
             'label' => 'رفع متطلبات المشروع',
             'hint' => 'يُرسل فور اعتماد العميل للعرض؛ يدعوه لرفع ملفات مشروعه قبل بدء التنفيذ.',
@@ -652,7 +667,7 @@ class MailTemplates
      * إرسال بريد المرحلة إلى العميل — يُستدعى مع كل إجراء ينقل الطلب مرحلةً.
      * يعيد false إن لم يكن للعميل بريد أو تعذّر الإرسال؛ والفشل لا يُعطّل الإجراء نفسه.
      */
-    public static function sendStage(ServiceRequest $sr, string $stage, bool $withSummary = false): bool
+    public static function sendStage(ServiceRequest $sr, string $stage, bool $withSummary = false, ?array $attachment = null): bool
     {
         if (! self::exists($stage) || ! filter_var((string) $sr->email, FILTER_VALIDATE_EMAIL)) {
             return false;
@@ -669,6 +684,7 @@ class MailTemplates
             'awaiting_approval' => [QuoteController::proposalUrl($sr), 'استعراض عرض السعر واعتماده'],
             'contract_draft_sent', 'contract_resent' => [Contracts::reviewUrl($sr), 'مراجعة بنود العقد واعتماده'],
             'contract_approved' => [Contracts::reviewUrl($sr), 'استعراض العقد المعتمد'],
+            'contract_signed_sent' => [Contracts::reviewUrl($sr), 'رفع نسختك الموقّعة'],
             default => [$variables['{رابط_الطلب}'], 'متابعة الطلب'],
         };
 
@@ -679,6 +695,7 @@ class MailTemplates
                 link: $link,
                 linkLabel: $linkLabel,
                 summaryOf: $withSummary ? $sr : null,
+                attachment: $attachment,
             ));
 
             return true;

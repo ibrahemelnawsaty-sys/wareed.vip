@@ -301,3 +301,56 @@ it('تحرّر قوالب البريد لكل خدمة على حدة دون ال
 
     $this->get('/admin/email-templates')->assertSuccessful()->assertSee('البرامج التدريبية')->assertSee('الحلول التقنية');
 });
+
+it('لكل عميل بلا رابط مخصّص صفحة متابعة موقّعة بمفردات خدمته، وهي رابط المتابعة في البريد', function () {
+    Mail::fake();
+    flowService('training');
+
+    $sr = ServiceRequest::create([
+        'service_type' => 'training', 'source' => 'service_training', 'status' => 'new',
+        'name' => 'د. سارة محمود', 'phone' => '01000000000', 'email' => 'sara@example.com', 'company' => 'جامعة النيل',
+        'payload' => [
+            'track' => 'Backend',
+            '_flow' => ['stage' => 'meeting_scheduled', 'meeting_at' => now()->addDays(2)->toIso8601String()],
+        ],
+    ]);
+
+    $url = QuoteController::statusUrl($sr);
+    expect($url)->toContain('/quote/status/'.$sr->id)
+        ->and($url)->toContain('signature=')
+        ->and(MailTemplates::variables($sr)['{رابط_الطلب}'])->toBe($url);
+
+    // بريد الاستلام يحمل رابط صفحة المتابعة نفسه
+    Mail::assertSent(StageMessage::class, fn (StageMessage $mail) => $mail->hasTo('sara@example.com')
+        && str_contains($mail->subjectLine, 'استلمنا طلبك')
+        && $mail->link === $url);
+
+    $this->get($url)
+        ->assertSuccessful()
+        ->assertSee('مكالمتنا محدّدة يا')
+        ->assertSee('د. سارة محمود')
+        ->assertSee('موعد المكالمة التعريفية')
+        ->assertSee('حالة الطلب · البرامج التدريبية')
+        ->assertSee('بيانات المتدربين والجدولة')
+        ->assertSee('تحميل مستند الطلب')
+        ->assertSee('/quote/document/'.$sr->id)
+        ->assertDontSee('حالة طلب المتجر')
+        ->assertDontSee('متجرك');
+
+    // الرابط بلا توقيع مرفوض
+    $this->get('/quote/status/'.$sr->id)->assertForbidden();
+
+    // عميل النموذج العام للمتاجر يحصل على الصفحة نفسها بمفردات المتجر
+    $store = ServiceRequest::create([
+        'service_type' => 'ecommerce', 'source' => 'quote_form', 'status' => 'new',
+        'name' => 'أحمد علي', 'phone' => '—', 'email' => 'ahmed@example.com', 'company' => 'متجر لمسة',
+        'payload' => ['مجال المتجر' => 'عطور', '_flow' => ['stage' => 'in_progress', 'started_at' => now()->toIso8601String(), 'due_at' => now()->addDays(10)->toIso8601String()]],
+    ]);
+
+    $this->get(QuoteController::statusUrl($store))
+        ->assertSuccessful()
+        ->assertSee('بدأ تنفيذ متجرك يا')
+        ->assertSee('أحمد علي')
+        ->assertSee('الوقت المتبقي لتسليم المتجر')
+        ->assertSee('عطور');
+});

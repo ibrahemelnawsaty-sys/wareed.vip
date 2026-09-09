@@ -241,6 +241,23 @@
         .dd-msg { font-size: .88rem; color: var(--dd); margin-top: .4rem; line-height: 1.8; font-weight: 600; }
         .dd-meta { font-size: .76rem; color: var(--dd); opacity: .8; margin-top: .4rem; }
 
+        /* ── النسخ الموقّعة بعد الاعتماد (على الشاشة فقط) ── */
+        .signing { margin-top: 1rem; display: grid; grid-template-columns: 1fr 1fr; gap: .8rem; }
+        .sc-box { border: 1px solid var(--line); border-radius: 14px; padding: .9rem 1rem; background: #fbfcff; }
+        .sc-box.is-done { border-color: #a7f3d0; background: #f0fdf9; }
+        .sc-t { display: flex; align-items: center; gap: .4rem; font-size: .84rem; font-weight: 700; }
+        .sc-t .ic { width: 16px; height: 16px; color: var(--blue); }
+        .sc-box.is-done .sc-t .ic { color: #047857; }
+        .sc-file { margin-top: .45rem; font-size: .8rem; color: var(--muted); overflow-wrap: anywhere; line-height: 1.7; }
+        .sc-file b { color: var(--ink); }
+        .sc-muted { margin-top: .4rem; font-size: .78rem; color: var(--faint); line-height: 1.7; }
+        .sc-form { margin-top: .6rem; display: flex; flex-direction: column; gap: .5rem; align-items: flex-start; }
+        .sc-form input[type="file"] { font: inherit; font-size: .8rem; color: var(--muted); max-width: 100%; }
+        .sc-hint { font-size: .74rem; color: var(--faint); }
+        .sc-ok { margin: 0 0 .8rem; font-size: .84rem; font-weight: 700; color: #047857; }
+        .sc-dl { margin-top: .6rem; }
+        @media screen and (max-width: 640px) { .signing { grid-template-columns: 1fr; } }
+
         /* ── تقسيم الطباعة: كل صفحة صندوق A4 مستقل بترويسته وتذييله ── */
         .pg { display: none; }
         .pg-foot {
@@ -530,6 +547,9 @@
                 @if ($contract['is_approved'])
                     <b>اعتُمدت بنود العقد إلكترونياً</b> عبر منصة وريد بتاريخ {{ $fmt($contract['approved_at']) }}
                     — جولة المراجعة {{ $contract['round'] }}.
+                    @if ($contract['fully_signed'])
+                        <b>ووُقّعت النسخة الموقّعة من الطرفين</b>{{ $contract['signed']['client']['uploaded_at'] ? ' بتاريخ '.$fmt($contract['signed']['client']['uploaded_at']) : '' }}.
+                    @endif
                 @else
                     التوقيع — بعد اعتماد بنود العقد إلكترونياً.
                 @endif
@@ -569,14 +589,70 @@
     @endif
 
     @if ($contract['is_approved'])
-        <h2 class="decide-title">العقد معتمد</h2>
+        @php $company = $contract['signed']['company']; $mine = $contract['signed']['client']; @endphp
+        <h2 class="decide-title">{{ $contract['fully_signed'] ? 'اكتمل توقيع العقد من الطرفين' : 'العقد معتمد' }}</h2>
         <p class="decide-lead">
             اعتمدت جميع بنود هذا العقد بتاريخ <b>{{ $fmt($contract['approved_at']) }}</b>.
-            الخطوة التالية: سوف يتم إرسال نسخة من العقد موقّعة من الشركة وإعادة إرسالها لك للتوقيع.
+            @if ($contract['fully_signed'])
+                <b>وُقّع العقد من الطرفين</b> وأصبح نافذاً — النسختان محفوظتان لدى وريد.
+            @elseif ($company)
+                وصلتك النسخة الموقّعة من الشركة — <b>حمّلها ووقّعها ثم ارفع نسختك الموقّعة أدناه</b>.
+            @else
+                الخطوة التالية: سوف يتم إرسال نسخة من العقد موقّعة من الشركة وإعادة إرسالها لك للتوقيع.
+            @endif
         </p>
+
+        @if (session('signed_saved'))
+            <p class="sc-ok">
+                <svg class="ic" style="width:16px;height:16px;display:inline-block;vertical-align:-3px"><use href="#i-check"/></svg>
+                استلمنا نسختك الموقّعة بنجاح — شكراً لك.
+            </p>
+        @endif
+
+        <div class="signing">
+            <div @class(['sc-box', 'is-done' => $company !== null])>
+                <div class="sc-t"><svg class="ic"><use href="#i-{{ $company ? 'verified' : 'clock' }}"/></svg> النسخة الموقّعة من الشركة</div>
+                @if ($company)
+                    <div class="sc-file">
+                        <b>{{ $company['name'] }}</b> · {{ $company['size_h'] }}
+                        @if ($company['uploaded_at']) · {{ $fmtShort($company['uploaded_at']) }} @endif
+                    </div>
+                    @if ($company['url'])
+                        <a class="tb-btn tb-primary sc-dl" href="{{ $company['url'] }}" target="_blank" rel="noopener">
+                            <svg class="ic"><use href="#i-download"/></svg> تحميل النسخة الموقّعة من الشركة
+                        </a>
+                    @endif
+                @else
+                    <p class="sc-muted">لم تُرسل بعد — تصلك على بريدك الإلكتروني مرفقةً فور توقيعها وختمها.</p>
+                @endif
+            </div>
+
+            <div @class(['sc-box', 'is-done' => $mine !== null])>
+                <div class="sc-t"><svg class="ic"><use href="#i-{{ $mine ? 'verified' : 'edit' }}"/></svg> نسختك الموقّعة</div>
+                @if ($mine)
+                    <div class="sc-file">
+                        <b>{{ $mine['name'] }}</b> · {{ $mine['size_h'] }}
+                        @if ($mine['uploaded_at']) · رُفعت {{ $fmtShort($mine['uploaded_at']) }} @endif
+                    </div>
+                    <p class="sc-muted">لاستبدالها ارفع ملفاً جديداً.</p>
+                @else
+                    <p class="sc-muted">اطبع النسخة الموقّعة من الشركة، ووقّعها، ثم ارفعها هنا (PDF أو صورة).</p>
+                @endif
+                <form method="POST" action="{{ $signedCopyUrl }}" enctype="multipart/form-data" class="sc-form">
+                    @csrf
+                    <input type="file" name="file" accept=".pdf,.jpg,.jpeg,.png" required>
+                    <button type="submit" class="tb-btn tb-primary">
+                        <svg class="ic"><use href="#i-check"/></svg> {{ $mine ? 'استبدال نسختي الموقّعة' : 'رفع نسختي الموقّعة' }}
+                    </button>
+                    <span class="sc-hint">PDF أو صورة، بحجم أقصى 10 ميجابايت.</span>
+                    @error('file')<p class="decide-err">{{ $message }}</p>@enderror
+                </form>
+            </div>
+        </div>
+
         <div class="decide-actions">
-            <a class="tb-btn tb-primary" href="{{ $proposalUrl }}#requirements">
-                <svg class="ic"><use href="#i-box"/></svg> رفع متطلبات المشروع
+            <a class="tb-btn tb-ghost" href="{{ $proposalUrl }}#requirements">
+                <svg class="ic"><use href="#i-box"/></svg> رفع {{ $profile['requirements']['title'] }}
             </a>
         </div>
     @elseif ($contract['status'] === 'feedback')

@@ -6,6 +6,7 @@ use App\Models\ServiceRequest;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Address;
+use Illuminate\Mail\Mailables\Attachment;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
@@ -26,7 +27,24 @@ class StageMessage extends Mailable
         public string $linkLabel = 'متابعة الطلب',
         // إن مُرِّر طلب، أُلحق بالرسالة ملخّص عرضه وجدوله ودفعاته
         public ?ServiceRequest $summaryOf = null,
+        // مرفق اختياري من قرص تخزين: ['disk' => 'local', 'path' => المسار, 'as' => اسم الملف كما يصل العميل]
+        public ?array $attachment = null,
     ) {}
+
+    /** @return array<int, Attachment> */
+    public function attachments(): array
+    {
+        $path = trim((string) ($this->attachment['path'] ?? ''));
+
+        if ($path === '') {
+            return [];
+        }
+
+        return [
+            Attachment::fromStorageDisk((string) ($this->attachment['disk'] ?? 'local'), $path)
+                ->as((string) (($this->attachment['as'] ?? '') ?: basename($path))),
+        ];
+    }
 
     public function envelope(): Envelope
     {

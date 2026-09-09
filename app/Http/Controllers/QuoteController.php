@@ -318,7 +318,7 @@ class QuoteController extends Controller
             'ok' => true,
             'reference' => $serviceRequest->reference,
             'documentUrl' => $this->documentUrl($serviceRequest, $invite),
-            'statusUrl' => $personalized ? route('quote.invite', $invite) : null,
+            'statusUrl' => $personalized ? route('quote.invite', $invite) : self::statusUrl($serviceRequest),
             'deadline' => self::deadlineFor($serviceRequest->created_at)->toIso8601String(),
         ]);
     }
@@ -340,6 +340,15 @@ class QuoteController extends Controller
     public function documentSigned(ServiceRequest $serviceRequest)
     {
         return $this->documentView($serviceRequest, null);
+    }
+
+    /**
+     * صفحة متابعة الطلب (المراحل والعدّاد والروابط) عبر رابط موقّع — لعملاء الخدمات
+     * الثلاث الذين لا رابط مخصّصاً لهم؛ هي ما يعيده statusUrl() ويُضمَّن في كل بريد.
+     */
+    public function statusSigned(ServiceRequest $serviceRequest)
+    {
+        return $this->statusView($serviceRequest, null, null);
     }
 
     private function documentView(ServiceRequest $sr, ?array $client)
@@ -452,12 +461,14 @@ class QuoteController extends Controller
             ->first();
     }
 
-    private function statusView(ServiceRequest $sr, string $invite, array $client)
+    private function statusView(ServiceRequest $sr, ?string $invite, ?array $client)
     {
         return response()->view('quote.status', [
             'sr' => $sr,
             'client' => $client,
             'inviteSlug' => $invite,
+            'profile' => ServiceFlow::profile($sr),
+            'documentUrl' => $this->documentUrl($sr, $invite),
             'rows' => $this->documentRows($sr),
             'whatsapp' => $this->whatsapp(),
             'slaDays' => self::SLA_BUSINESS_DAYS,
@@ -1165,7 +1176,7 @@ class QuoteController extends Controller
         return $bank;
     }
 
-    /** الرابط الذي يتابع منه العميل طلبه: صفحته المخصّصة، أو مستند طلبه الموقّع. */
+    /** الرابط الذي يتابع منه العميل طلبه: صفحته المخصّصة، أو صفحة متابعته الموقّعة. */
     public static function statusUrl(ServiceRequest $sr): string
     {
         $invite = str_starts_with((string) $sr->source, 'quote_link:')
@@ -1174,7 +1185,7 @@ class QuoteController extends Controller
 
         return $invite !== null
             ? route('quote.invite', $invite)
-            : URL::signedRoute('quote.document.signed', ['serviceRequest' => $sr->id]);
+            : URL::signedRoute('quote.status.signed', ['serviceRequest' => $sr->id]);
     }
 
     /** رابط عرض السعر: مخصّص عبر الدعوة، أو موقّع للنموذج العام. */

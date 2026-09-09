@@ -10,15 +10,21 @@ use BackedEnum;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Filament\Support\Icons\Heroicon;
+use Livewire\WithFileUploads;
 
 /**
  * صفحة العقود: مسوّدات العقود المقترحة تلقائياً بعد اعتماد العملاء لعروض الأسعار،
  * تحرير بنودها (إضافة/تعديل/حذف/ترتيب)، إرسالها للمراجعة، متابعة ملاحظات العميل
- * وإعادة الإرسال بعد التعديل حتى الاعتماد النهائي.
+ * وإعادة الإرسال بعد التعديل حتى الاعتماد النهائي، ثم النسخ الموقّعة من الطرفين.
  */
 class Contracts extends Page
 {
+    use WithFileUploads;
+
     protected string $view = 'filament.pages.contracts';
+
+    /** ملفات النسخ الموقّعة قيد الرفع، بمفتاح «الطرف_رقم الطلب». */
+    public array $signedUpload = [];
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedDocumentText;
 
@@ -302,6 +308,88 @@ class Contracts extends Page
 
         if ($this->open === $id) {
             $this->closeContract();
+        }
+    }
+
+    /** حفظ نسخة موقّعة من العقد المعتمد: من الشركة، أو نسخة العميل إن وصلت بقناة أخرى. */
+    public function uploadSigned(int $id, string $party): void
+    {
+        $key = $party.'_'.$id;
+
+        if (! isset(ContractFlow::SIGNED_PARTIES[$party])) {
+            return;
+        }
+
+        if (! ($this->signedUpload[$key] ?? null)) {
+            Notification::make()->title('اختر ملف النسخة الموقّعة أولاً.')->danger()->send();
+
+            return;
+        }
+
+        $this->validate(
+            ["signedUpload.$key" => ['file', 'mimes:'.ContractFlow::SIGNED_MIMES, 'max:'.ContractFlow::SIGNED_MAX_KB]],
+            [
+                "signedUpload.$key.mimes" => 'النسخة الموقّعة تكون ملف PDF أو صورة (JPG أو PNG).',
+                "signedUpload.$key.max" => 'الحجم الأقصى للنسخة الموقّعة 10 ميجابايت.',
+            ],
+        );
+
+        $sr = ServiceRequest::query()->whereKey($id)->firstOrFail();
+        $result = ContractFlow::attachSigned($sr, $party, $this->signedUpload[$key]);
+        unset($this->signedUpload[$key]);
+
+        if (! $result['ok']) {
+            Notification::make()->title($result['error'])->danger()->send();
+
+            return;
+        }
+
+        $contract = ContractFlow::of($sr->fresh());
+
+        Notification::make()
+            ->title('حُفظت '.ContractFlow::SIGNED_PARTIES[$party].' — '.$contract['number'])
+            ->body($contract['fully_signed']
+                ? 'اكتمل توقيع العقد من الطرفين.'
+                : ($party === 'company' ? 'أرسلها الآن للعميل من زر «إرسال النسخة الموقّعة للعميل».' : 'بانتظار النسخة الموقّعة من الشركة لاكتمال التوقيع.'))
+            ->success()
+            ->send();
+    }
+
+    /** إرسال النسخة الموقّعة من الشركة للعميل مرفقةً بالبريد الإلكتروني. */
+    public function sendSignedCopy(int $id): void
+    {
+        $sr = ServiceRequest::query()->whereKey($id)->firstOrFail();
+        $contract = ContractFlow::of($sr);
+
+        if (! $contract || ! $contract['signed']['company']) {
+            Notification::make()->title('ارفع النسخة الموقّعة من الشركة أولاً.')->danger()->send();
+
+            return;
+        }
+
+        if (! filter_var((string) $sr->email, FILTER_VALIDATE_EMAIL)) {
+            Notification::make()
+                ->title('لا بريد إلكتروني لهذا العميل')
+                ->body('شارك معه النسخة يدوياً من رابط التنزيل.')
+                ->warning()
+                ->send();
+
+            return;
+        }
+
+        if (ContractFlow::sendSignedCopy($sr)) {
+            Notification::make()
+                ->title('أُرسلت النسخة الموقّعة إلى '.$sr->email)
+                ->body('مرفقة بالرسالة مع رابط يرفع منه العميل نسخته الموقّعة.')
+                ->success()
+                ->send();
+        } else {
+            Notification::make()
+                ->title('تعذّر إرسال البريد الإلكتروني')
+                ->body('راجع إعدادات MAIL ثم أعد المحاولة.')
+                ->danger()
+                ->persistent()
+                ->send();
         }
     }
 
