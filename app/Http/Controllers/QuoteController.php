@@ -562,7 +562,9 @@ class QuoteController extends Controller
             $discount = round($subtotal * $discountPercent / 100, 2);
         } else {
             $discount = min(max(0, (float) ($q['discount'] ?? 0)), $subtotal);
-            $discountPercent = $subtotal > 0 ? round($discount / $subtotal * 100, 2) : 0.0;
+            // ستّ منازل لا منزلتان: النسبة المشتقّة تُعرض بأربع منازل، فلو قُرِّبت هنا لخالف
+            // حاصل ضربها في السعر الأساسي قيمةَ الخصم المطبوعة بجانبها بما يقارب الجنيه
+            $discountPercent = $subtotal > 0 ? round($discount / $subtotal * 100, 6) : 0.0;
         }
 
         $afterDiscount = $subtotal - $discount;
@@ -627,6 +629,9 @@ class QuoteController extends Controller
             'currency' => (string) ($h['currency'] ?? $currency),
             'current' => false,
         ], array_filter((array) ($q['history'] ?? []), 'is_array')));
+
+        // الترتيب برقم الإصدار لا بترتيب الحفظ: الفريق قد يُكمل إصداراً أقدم فات تسجيله
+        usort($history, fn ($a, $b) => $a['version'] <=> $b['version']);
 
         $versions = array_merge($history, [[
             'version' => $version,

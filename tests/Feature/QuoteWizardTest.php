@@ -360,10 +360,16 @@ it('keeps quotes issued before the percentage discount working', function () {
 
     $quote = QuoteController::quoteOf($sr->fresh());
 
-    // العرض القديم يحمل قيمة خصم مباشرة — تبقى كما هي وتُشتقّ نسبتها للعرض فقط
+    // العرض القديم يحمل قيمة خصم مباشرة — تبقى كما هي وتُشتقّ نسبتها للعرض فقط،
+    // بدقّة تجعل النسبة المطبوعة (بأربع منازل) تُعيد قيمة الخصم في حدود القرش
+    // بدل فارق يقارب الجنيه لو قُرِّبت النسبة إلى منزلتين (13.04% = 2,999.20)
+    $shownPercent = (float) rtrim(rtrim(number_format($quote['discount_percent'], 4), '0'), '.');
+
     expect($quote['subtotal'])->toBe(23000.0)
         ->and($quote['discount'])->toBe(3000.0)
-        ->and($quote['discount_percent'])->toBe(13.04)
+        ->and($quote['discount_percent'])->toBe(13.043478)
+        ->and(round(abs(round(23000.0 * $shownPercent / 100, 2) - 3000.0), 2))->toBeLessThanOrEqual(0.01)
+        ->and(abs(round(23000.0 * 13.04 / 100, 2) - 3000.0))->toBeGreaterThan(0.5)
         ->and($quote['vat'])->toBe(2800.0)
         ->and($quote['total'])->toBe(22800.0)
         ->and($quote['items'][1]['total'])->toBe(3000.0);

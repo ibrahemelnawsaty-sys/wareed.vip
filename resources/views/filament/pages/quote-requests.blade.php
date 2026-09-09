@@ -148,6 +148,14 @@
         .wq-stage-row .wq-del { margin-top: 0; }
         .wq-stage-row.has-lbl .wq-del { margin-top: 1.15rem; }
         .wq-empty-hint { font-size: .78rem; color: rgb(156 163 175); padding: .35rem 0; }
+        .wq-ver-row { display: grid; grid-template-columns: 4.5rem 9.5rem 1fr 6rem 10.5rem 6rem 9rem 2rem; gap: .5rem; align-items: center; margin-bottom: .4rem; }
+        .wq-ver-row .wq-lbl { margin-bottom: 0; }
+        .wq-ver-row .wq-del { margin-top: 0; }
+        .wq-ver-total { font-size: .85rem; font-weight: 700; color: rgb(37 99 235); font-variant-numeric: tabular-nums; text-align: center; }
+        .wq-ver-warn { font-size: .78rem; color: rgb(180 83 9); background: rgb(254 252 232); border: 1px solid rgb(253 230 138);
+                       border-radius: .5rem; padding: .45rem .7rem; margin-bottom: .55rem; }
+        .dark .wq-ver-warn { background: rgba(245,158,11,.1); border-color: rgba(245,158,11,.3); color: rgb(253 230 138); }
+        @media (max-width: 900px) { .wq-ver-row { grid-template-columns: 1fr 1fr; } }
         .wq-pay-amt { display: flex; align-items: center; gap: .3rem; font-size: .76rem; color: rgb(107 114 128); }
         .wq-pay-amt .wq-in { flex: 1; min-width: 0; color: rgb(37 99 235); font-weight: 700; }
         .dark .wq-pay { background: rgb(17 24 39); border-color: rgba(255,255,255,.1); }
@@ -873,6 +881,89 @@
                                     <button type="button" class="wq-del" style="margin-top:0" wire:click="removePayment({{ $pi }})" title="حذف الدفعة">×</button>
                                 </div>
                             @endforeach
+                        </div>
+
+                        {{-- سجلّ الإصدارات: يُسجَّل تلقائياً مع كل إعادة إصدار، ويُحرَّر هنا لإكمال ما فات تسجيله --}}
+                        @php
+                            $currentVersion = (int) ($r['quote']['version'] ?? 1);
+                            $loggedVersions = array_column($t['history'], 'version');
+                            $missingVersions = array_values(array_diff(range(1, max(1, $currentVersion - 1)), $loggedVersions));
+                            $missingVersions = $currentVersion > 1 ? $missingVersions : [];
+                        @endphp
+                        <div class="wq-pay">
+                            <div class="wq-pay-head">
+                                <b>سجلّ إصدارات العرض</b>
+                                <span class="wq-pay-note">
+                                    يراه العميل في العرض مقارنةً بالإصدار الحالي ({{ $currentVersion }})،
+                                    ويُسجَّل الإصدار السابق تلقائياً مع كل إعادة إصدار
+                                </span>
+                                <x-filament::button wire:click="addHistory" size="xs" color="gray" icon="heroicon-o-plus">
+                                    إضافة إصدار سابق
+                                </x-filament::button>
+                            </div>
+
+                            @if ($missingVersions)
+                                <p class="wq-ver-warn">
+                                    الإصدار{{ count($missingVersions) > 1 ? 'ات' : '' }}
+                                    {{ implode('، ', $missingVersions) }}
+                                    خارج السجلّ — صدر قبل تفعيل السجلّ فلم تُحفظ أرقامه. أضفه هنا بسعره وتاريخه ليظهر للعميل.
+                                </p>
+                            @endif
+
+                            @forelse ($draft['history'] ?? [] as $hi => $h)
+                                <div class="wq-ver-row" wire:key="ver-{{ $r['id'] }}-{{ $hi }}">
+                                    <div>
+                                        @if ($hi === 0)<label class="wq-lbl">الإصدار</label>@endif
+                                        <input class="wq-in num" type="number" min="1" step="1" title="رقم الإصدار"
+                                               wire:model.live.debounce.400ms="draft.history.{{ $hi }}.version">
+                                    </div>
+                                    <div>
+                                        @if ($hi === 0)<label class="wq-lbl">التاريخ</label>@endif
+                                        <input class="wq-in wq-date" type="date" title="تاريخ إصدار هذه النسخة"
+                                               wire:model.live="draft.history.{{ $hi }}.issued_at">
+                                    </div>
+                                    <div>
+                                        @if ($hi === 0)<label class="wq-lbl">السعر الأساسي</label>@endif
+                                        <input class="wq-in num" type="number" min="0" step="0.01" title="إجمالي البنود قبل الخصم في ذلك الإصدار"
+                                               wire:model.live.debounce.400ms="draft.history.{{ $hi }}.subtotal">
+                                    </div>
+                                    <div>
+                                        @if ($hi === 0)<label class="wq-lbl">خصم %</label>@endif
+                                        <input class="wq-in num" type="number" min="0" max="100" step="any" placeholder="%"
+                                               title="نسبة خصم ذلك الإصدار — أو اكتب قيمته في الخانة المجاورة"
+                                               wire:model.live.debounce.400ms="draft.history.{{ $hi }}.discount_percent">
+                                    </div>
+                                    <div>
+                                        @if ($hi === 0)<label class="wq-lbl">قيمة الخصم</label>@endif
+                                        @php $verDiscount = $t['history'][$hi]['discount'] ?? 0; @endphp
+                                        <label class="wq-pay-amt">
+                                            <input class="wq-in num" type="number" min="0" step="0.01" placeholder="القيمة"
+                                                   title="اكتب قيمة الخصم لتُحسب نسبتها من السعر الأساسي لهذا الإصدار"
+                                                   wire:key="ver-amt-{{ $r['id'] }}-{{ $hi }}-{{ $verDiscount }}"
+                                                   value="{{ $verDiscount > 0 ? number_format($verDiscount, 2, '.', '') : '' }}"
+                                                   wire:change="setHistoryDiscountAmount({{ $hi }}, $event.target.value)">
+                                            <span>{{ $t['currency'] }}</span>
+                                        </label>
+                                    </div>
+                                    <div>
+                                        @if ($hi === 0)<label class="wq-lbl">ضريبة %</label>@endif
+                                        <input class="wq-in num" type="number" min="0" step="any" placeholder="%"
+                                               title="نسبة الضريبة في ذلك الإصدار"
+                                               wire:model.live.debounce.400ms="draft.history.{{ $hi }}.vat_percent">
+                                    </div>
+                                    <div>
+                                        @if ($hi === 0)<label class="wq-lbl">الإجمالي المستحق</label>@endif
+                                        <span class="wq-ver-total">{{ number_format($t['history'][$hi]['total'] ?? 0, 2) }} {{ $t['currency'] }}</span>
+                                    </div>
+                                    <button type="button" class="wq-del" wire:click="removeHistory({{ $hi }})" title="حذف هذا الإصدار من السجلّ"
+                                            @if ($hi === 0) style="margin-top:1.15rem" @endif
+                                            wire:confirm="سيُحذف هذا الإصدار من السجلّ الذي يراه العميل. متابعة؟">×</button>
+                                </div>
+                            @empty
+                                <p class="wq-empty-hint">
+                                    لا إصدارات سابقة مسجّلة — يُسجَّل الإصدار الحالي تلقائياً في السجلّ عند إصدار عرض جديد بعده.
+                                </p>
+                            @endforelse
                         </div>
 
                         <div class="wq-sum">
