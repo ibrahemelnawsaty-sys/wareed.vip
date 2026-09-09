@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Mail\StageMessage;
 use App\Models\Service;
 use App\Models\ServiceRequest;
+use App\Support\Contracts;
 use App\Support\MailTemplates;
 use Carbon\CarbonInterface;
 use chillerlan\QRCode\Common\EccLevel;
@@ -70,6 +71,12 @@ class QuoteController extends Controller
             'client' => 'عرض السعر جاهز — بانتظار اعتمادك للبدء في التنفيذ.',
             'countdown' => false,
         ],
+        'awaiting_contract' => [
+            'label' => 'توقيع العقد',
+            'icon' => 'document',
+            'client' => 'اعتمدت العرض — يجهّز فريق وريد مسوّدة العقد، وتصلك لمراجعة بنودها واعتمادها.',
+            'countdown' => false,
+        ],
         'awaiting_requirements' => [
             'label' => 'رفع متطلبات المشروع',
             'icon' => 'box',
@@ -132,6 +139,16 @@ class QuoteController extends Controller
             'count_to' => $countTo,
             'counting' => $countFrom !== null && $countTo !== null,
         ];
+    }
+
+    /** هل بلغ مسار الطلب المرحلة المطلوبة أو تجاوزها؟ */
+    public static function stageReached(string $stage, string $target): bool
+    {
+        $keys = array_keys(self::STAGES);
+        $current = array_search($stage, $keys, true);
+        $wanted = array_search($target, $keys, true);
+
+        return $current !== false && $wanted !== false && $current >= $wanted;
     }
 
     /** موعد تسليم عرض السعر: 3 أيام عمل من وقت الاستلام مع تخطّي العطلة. */
@@ -435,6 +452,8 @@ class QuoteController extends Controller
             'stages' => self::STAGES,
             'requirements' => self::requirementsOf($sr),
             'proposalUrl' => self::proposalUrl($sr),
+            'contract' => Contracts::of($sr),
+            'contractUrl' => Contracts::reviewUrl($sr),
         ]);
     }
 
@@ -565,6 +584,38 @@ class QuoteController extends Controller
         $deliveryAt = collect($schedule)->pluck('end')->filter()->max();
 
         $issuedAt = isset($q['issued_at']) ? Carbon::parse($q['issued_at']) : now();
+        $version = max(1, (int) ($q['version'] ?? 1));
+        $currency = (string) ($q['currency'] ?? 'ج.م');
+
+        // سجلّ الإصدارات السابقة (لقطات محفوظة عند كل إعادة إصدار) ثم الإصدار الحالي —
+        // العروض الصادرة قبل هذه الميزة بلا سجلّ فتُعرض بإصدارها الحالي وحده.
+        $history = array_values(array_map(fn (array $h) => [
+            'version' => max(1, (int) ($h['version'] ?? 1)),
+            'issued_at' => self::parseDate($h['issued_at'] ?? null),
+            'subtotal' => (float) ($h['subtotal'] ?? 0),
+            'discount_percent' => (float) ($h['discount_percent'] ?? 0),
+            'discount' => (float) ($h['discount'] ?? 0),
+            'after_discount' => (float) ($h['subtotal'] ?? 0) - (float) ($h['discount'] ?? 0),
+            'vat_percent' => (float) ($h['vat_percent'] ?? 0),
+            'vat' => (float) ($h['vat'] ?? 0),
+            'total' => (float) ($h['total'] ?? 0),
+            'currency' => (string) ($h['currency'] ?? $currency),
+            'current' => false,
+        ], array_filter((array) ($q['history'] ?? []), 'is_array')));
+
+        $versions = array_merge($history, [[
+            'version' => $version,
+            'issued_at' => $issuedAt,
+            'subtotal' => $subtotal,
+            'discount_percent' => $discountPercent,
+            'discount' => $discount,
+            'after_discount' => $afterDiscount,
+            'vat_percent' => $vatPercent,
+            'vat' => $vat,
+            'total' => $total,
+            'currency' => $currency,
+            'current' => true,
+        ]]);
 
         return [
             'items' => $items,
@@ -587,7 +638,7 @@ class QuoteController extends Controller
             'vat_percent' => $vatPercent,
             'vat' => $vat,
             'total' => $total,
-            'currency' => (string) ($q['currency'] ?? 'ج.م'),
+            'currency' => $currency,
             'timeline' => (string) ($q['timeline'] ?? ''),
             // ملاحظات متعدّدة تُرقَّم في العرض — والعروض القديمة تحمل نصاً واحداً
             'notes' => array_values(array_filter(array_map(
@@ -599,7 +650,9 @@ class QuoteController extends Controller
             'valid_until' => $issuedAt->copy()->addDays(max(1, (int) ($q['valid_days'] ?? 30))),
             // رقم إصدار العرض: يزيد مع كل إعادة إصدار فعلية. العروض الصادرة قبل هذا التغيير
             // لا تحمل القيمة فتُقرأ كإصدار أول (توافق خلفي).
-            'version' => max(1, (int) ($q['version'] ?? 1)),
+            'version' => $version,
+            'history' => $history,
+            'versions' => $versions,
         ];
     }
 
@@ -638,6 +691,8 @@ class QuoteController extends Controller
             'flow' => self::flowOf($sr),
             'requirements' => self::requirementsOf($sr),
             'requirementsUrl' => self::requirementsUrl($sr),
+            'contract' => Contracts::of($sr),
+            'contractUrl' => Contracts::reviewUrl($sr),
         ]);
     }
 
@@ -691,11 +746,16 @@ class QuoteController extends Controller
             'at' => now()->toIso8601String(),
         ];
 
-        // الاعتماد ينقل الطلب تلقائياً إلى مرحلة رفع متطلبات المشروع،
-        // والتنفيذ الفعلي (وعدّاده) يبدأ بعدها بمجرد رفع العميل لأول ملف — أو بدء يدوي من الفريق.
-        if ($data['choice'] === 'approved') {
-            $payload['_flow'] = array_merge($payload['_flow'] ?? [], [
-                'stage' => 'awaiting_requirements',
+        // الاعتماد ينقل الطلب تلقائياً إلى مرحلة العقد: تُنشأ مسوّدته فوراً ليراجعها الفريق
+        // ويرسلها للعميل، وبعد اعتماد العميل للعقد ينتقل الطلب لرفع متطلبات المشروع.
+        // العميل الذي سبق أن اعتمد العرض ووصل مرحلة العقد أو تجاوزها لا يُعاد مساره للوراء.
+        $flow = (array) ($payload['_flow'] ?? []);
+        $advancing = $data['choice'] === 'approved'
+            && ! self::stageReached((string) ($flow['stage'] ?? 'awaiting_meeting'), 'awaiting_contract');
+
+        if ($advancing) {
+            $payload['_flow'] = array_merge($flow, [
+                'stage' => 'awaiting_contract',
                 'approved_at' => now()->toIso8601String(),
             ]);
         }
@@ -704,6 +764,7 @@ class QuoteController extends Controller
 
         if ($data['choice'] === 'approved') {
             $sr->update(['status' => 'won']);
+            Contracts::createDraft($sr->fresh());
         }
 
         $sr = $sr->fresh();
@@ -711,9 +772,9 @@ class QuoteController extends Controller
 
         $this->notifyDecision($sr, $decision);
 
-        // العميل الذي اعتمد العرض يصله بريد يدعوه لرفع متطلبات مشروعه
-        if ($data['choice'] === 'approved') {
-            MailTemplates::sendStage($sr, 'awaiting_requirements', withSummary: true);
+        // العميل الذي اعتمد العرض يصله بريد يوضّح أن مسوّدة العقد في طريقها إليه
+        if ($advancing) {
+            MailTemplates::sendStage($sr, 'awaiting_contract');
         }
 
         return back()->with('decision_saved', true);
@@ -743,8 +804,11 @@ class QuoteController extends Controller
             }
 
             if ($decision['choice'] === 'approved') {
-                $lines[] = 'نُقل الطلب تلقائياً إلى مرحلة «رفع متطلبات المشروع» وحالته صارت «مكسوب»، '
-                    .'ووصل العميل بريد يدعوه لرفع ملفات مشروعه. بمجرد رفعه لها ينتقل الطلب تلقائياً لمرحلة التنفيذ.';
+                $contract = Contracts::of($sr);
+                $lines[] = 'حالة الطلب صارت «مكسوب»، وأُنشئت مسوّدة العقد'
+                    .($contract ? ' رقم '.$contract['number'] : '')
+                    .' تلقائياً — راجع بنودها من صفحة العقود ثم أرسلها للعميل لمراجعتها واعتمادها. '
+                    .'بعد اعتماده للعقد ينتقل الطلب تلقائياً لمرحلة «رفع متطلبات المشروع».';
             }
 
             Mail::to((string) setting('contact_email', 'info@wareed.vip'))->send(new StageMessage(
@@ -773,6 +837,12 @@ class QuoteController extends Controller
         self::quoteOf($sr) ?? abort(404);
 
         if ((self::decisionOf($sr)['choice'] ?? null) !== 'approved') {
+            abort(403);
+        }
+
+        // ما دام للطلب عقد لم يعتمده العميل بعد، فالرفع مؤجَّل إلى ما بعد اعتماده
+        $contract = Contracts::of($sr);
+        if ($contract && ! $contract['is_approved']) {
             abort(403);
         }
 

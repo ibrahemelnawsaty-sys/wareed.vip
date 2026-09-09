@@ -6,6 +6,7 @@ use App\Mail\StageMessage;
 use App\Models\Service;
 use App\Models\ServiceRequest;
 use App\Models\Setting;
+use App\Support\Contracts;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
@@ -808,38 +809,60 @@ function approveQuoteWithSchedule(): ServiceRequest
     return $sr->fresh();
 }
 
-it('moves to awaiting project requirements when the client approves', function () {
+/** اعتماد العميل لجميع بنود العقد المقترح — ينقل الطلب من مرحلة العقد إلى رفع المتطلبات. */
+function approveContractFor(ServiceRequest $sr): ServiceRequest
+{
+    Contracts::createDraft($sr);
+    Contracts::send($sr->fresh());
+
+    $decisions = [];
+    foreach (Contracts::of($sr->fresh())['clauses'] as $clause) {
+        $decisions[$clause['id']] = ['decision' => 'approved'];
+    }
+    Contracts::applyDecisions($sr->fresh(), $decisions);
+
+    return $sr->fresh();
+}
+
+it('moves to the contract stage when the client approves, then to project requirements once the contract is approved', function () {
     Mail::fake();
     $sr = approveQuoteWithSchedule();
     $flow = QuoteController::flowOf($sr);
+    $contract = Contracts::of($sr);
 
-    // الاعتماد ينقل الطلب لمرحلة رفع المتطلبات لا التنفيذ مباشرة، والتنفيذ ينتظر أول رفعة
-    expect($flow['stage'])->toBe('awaiting_requirements')
+    // الاعتماد ينقل الطلب لمرحلة العقد وتُنشأ مسوّدته فوراً، ورفع المتطلبات ينتظر اعتماد العقد
+    expect($flow['stage'])->toBe('awaiting_contract')
         ->and($flow['counting'])->toBeFalse()
         ->and($flow['approved_at'])->not->toBeNull()
-        ->and($sr->status)->toBe('won');
+        ->and($sr->status)->toBe('won')
+        ->and($contract['status'])->toBe('draft')
+        ->and($contract['clauses'][1]['body'])->toContain('تجهيز المتجر');
 
-    // بريد يدعو العميل لرفع متطلبات المشروع، ورابطه صفحة العرض التي يرفع منها
+    // بريد يوضّح للعميل أن مسوّدة العقد في طريقها إليه
     Mail::assertSent(
         StageMessage::class,
         fn ($mail) => $mail->hasTo('hagersalma89@gmail.com')
-            && $mail->summaryOf !== null
-            && str_contains($mail->render(), 'رفع متطلبات المشروع')
-            && $mail->link === QuoteController::proposalUrl($sr)
+            && str_contains($mail->subjectLine, 'عقد مشروعك قيد التجهيز')
     );
+    Mail::assertNotSent(StageMessage::class, fn ($mail) => str_contains($mail->subjectLine, 'رفع متطلبات مشروعك'));
 
-    // وإشعار وريد بالاعتماد
+    // وإشعار وريد بالاعتماد وبمسوّدة العقد
     Mail::assertSent(
         StageMessage::class,
         fn ($mail) => $mail->hasTo(setting('contact_email', 'info@wareed.vip'))
-            && str_contains($mail->bodyText, 'نُقل الطلب تلقائياً إلى مرحلة «رفع متطلبات المشروع»')
+            && str_contains($mail->bodyText, 'أُنشئت مسوّدة العقد رقم '.$contract['number'])
     );
+
+    $sr = approveContractFor($sr);
+
+    expect(QuoteController::flowOf($sr)['stage'])->toBe('awaiting_requirements')
+        ->and(Contracts::of($sr)['is_approved'])->toBeTrue();
 });
 
 it('starts execution and notifies both sides when the client uploads project requirements', function () {
     Mail::fake();
     Storage::fake('local');
-    $sr = approveQuoteWithSchedule();
+    $sr = approveContractFor(approveQuoteWithSchedule());
 
     $file = UploadedFile::fake()->create('logo.png', 500, 'image/png');
 
@@ -885,7 +908,7 @@ it('starts execution and notifies both sides when the client uploads project req
 it('notifies both sides again for extra requirement files uploaded after execution started', function () {
     Mail::fake();
     Storage::fake('local');
-    $sr = approveQuoteWithSchedule();
+    $sr = approveContractFor(approveQuoteWithSchedule());
 
     $this->post('/quote/hajar-salama/requirements', [
         'files' => [['file' => UploadedFile::fake()->create('logo.png', 200)]],
@@ -942,7 +965,7 @@ it('rejects uploading requirements before the client approves the quote', functi
 
 it('requires at least one file to upload as project requirements', function () {
     Mail::fake();
-    $sr = approveQuoteWithSchedule();
+    $sr = approveContractFor(approveQuoteWithSchedule());
 
     $this->post('/quote/hajar-salama/requirements', ['files' => []])
         ->assertSessionHasErrors('files');

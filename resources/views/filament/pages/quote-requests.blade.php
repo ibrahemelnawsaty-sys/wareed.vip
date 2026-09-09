@@ -365,9 +365,30 @@
                                 </x-filament::button>
                                 @break
 
+                            @case ('awaiting_contract')
+                                <span class="wq-when">
+                                    اعتمد العميل العرض —
+                                    @if ($r['contract'])
+                                        العقد <b dir="ltr">{{ $r['contract']['number'] }}</b>: {{ $r['contract']['status_label'] }}
+                                        @if ($r['contract']['round'] > 0) (الجولة {{ $r['contract']['round'] }}) @endif
+                                    @else
+                                        لم تُنشأ مسوّدة العقد بعد
+                                    @endif
+                                </span>
+                                <x-filament::button tag="a" href="{{ route('filament.admin.pages.contracts', ['open' => $r['id']]) }}"
+                                                    size="sm" color="primary" icon="heroicon-o-document-text">
+                                    {{ $r['contract'] ? 'فتح العقد' : 'إنشاء مسوّدة العقد' }}
+                                </x-filament::button>
+                                <input type="date" class="wq-dt" wire:model="flowInput.{{ $r['id'] }}.due_at">
+                                <x-filament::button wire:click="startExecution({{ $r['id'] }})" size="sm" color="gray" icon="heroicon-o-play"
+                                                    wire:confirm="سيبدأ التنفيذ دون انتظار اعتماد العقد ورفع المتطلبات. متابعة؟">
+                                    تجاوز العقد وابدأ التنفيذ
+                                </x-filament::button>
+                                @break
+
                             @case ('awaiting_requirements')
                                 <span class="wq-when">
-                                    اعتمد العميل العرض — بانتظار رفع متطلبات المشروع
+                                    اعتمد العميل العرض{{ ($r['contract']['is_approved'] ?? false) ? ' والعقد' : '' }} — بانتظار رفع متطلبات المشروع
                                     @if (count($r['requirements']))
                                         ({{ count($r['requirements']) }} ملف مرفوع)
                                     @endif
@@ -429,7 +450,18 @@
                             {{ count($r['quote']['items']) }} بنود ·
                             صدر {{ $r['quote']['issued_at']->format('Y/m/d') }} ·
                             صالح حتى {{ $r['quote']['valid_until']->format('Y/m/d') }}
+                            @if ($r['quote']['discount'] > 0)
+                                · خصم {{ rtrim(rtrim(number_format($r['quote']['discount_percent'], 2), '0'), '.') }}%
+                            @endif
                         </span>
+                        @if (count($r['quote']['history']))
+                            <span class="meta">
+                                إصدارات سابقة:
+                                @foreach ($r['quote']['history'] as $h)
+                                    الإصدار {{ $h['version'] }} = {{ number_format($h['total'], $h['total'] == (int) $h['total'] ? 0 : 2) }} {{ $h['currency'] }}{{ $h['discount'] > 0 ? ' (خصم '.rtrim(rtrim(number_format($h['discount_percent'], 2), '0'), '.').'%)' : '' }}@if (! $loop->last) · @endif
+                                @endforeach
+                            </span>
+                        @endif
                         <div style="margin-inline-start:auto;display:flex;gap:.5rem;flex-wrap:wrap">
                             <x-filament::button wire:click="sendQuote({{ $r['id'] }})" size="sm" color="primary"
                                                 icon="heroicon-o-paper-airplane"

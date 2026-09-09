@@ -5,6 +5,7 @@ namespace App\Filament\Pages;
 use App\Http\Controllers\QuoteController;
 use App\Mail\QuoteProposalIssued;
 use App\Models\ServiceRequest;
+use App\Support\Contracts;
 use App\Support\MailTemplates;
 use BackedEnum;
 use Filament\Notifications\Notification;
@@ -112,6 +113,7 @@ class QuoteRequests extends Page
                     'flow' => QuoteController::flowOf($sr),
                     'requirements' => QuoteController::requirementsOf($sr),
                     'views' => QuoteController::viewsOf($sr),
+                    'contract' => Contracts::of($sr),
                 ];
             })
             ->all();
@@ -452,6 +454,23 @@ class QuoteRequests extends Page
         // نفس شرط تحديث issued_at أدناه بالضبط، فكلاهما يعبّران عن المعنى نفسه: عرض جديد وصل العميل.
         $isReissue = ! isset($prevQuote['issued_at']) || $send;
 
+        // سجلّ الإصدارات: مع كل إعادة إصدار تُحفظ لقطة أرقام الإصدار السابق (السعر الأساسي،
+        // نسبة الخصم وقيمته، الإجمالي) ليقارنها العميل بالإصدار الجديد. الحفظ دون إرسال لا يضيف شيئاً.
+        $history = array_values(array_filter((array) ($prevQuote['history'] ?? []), 'is_array'));
+        if ($isReissue && isset($prevQuote['issued_at']) && ($previous = QuoteController::quoteOf($sr))) {
+            $history[] = [
+                'version' => $previous['version'],
+                'issued_at' => $previous['issued_at']->toIso8601String(),
+                'subtotal' => $previous['subtotal'],
+                'discount_percent' => $previous['discount_percent'],
+                'discount' => $previous['discount'],
+                'vat_percent' => $previous['vat_percent'],
+                'vat' => $previous['vat'],
+                'total' => $previous['total'],
+                'currency' => $previous['currency'],
+            ];
+        }
+
         $payload['_quote'] = [
             'items' => array_map(fn ($i) => [
                 'phase' => trim((string) ($i['phase'] ?? '')),
@@ -510,6 +529,7 @@ class QuoteRequests extends Page
             'version' => $isReissue
                 ? (int) ($prevQuote['version'] ?? 0) + 1
                 : max(1, (int) ($prevQuote['version'] ?? 1)),
+            'history' => $history,
         ];
 
         // إصدار العرض ينقل مسار الطلب تلقائياً إلى مرحلة اعتماد العميل

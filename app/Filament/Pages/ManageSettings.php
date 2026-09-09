@@ -3,7 +3,9 @@
 namespace App\Filament\Pages;
 
 use App\Models\Setting;
+use App\Support\Contracts;
 use BackedEnum;
+use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Concerns\InteractsWithForms;
@@ -40,6 +42,7 @@ class ManageSettings extends Page implements HasForms
         'contact_phone', 'contact_email', 'contact_whatsapp',
         'legal_name', 'tax_number', 'commercial_register', 'legal_address',
         'bank_name', 'bank_account_name', 'bank_account_number', 'bank_iban', 'bank_swift',
+        'signer_name', 'signer_title', 'contract_stamp',
         'social_facebook', 'social_instagram', 'social_linkedin', 'social_tiktok',
     ];
 
@@ -58,9 +61,10 @@ class ManageSettings extends Page implements HasForms
             $state[$key] = $m?->getTranslation('value', 'ar', false);
             $state[$key.'_en'] = $m?->getTranslation('value', 'en', false);
         }
+        // الإعدادات غير المترجمة تُحفظ بلغة اللوحة النشطة وقت الحفظ، فتُقرأ بالرجوع نفسه المتّبع
+        // في Setting::get — وإلا ظهرت الحقول فارغة عند إعادة فتح الصفحة ثم حُفظت فارغة فوق قيمتها
         foreach ($this->plainKeys as $key) {
-            $m = $models->get($key);
-            $state[$key] = $m?->getTranslation('value', 'ar', false);
+            $state[$key] = Setting::get($key);
         }
 
         $this->form->fill($state);
@@ -119,6 +123,22 @@ class ManageSettings extends Page implements HasForms
                         TextInput::make('bank_account_number')->label('رقم الحساب'),
                         TextInput::make('bank_iban')->label('IBAN'),
                         TextInput::make('bank_swift')->label('SWIFT / BIC'),
+                    ]),
+
+                Section::make('توقيع العقود وختم الشركة (يظهران في كل عقد)')
+                    ->columns(2)
+                    ->collapsible()
+                    ->schema([
+                        TextInput::make('signer_name')->label('اسم الموقّع عن الشركة')
+                            ->placeholder(Contracts::DEFAULT_SIGNER['name'])
+                            ->helperText('يُترك فارغاً ليُستخدم الاسم الافتراضي.'),
+                        TextInput::make('signer_title')->label('صفة الموقّع')
+                            ->placeholder(Contracts::DEFAULT_SIGNER['title']),
+                        FileUpload::make('contract_stamp')->label('ختم الشركة')
+                            ->disk('local')->directory('branding')->visibility('private')
+                            ->image()->maxSize(2048)->imagePreviewHeight('140')
+                            ->helperText('صورة PNG بخلفية شفافة يُفضَّل — تُحفظ مرة واحدة وتظهر في كل العقود القادمة، ويمكن استبدالها في أي وقت.')
+                            ->columnSpanFull(),
                     ]),
 
                 Section::make('وسائل التواصل الاجتماعي')
