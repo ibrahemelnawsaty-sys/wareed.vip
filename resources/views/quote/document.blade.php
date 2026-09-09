@@ -17,7 +17,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="robots" content="noindex, nofollow">
-    <title>{{ $sr->reference }} — طلب متجر إلكتروني | وريد</title>
+    <title>{{ $sr->reference }} — {{ $profile['document_title'] }} | وريد</title>
     <link rel="icon" type="image/svg+xml" href="{{ asset('favicon.svg') }}">
 @include('quote._fonts')
     <style>
@@ -216,8 +216,8 @@
     {{-- الترويسة --}}
     <header class="head">
         <div class="head-title">
-            <h1>طلب متجر إلكتروني</h1>
-            <div class="en">E-COMMERCE STORE REQUEST</div>
+            <h1>{{ $profile['document_title'] }}</h1>
+            <div class="en">{{ $profile['document_en'] }}</div>
             <span class="copy">نسخة العميل</span>
         </div>
         <div class="head-org">
@@ -266,7 +266,7 @@
             <div class="party-head">مقدَّم إلى</div>
             <div class="party-body">
                 <div class="party-name">{{ $contact['name'] }}</div>
-                <div class="party-row"><span>اسم المتجر</span><b>{{ $contact['store'] ?: '—' }}</b></div>
+                <div class="party-row"><span>{{ $profile['company_label'] }}</span><b>{{ $contact['store'] ?: '—' }}</b></div>
                 <div class="party-row"><span>رقم الموبايل</span><b class="ltr">{{ $contact['phone'] ?: '—' }}</b></div>
                 <div class="party-row"><span>البريد الإلكتروني</span><b class="ltr">{{ $contact['email'] ?: '—' }}</b></div>
             </div>
@@ -275,7 +275,7 @@
             <div class="party-head">مقدَّم من</div>
             <div class="party-body">
                 <div class="party-name">منصة وريد</div>
-                <div class="party-row"><span>الخدمة</span><b>المتاجر الإلكترونية</b></div>
+                <div class="party-row"><span>الخدمة</span><b>{{ $profile['label'] }}</b></div>
                 <div class="party-row"><span>حالة الطلب</span><b>قيد تجهيز عرض السعر</b></div>
                 <div class="party-row"><span>قناة الاستلام</span><b>النموذج الإلكتروني</b></div>
             </div>

@@ -5,6 +5,7 @@ namespace App\Filament\Pages;
 use App\Mail\StageMessage;
 use App\Models\ServiceRequest;
 use App\Support\MailTemplates;
+use App\Support\ServiceFlow;
 use BackedEnum;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
@@ -29,6 +30,9 @@ class EmailTemplates extends Page
 
     /** القالب المفتوح حالياً. */
     public string $stage = 'received';
+
+    /** الخدمة المفتوحة صياغتها — لكل خدمة صياغتها الخاصة للمراحل نفسها. */
+    public string $type = 'ecommerce';
 
     public string $subject = '';
 
@@ -55,11 +59,21 @@ class EmailTemplates extends Page
         }
     }
 
+    /** التبديل بين صياغات الخدمات الثلاث للمرحلة نفسها (يستبدل ما لم يُحفظ). */
+    public function selectType(string $type): void
+    {
+        if (in_array($type, ServiceFlow::TYPES, true)) {
+            $this->type = $type;
+            $this->requestId = null;
+            $this->load($this->stage);
+        }
+    }
+
     private function load(string $stage): void
     {
         $this->stage = $stage;
-        $this->subject = MailTemplates::subject($stage);
-        $this->body = MailTemplates::body($stage);
+        $this->subject = MailTemplates::subject($stage, $this->type);
+        $this->body = MailTemplates::body($stage, $this->type);
     }
 
     /** @return array<int, array<string, mixed>> */
@@ -70,17 +84,17 @@ class EmailTemplates extends Page
                 'key' => $key,
                 'label' => $t['label'],
                 'hint' => $t['hint'],
-                'customised' => MailTemplates::isCustomised($key),
+                'customised' => MailTemplates::isCustomised($key, $this->type),
             ])
             ->values()
             ->all();
     }
 
-    /** طلبات المتاجر المتاحة للمعاينة والإرسال. */
+    /** طلبات الخدمة المختارة المتاحة للمعاينة والإرسال. */
     public function getRequestsProperty(): array
     {
         return ServiceRequest::query()
-            ->where(fn ($q) => $q->where('source', 'quote_form')->orWhere('source', 'like', 'quote_link:%'))
+            ->where('service_type', $this->type)
             ->latest('id')
             ->limit(50)
             ->get()
@@ -113,14 +127,14 @@ class EmailTemplates extends Page
 
     public function save(): void
     {
-        MailTemplates::save($this->stage, $this->subject, $this->body);
+        MailTemplates::save($this->stage, $this->subject, $this->body, $this->type);
 
-        Notification::make()->title('حُفظ القالب')->success()->send();
+        Notification::make()->title('حُفظ القالب — '.ServiceFlow::label($this->type))->success()->send();
     }
 
     public function resetTemplate(): void
     {
-        MailTemplates::reset($this->stage);
+        MailTemplates::reset($this->stage, $this->type);
         $this->load($this->stage);
 
         Notification::make()->title('استُعيد النص المقترح')->success()->send();

@@ -5,6 +5,7 @@ namespace App\Mail;
 use App\Http\Controllers\QuoteController;
 use App\Models\ServiceRequest;
 use App\Support\MailTemplates;
+use App\Support\ServiceFlow;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Address;
@@ -28,7 +29,7 @@ class QuoteProposalIssued extends Mailable
 
         // العنوان قابل للتعديل من: لوحة التحكم ← قوالب البريد الإلكتروني ← إرسال عرض السعر
         $subject = MailTemplates::render(
-            MailTemplates::subject('proposal_sent'),
+            MailTemplates::subject('proposal_sent', ServiceFlow::type($this->sr)),
             MailTemplates::variables($this->sr),
         );
 
@@ -50,6 +51,7 @@ class QuoteProposalIssued extends Mailable
     {
         return new Content(view: 'emails.quote-proposal', with: [
             'quote' => QuoteController::quoteOf($this->sr),
+            'profile' => ServiceFlow::profile($this->sr),
             'proposalUrl' => QuoteController::proposalUrl($this->sr),
             // بكسل شفاف 1×1 لرصد فتح هذا البريد تحديداً — يظهر في لوحة المتابعة
             'trackingUrl' => QuoteController::trackingPixelUrl($this->sr),

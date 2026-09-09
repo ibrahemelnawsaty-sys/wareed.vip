@@ -224,7 +224,8 @@
                 'meeting_scheduled' => 'اجتماعنا محدّد يا',
                 'quote_due' => 'نجهّز عرض سعرك الآن يا',
                 'awaiting_approval' => 'عرض سعر متجرك جاهز يا',
-                'awaiting_requirements' => 'اعتُمد عرض متجرك يا',
+                'awaiting_contract' => 'اعتُمد عرض متجرك يا',
+                'awaiting_requirements' => 'اعتُمد عقد متجرك يا',
                 'in_progress' => 'بدأ تنفيذ متجرك يا',
                 'delivered' => 'تم تسليم متجرك يا',
             };
@@ -270,6 +271,31 @@
                 </div>
                 <a class="btn btn-primary" href="{{ route('quote.proposal', $inviteSlug) }}" target="_blank" rel="noopener">
                     <svg class="ic"><use href="#i-download"/></svg> استعراض عرض السعر وتحميله
+                </a>
+            </div>
+        @endif
+
+        @if ($contract && $contract['is_sent'])
+            <div class="quote-card">
+                <div class="quote-total">
+                    <span class="ql">{{ $contract['is_approved'] ? 'عقد المشروع' : 'الخطوة التالية' }}</span>
+                    <b class="qv" style="font-size:1.15rem">
+                        {{ $contract['is_approved'] ? 'اعتمدت العقد رقم' : 'راجع بنود العقد واعتمدها' }}
+                        <small dir="ltr">{{ $contract['number'] }}</small>
+                    </b>
+                    <span class="qmeta">
+                        @if ($contract['is_approved'])
+                            {{ $contract['count'] }} بنداً · اعتُمد {{ $contract['approved_at']?->format('Y/m/d') }} — ستصلك نسخة موقّعة من الشركة للتوقيع
+                        @elseif ($contract['status'] === 'feedback')
+                            وصلت ملاحظاتك لفريق وريد — تصلك النسخة المعدَّلة قريباً
+                        @else
+                            {{ $contract['count'] }} بنداً · جولة المراجعة {{ $contract['round'] }} — قرار صريح لكل بند ثم اعتماد أو إرسال ملاحظات
+                        @endif
+                    </span>
+                </div>
+                <a class="btn btn-primary" href="{{ $contractUrl }}" target="_blank" rel="noopener">
+                    <svg class="ic"><use href="#i-{{ $contract['is_approved'] ? 'download' : 'edit' }}"/></svg>
+                    {{ $contract['is_approved'] ? 'استعراض العقد وتحميله' : 'مراجعة العقد الآن' }}
                 </a>
             </div>
         @endif
@@ -338,6 +364,12 @@
                             : ($flow['meeting_at'] ? $fmt($flow['meeting_at']) : null),
                         'quote_due' => $quote ? 'صدر العرض — '.$fmt($quote['issued_at']) : null,
                         'awaiting_approval' => $flow['approved_at'] ? 'اعتُمد — '.$fmt($flow['approved_at']) : null,
+                        'awaiting_contract' => match (true) {
+                            (bool) ($contract['is_approved'] ?? false) => 'اعتُمد العقد — '.$fmt($contract['approved_at']),
+                            ($contract['status'] ?? null) === 'feedback' => 'وصلت ملاحظاتك — بانتظار النسخة المعدَّلة',
+                            (bool) ($contract['is_sent'] ?? false) => 'المسوّدة بانتظار مراجعتك — الجولة '.$contract['round'],
+                            default => null,
+                        },
                         'awaiting_requirements' => count($requirements) ? 'رُفع '.count($requirements).' ملف' : null,
                         'in_progress' => $flow['due_at'] ? 'موعد التسليم: '.$flow['due_at']->format('Y/m/d') : null,
                         'delivered' => $flow['delivered_at'] ? $fmt($flow['delivered_at']) : null,

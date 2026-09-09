@@ -5,7 +5,9 @@ namespace App\Filament\Pages;
 use App\Http\Controllers\QuoteController;
 use App\Mail\QuoteProposalIssued;
 use App\Models\ServiceRequest;
+use App\Support\Contracts;
 use App\Support\MailTemplates;
+use App\Support\ServiceFlow;
 use BackedEnum;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
@@ -15,8 +17,8 @@ use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\URL;
 
 /**
- * لوحة متابعة طلبات المتاجر الواردة من نموذج عرض السعر:
- * عرض الطلبات بأرقامها المرجعية، فتح مستند كل طلب، تغيير الحالة، وحذف طلب.
+ * لوحة متابعة الطلبات التي تسلك المسار (المتاجر الإلكترونية، الحلول التقنية، البرامج التدريبية):
+ * المراحل، عرض السعر، القرار، العقد، المتطلبات، التنفيذ والتسليم — بمفردات كل خدمة.
  * حذف طلب مرتبط برابط مخصّص يفتح الرابط من جديد لصاحبه.
  */
 class QuoteRequests extends Page
@@ -27,7 +29,7 @@ class QuoteRequests extends Page
 
     protected static string|\UnitEnum|null $navigationGroup = 'إدارة الموقع';
 
-    protected static ?string $navigationLabel = 'متابعة طلبات المتاجر';
+    protected static ?string $navigationLabel = 'متابعة الطلبات';
 
     protected static ?int $navigationSort = 1;
 
@@ -50,7 +52,7 @@ class QuoteRequests extends Page
 
     public function getTitle(): string
     {
-        return 'متابعة طلبات المتاجر';
+        return 'متابعة الطلبات';
     }
 
     public static function getNavigationBadge(): ?string
@@ -60,11 +62,10 @@ class QuoteRequests extends Page
         return $new > 0 ? (string) $new : null;
     }
 
-    /** طلبات نموذج عرض السعر وحدها (الرابط المخصّص + النموذج العام). */
+    /** طلبات الخدمات الثلاث التي تسلك المسار: نموذج عرض السعر بوضعيه ونماذج الحلول التقنية والتدريب. */
     protected static function baseQuery()
     {
-        return ServiceRequest::query()
-            ->where(fn ($q) => $q->where('source', 'quote_form')->orWhere('source', 'like', 'quote_link:%'));
+        return ServiceRequest::query()->whereIn('service_type', ServiceFlow::TYPES);
     }
 
     /** @return array<int, array<string, mixed>> */
@@ -73,6 +74,7 @@ class QuoteRequests extends Page
         return static::baseQuery()
             ->when($this->filter === 'new', fn ($q) => $q->where('status', 'new'))
             ->when($this->filter === 'invite', fn ($q) => $q->where('source', 'like', 'quote_link:%'))
+            ->when(in_array($this->filter, ServiceFlow::TYPES, true), fn ($q) => $q->where('service_type', $this->filter))
             ->latest('id')
             ->limit(100)
             ->get()
@@ -90,12 +92,13 @@ class QuoteRequests extends Page
                     'company' => $sr->company,
                     'budget' => $sr->budget,
                     'message' => $sr->message,
-                    // المفاتيح الداخلية (مثل عرض السعر) تُعرض في قسمها الخاص لا ضمن إجابات العميل
-                    'payload' => array_filter(
-                        (array) $sr->payload,
-                        fn ($key) => ! str_starts_with((string) $key, '_'),
-                        ARRAY_FILTER_USE_KEY
-                    ),
+                    // إجابات العميل بعناوينها — المفاتيح الداخلية (مثل عرض السعر) تُعرض في قسمها الخاص
+                    'payload' => ServiceFlow::answers($sr),
+                    'service' => ServiceFlow::type($sr),
+                    'service_label' => ServiceFlow::label($sr),
+                    'service_yours' => ServiceFlow::profile($sr)['yours'],
+                    'company_label' => ServiceFlow::profile($sr)['company_label'],
+                    'stages' => ServiceFlow::stages($sr),
                     'status' => $sr->status,
                     'invite' => $invite,
                     'created' => $sr->created_at,
@@ -112,6 +115,7 @@ class QuoteRequests extends Page
                     'flow' => QuoteController::flowOf($sr),
                     'requirements' => QuoteController::requirementsOf($sr),
                     'views' => QuoteController::viewsOf($sr),
+                    'contract' => Contracts::of($sr),
                 ];
             })
             ->all();
@@ -224,8 +228,20 @@ class QuoteRequests extends Page
                     'due' => (string) ($p['due'] ?? ''),
                     'percent' => (float) ($p['percent'] ?? 0),
                 ], array_values($saved['payments']))
-                : self::DEFAULT_PAYMENTS,
+                : $this->defaultPayments($sr),
         ];
+    }
+
+    /** جدول الدفعات المبدئي بمفردات الخدمة (تسليم المتجر / التسليم). */
+    private function defaultPayments(ServiceRequest $sr): array
+    {
+        $payments = self::DEFAULT_PAYMENTS;
+
+        if (ServiceFlow::type($sr) !== 'ecommerce') {
+            $payments[1]['label'] = 'دفعة عند التسليم';
+        }
+
+        return $payments;
     }
 
     public function addPayment(): void
@@ -363,6 +379,17 @@ class QuoteRequests extends Page
 
     private function suggestedItems(ServiceRequest $sr): array
     {
+        // الحلول التقنية والتدريب: بند أول من اسم الخدمة وما اختاره العميل في نموذجها
+        if (ServiceFlow::type($sr) !== 'ecommerce') {
+            $picked = collect(ServiceFlow::answers($sr))
+                ->flatten()
+                ->map(fn ($v) => trim((string) $v))
+                ->filter()
+                ->implode('، ');
+
+            return [$this->normaliseItem(['name' => ServiceFlow::label($sr).($picked !== '' ? ' — '.$picked : '')])];
+        }
+
         $features = ((array) $sr->payload)['الخدمات المطلوبة'] ?? [];
         $features = is_array($features) ? $features : [$features];
         $features = array_values(array_filter($features, fn ($f) => $f !== 'أحتاج استشارة الفريق أولاً'));
@@ -452,6 +479,23 @@ class QuoteRequests extends Page
         // نفس شرط تحديث issued_at أدناه بالضبط، فكلاهما يعبّران عن المعنى نفسه: عرض جديد وصل العميل.
         $isReissue = ! isset($prevQuote['issued_at']) || $send;
 
+        // سجلّ الإصدارات: مع كل إعادة إصدار تُحفظ لقطة أرقام الإصدار السابق (السعر الأساسي،
+        // نسبة الخصم وقيمته، الإجمالي) ليقارنها العميل بالإصدار الجديد. الحفظ دون إرسال لا يضيف شيئاً.
+        $history = array_values(array_filter((array) ($prevQuote['history'] ?? []), 'is_array'));
+        if ($isReissue && isset($prevQuote['issued_at']) && ($previous = QuoteController::quoteOf($sr))) {
+            $history[] = [
+                'version' => $previous['version'],
+                'issued_at' => $previous['issued_at']->toIso8601String(),
+                'subtotal' => $previous['subtotal'],
+                'discount_percent' => $previous['discount_percent'],
+                'discount' => $previous['discount'],
+                'vat_percent' => $previous['vat_percent'],
+                'vat' => $previous['vat'],
+                'total' => $previous['total'],
+                'currency' => $previous['currency'],
+            ];
+        }
+
         $payload['_quote'] = [
             'items' => array_map(fn ($i) => [
                 'phase' => trim((string) ($i['phase'] ?? '')),
@@ -510,6 +554,7 @@ class QuoteRequests extends Page
             'version' => $isReissue
                 ? (int) ($prevQuote['version'] ?? 0) + 1
                 : max(1, (int) ($prevQuote['version'] ?? 1)),
+            'history' => $history,
         ];
 
         // إصدار العرض ينقل مسار الطلب تلقائياً إلى مرحلة اعتماد العميل
@@ -629,13 +674,13 @@ class QuoteRequests extends Page
         $sr->update(['status' => 'won']);
 
         Notification::make()
-            ->title('بدأ تنفيذ المتجر للطلب '.$sr->reference)
+            ->title(ServiceFlow::stages($sr)['in_progress']['label'].' — الطلب '.$sr->reference)
             ->body($this->mailedNote($sr->fresh(), 'in_progress', withSummary: true))
             ->success()
             ->send();
     }
 
-    /** تسليم المتجر — نهاية المسار. */
+    /** التسليم — نهاية المسار. */
     public function markDelivered(int $id): void
     {
         $sr = $this->saveFlow($id, [
@@ -644,7 +689,7 @@ class QuoteRequests extends Page
         ]);
 
         Notification::make()
-            ->title('تم تسليم المتجر — الطلب '.$sr->reference)
+            ->title('تم التسليم — الطلب '.$sr->reference)
             ->body($this->mailedNote($sr, 'delivered'))
             ->success()
             ->send();
@@ -669,7 +714,7 @@ class QuoteRequests extends Page
 
         $sr = $this->saveFlow($id, ['stage' => $stage]);
 
-        Notification::make()->title('أُعيد الطلب '.$sr->reference.' إلى مرحلة: '.QuoteController::STAGES[$stage]['label'])->success()->send();
+        Notification::make()->title('أُعيد الطلب '.$sr->reference.' إلى مرحلة: '.ServiceFlow::stages($sr)[$stage]['label'])->success()->send();
     }
 
     public function deleteQuote(int $id): void

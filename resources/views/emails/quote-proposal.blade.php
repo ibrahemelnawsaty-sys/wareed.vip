@@ -1,11 +1,11 @@
-@extends('emails.layout', ['title' => 'عرض سعر متجرك الإلكتروني — وريد'])
+@extends('emails.layout', ['title' => 'عرض سعر '.$profile['yours'].' — وريد'])
 
 @section('content')
     @php
         $money = fn ($n) => number_format((float) $n, ((float) $n == (int) $n) ? 0 : 2).' '.$quote['currency'];
     @endphp
 
-    <h2 style="margin:0 0 14px;font-size:20px;color:#0d1830;">عرض سعر متجرك الإلكتروني</h2>
+    <h2 style="margin:0 0 14px;font-size:20px;color:#0d1830;">عرض سعر {{ $profile['yours'] }}</h2>
 
     @if ($quote['version'] > 1)
         @php $decision = \App\Http\Controllers\QuoteController::decisionOf($sr); @endphp
@@ -30,7 +30,7 @@
 
     {{-- المقدّمة قابلة للتعديل من: لوحة التحكم ← قوالب البريد الإلكتروني ← إرسال عرض السعر --}}
     {!! \App\Support\MailTemplates::html(\App\Support\MailTemplates::render(
-        \App\Support\MailTemplates::body('proposal_sent'),
+        \App\Support\MailTemplates::body('proposal_sent', $profile['type']),
         \App\Support\MailTemplates::variables($sr),
     )) !!}
 
@@ -48,6 +48,37 @@
             <td style="padding:0 18px 14px;font-size:14px;font-weight:bold;color:#0d1830;" align="left">{{ $quote['valid_until']->format('Y/m/d') }}</td>
         </tr>
     </table>
+
+    @if (count($quote['versions']) > 1)
+        {{-- سجلّ الإصدارات: السعر الأساسي وخصم كل إصدار وإجماليه، والإصدار الحالي مميّز --}}
+        <p style="margin:0 0 8px;font-size:13px;font-weight:bold;color:#0d1830;">سجلّ إصدارات العرض</p>
+        <table role="presentation" width="100%" style="border-collapse:collapse;margin:0 0 20px;">
+            <tr>
+                <th align="right" style="padding:8px 10px;background:#55638a;color:#fff;font-size:12px;">الإصدار</th>
+                <th align="right" style="padding:8px 10px;background:#55638a;color:#fff;font-size:12px;">السعر الأساسي</th>
+                <th align="right" style="padding:8px 10px;background:#55638a;color:#fff;font-size:12px;">الخصم</th>
+                <th align="left" style="padding:8px 10px;background:#55638a;color:#fff;font-size:12px;">الإجمالي المستحق</th>
+            </tr>
+            @foreach ($quote['versions'] as $ver)
+                @php $vStyle = $ver['current'] ? 'background:#eff6ff;font-weight:bold;color:#0d1830;' : 'color:#55638a;'; @endphp
+                <tr>
+                    <td style="padding:8px 10px;border-bottom:1px solid #eef2fa;font-size:12px;{{ $vStyle }}">
+                        الإصدار {{ $ver['version'] }}{{ $ver['current'] ? ' (الحالي)' : '' }}
+                        @if ($ver['issued_at'])<span style="font-weight:normal;color:#8493b5;"> — {{ $ver['issued_at']->format('Y/m/d') }}</span>@endif
+                    </td>
+                    <td style="padding:8px 10px;border-bottom:1px solid #eef2fa;font-size:12px;{{ $vStyle }}">{{ number_format($ver['subtotal'], ($ver['subtotal'] == (int) $ver['subtotal']) ? 0 : 2) }} {{ $ver['currency'] }}</td>
+                    <td style="padding:8px 10px;border-bottom:1px solid #eef2fa;font-size:12px;{{ $vStyle }}">
+                        @if ($ver['discount'] > 0)
+                            {{ rtrim(rtrim(number_format($ver['discount_percent'], 2), '0'), '.') }}% — {{ number_format($ver['discount'], ($ver['discount'] == (int) $ver['discount']) ? 0 : 2) }} {{ $ver['currency'] }}
+                        @else
+                            بلا خصم
+                        @endif
+                    </td>
+                    <td align="left" style="padding:8px 10px;border-bottom:1px solid #eef2fa;font-size:12px;{{ $vStyle }}">{{ $money($ver['total']) }}</td>
+                </tr>
+            @endforeach
+        </table>
+    @endif
 
     <table role="presentation" width="100%" style="border-collapse:collapse;margin:0 0 20px;">
         <tr>

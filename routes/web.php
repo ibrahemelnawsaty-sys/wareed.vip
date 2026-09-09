@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\ContractController;
 use App\Http\Controllers\PageController;
 use App\Http\Controllers\QuoteController;
 use App\Http\Controllers\ServiceController;
@@ -44,6 +45,11 @@ Route::post('/quote/requirements/{serviceRequest}', [QuoteController::class, 're
 // بكسل تتبّع فتح بريد عرض السعر — مضمَّن كصورة شفافة 1×1 داخل قالب البريد
 Route::get('/quote/track/{serviceRequest}', [QuoteController::class, 'trackEmailOpen'])
     ->middleware('signed')->name('quote.track');
+// العقد: مراجعة بنوده واعتمادها بعد اعتماد العرض — رابط موقّع للنموذج العام
+Route::get('/quote/contract/{serviceRequest}', [ContractController::class, 'reviewSigned'])
+    ->middleware('signed')->name('quote.contract.signed');
+Route::post('/quote/contract/{serviceRequest}', [ContractController::class, 'decisionSigned'])
+    ->middleware(['signed', 'throttle:10,1'])->name('quote.contract.decision.signed');
 Route::get('/quote/{invite}', [QuoteController::class, 'show'])->name('quote.invite');
 Route::post('/quote/{invite}', [QuoteController::class, 'submit'])
     ->middleware('throttle:10,1')->name('quote.invite.submit');
@@ -55,6 +61,10 @@ Route::post('/quote/{invite}/decision', [QuoteController::class, 'decision'])
 // رفع متطلبات المشروع بعد اعتماد العرض
 Route::post('/quote/{invite}/requirements', [QuoteController::class, 'requirements'])
     ->middleware('throttle:10,1')->name('quote.requirements');
+// العقد عبر الرابط المخصّص: مراجعة البنود وتسجيل القرارات
+Route::get('/quote/{invite}/contract', [ContractController::class, 'review'])->name('quote.contract');
+Route::post('/quote/{invite}/contract', [ContractController::class, 'decision'])
+    ->middleware('throttle:10,1')->name('quote.contract.decision');
 // اختصار شخصي يُشارك مع العميلة مباشرة
 Route::redirect('/hajar-salama', '/quote/hajar-salama');
 

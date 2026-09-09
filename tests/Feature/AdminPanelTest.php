@@ -1,15 +1,19 @@
 <?php
 
 use App\Filament\Pages\EmailTemplates;
+use App\Filament\Pages\ManageSettings;
 use App\Filament\Pages\QuoteRequests;
 use App\Http\Controllers\QuoteController;
 use App\Mail\QuoteProposalIssued;
 use App\Mail\StageMessage;
 use App\Models\ServiceRequest;
+use App\Models\Setting;
 use App\Models\User;
+use App\Support\Contracts;
 use App\Support\MailTemplates;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Storage;
 use Spatie\Permission\Models\Role;
 
 uses(RefreshDatabase::class);
@@ -52,13 +56,34 @@ it('يحمّل كل صفحات لوحة الأدمن دون أخطاء', functio
     }
 });
 
+it('تعرض إعدادات الموقع القيم المحفوظة بأي لغة ولا تمحوها عند الحفظ', function () {
+    $this->actingAs(adminUser());
+    Storage::fake('local');
+    Storage::disk('local')->put('branding/stamp.png', 'png');
+
+    // الإعداد يُحفظ بلغة اللوحة وقت الحفظ (قد تكون الإنجليزية) بينما الموقع عربي
+    app()->setLocale('en');
+    Setting::set('contract_stamp', 'branding/stamp.png');
+    Setting::set('bank_iban', 'EG380003000000001234567890123');
+    app()->setLocale('ar');
+
+    Livewire\Livewire::test(ManageSettings::class)
+        ->assertSet('data.bank_iban', 'EG380003000000001234567890123')
+        ->assertSet('data.contract_stamp', fn ($state) => in_array('branding/stamp.png', (array) $state, true))
+        ->call('save');
+
+    expect(Setting::get('contract_stamp'))->toBe('branding/stamp.png')
+        ->and(Setting::get('bank_iban'))->toBe('EG380003000000001234567890123')
+        ->and(Contracts::signature()['stamp'])->toBe('branding/stamp.png');
+});
+
 it('يحمّل الصفحات العامة', function () {
     $this->get('/')->assertSuccessful();
     $this->get('/sitemap.xml')->assertSuccessful();
     $this->get('/robots.txt')->assertSuccessful();
 });
 
-it('يعرض طلبات نموذج المتاجر في لوحة المتابعة ويسمح بحذفها', function () {
+it('يعرض طلبات الخدمات الثلاث في لوحة المتابعة دون طلبات التواصل العامة ويسمح بالحذف', function () {
     $this->actingAs(adminUser());
 
     $sr = ServiceRequest::create([
@@ -67,22 +92,27 @@ it('يعرض طلبات نموذج المتاجر في لوحة المتابعة
         'payload' => ['مجال المتجر' => 'عطور ومستحضرات تجميل'],
     ]);
 
-    // طلب من خارج النموذج لا يظهر في اللوحة
+    // طلب التدريب يظهر في اللوحة نفسها بشارة خدمته، وطلب التواصل العام لا يظهر
     ServiceRequest::create([
         'service_type' => 'training', 'name' => 'طلب تدريب', 'phone' => '0100', 'status' => 'new', 'source' => 'service_training',
+    ]);
+    ServiceRequest::create([
+        'service_type' => 'general', 'name' => 'رسالة تواصل عامة', 'phone' => '0100', 'status' => 'new', 'source' => 'contact',
     ]);
 
     Livewire\Livewire::test(QuoteRequests::class)
         ->assertSee($sr->reference)
         ->assertSee('أ. هاجر سلامة')
         ->assertSee('عطور ومستحضرات تجميل')
-        ->assertDontSee('طلب تدريب')
+        ->assertSee('طلب تدريب')
+        ->assertSee('البرامج التدريبية')
+        ->assertDontSee('رسالة تواصل عامة')
         ->call('markStatus', $sr->id, 'proposal')
         ->call('deleteRequest', $sr->id);
 
     expect(ServiceRequest::find($sr->id))->toBeNull()
-        // الطلبات خارج النموذج لا تتأثر
-        ->and(ServiceRequest::count())->toBe(1);
+        // بقية الطلبات لا تتأثر
+        ->and(ServiceRequest::count())->toBe(2);
 });
 
 it('يُصدر عرض السعر من اللوحة ويرسله للعميل بالبريد', function () {
@@ -176,6 +206,89 @@ it('يزيد رقم إصدار العرض عند إعادة إصداره بعد 
             && str_contains($html, 'بعد طلبك تخفيضاً')
             && str_contains($html, QuoteController::proposalUrl($sr));
     });
+});
+
+it('يحفظ سجلّ إصدارات العرض ويعرض السعر الأساسي وخصم كل إصدار للعميل', function () {
+    Mail::fake();
+    $this->actingAs(adminUser());
+
+    $sr = ServiceRequest::create([
+        'service_type' => 'ecommerce', 'name' => 'أ. هاجر سلامة',
+        'phone' => '00201016031031', 'email' => 'hagersalma89@gmail.com', 'company' => 'متجر حواديت',
+        'status' => 'new', 'source' => 'quote_link:hajar-salama', 'payload' => [],
+    ]);
+
+    // الإصدار الأول بلا خصم — السعر الأساسي 20,000
+    Livewire\Livewire::test(QuoteRequests::class)
+        ->call('openQuote', $sr->id)
+        ->set('draft.items.0.name', 'تجهيز المتجر')
+        ->set('draft.items.0.price', 20000)
+        ->set('draft.vat_percent', 14)
+        ->call('issueQuote', true);
+
+    $v1 = QuoteController::quoteOf($sr->fresh());
+    expect($v1['history'])->toBeEmpty()
+        ->and($v1['versions'])->toHaveCount(1)
+        ->and($v1['versions'][0]['current'])->toBeTrue();
+
+    // الإصدار الثاني: الأسعار الأساسية كما هي والخصم 10%
+    Livewire\Livewire::test(QuoteRequests::class)
+        ->call('openQuote', $sr->id)
+        ->set('draft.discount_percent', 10)
+        ->call('issueQuote', true);
+
+    // حفظ دون إرسال لا يضيف إصداراً للسجلّ
+    Livewire\Livewire::test(QuoteRequests::class)
+        ->call('openQuote', $sr->id)
+        ->set('draft.items.0.desc', 'وصف')
+        ->call('issueQuote', false);
+
+    // الإصدار الثالث: خصم 20% على السعر الأساسي نفسه
+    Livewire\Livewire::test(QuoteRequests::class)
+        ->call('openQuote', $sr->id)
+        ->set('draft.discount_percent', 20)
+        ->call('issueQuote', true);
+
+    $quote = QuoteController::quoteOf($sr->fresh());
+
+    expect($quote['version'])->toBe(3)
+        ->and($quote['history'])->toHaveCount(2)
+        ->and($quote['history'][0])->toMatchArray(['version' => 1, 'subtotal' => 20000.0, 'discount_percent' => 0.0, 'discount' => 0.0, 'total' => 22800.0, 'current' => false])
+        ->and($quote['history'][1])->toMatchArray(['version' => 2, 'subtotal' => 20000.0, 'discount_percent' => 10.0, 'discount' => 2000.0, 'after_discount' => 18000.0, 'total' => 20520.0])
+        ->and($quote['versions'])->toHaveCount(3)
+        ->and($quote['versions'][2])->toMatchArray(['version' => 3, 'subtotal' => 20000.0, 'discount' => 4000.0, 'after_discount' => 16000.0, 'total' => 18240.0, 'current' => true]);
+
+    // صفحة العرض تعرض السجلّ بالسعر الأساسي الثابت وخصم كل إصدار
+    $this->get(route('quote.proposal', 'hajar-salama'))
+        ->assertSuccessful()
+        ->assertSee('سجلّ إصدارات العرض')
+        ->assertSee('REVISION HISTORY')
+        ->assertSee('السعر الأساسي للبنود ثابت في جميع الإصدارات')
+        ->assertSee('10% — 2,000 ج.م')
+        ->assertSee('20% — 4,000 ج.م')
+        ->assertSee('22,800 ج.م')
+        ->assertSee('20,520 ج.م')
+        ->assertSee('data-pg-unit="versions"', false);
+
+    // والبريد يحمل الجدول نفسه
+    Mail::assertSent(QuoteProposalIssued::class, function ($mail) {
+        $html = $mail->render();
+
+        return str_contains($html, 'الإصدار 3 (الحالي)')
+            && str_contains($html, 'سجلّ إصدارات العرض')
+            && str_contains($html, '22,800 ج.م')
+            && str_contains($html, '20% — 4,000 ج.م');
+    });
+
+    // العروض القديمة بلا سجلّ تُقرأ كإصدار واحد حالي
+    $legacy = ServiceRequest::create([
+        'service_type' => 'ecommerce', 'name' => 'عميل', 'phone' => '—', 'status' => 'new', 'source' => 'quote_form',
+        'payload' => ['_quote' => ['items' => [['name' => 'بند', 'qty' => 1, 'price' => 100]], 'discount' => 10]],
+    ]);
+    $old = QuoteController::quoteOf($legacy);
+    expect($old['history'])->toBeEmpty()
+        ->and($old['versions'])->toHaveCount(1)
+        ->and($old['versions'][0])->toMatchArray(['version' => 1, 'discount' => 10.0, 'discount_percent' => 10.0, 'current' => true]);
 });
 
 it('لا يزيد رقم إصدار العرض عند حفظ مسودّة دون إرسال أو عند إعادة إرسال العرض نفسه دون تعديل', function () {

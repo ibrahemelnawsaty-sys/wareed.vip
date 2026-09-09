@@ -148,6 +148,15 @@
         .totals tr.grand td:first-child { color: #fff; border-radius: 0 2mm 2mm 0; }
         .totals tr.grand td:last-child { border-radius: 2mm 0 0 2mm; }
 
+        /* سجلّ إصدارات العرض: الإصدار الحالي مميّز، والسابقة للمقارنة */
+        table.pay-table.vers td { font-variant-numeric: tabular-nums; }
+        table.pay-table.vers td.prev { color: var(--muted); }
+        table.pay-table.vers tr.ver-now td { background: #eef2fb !important; font-weight: 700; }
+        .tag-now {
+            display: inline-block; margin-inline-start: 2mm; padding: .3mm 2.2mm; border-radius: 99px;
+            font-size: 6.8pt; font-weight: 700; color: #fff; background: var(--blue);
+        }
+
         .pay { margin-top: 3mm; display: grid; grid-template-columns: 1.15fr 1fr; gap: 4mm; align-items: start; }
         /* عمود الاستحقاق يحتاج عرضاً أكبر — نضع الجدول بعرض كامل والبيانات البنكية تحته */
         .pay.with-due { grid-template-columns: 1fr; gap: 3mm; }
@@ -520,7 +529,12 @@
                 @else
                     هذا عرض مُحدَّث يحلّ محلّ أي عرض سابق وصلك على هذا الطلب —
                 @endif
-                يرجى مراجعة البنود والإجمالي الجديدين أدناه قبل اتخاذ قرارك.
+                يرجى مراجعة البنود والإجمالي الجديدين أدناه قبل اتخاذ قرارك،
+                @if (count($quote['versions']) > 1)
+                    ومقارنة السعر الأساسي والخصم بين الإصدارات في «سجلّ إصدارات العرض».
+                @else
+                    والاطلاع على الإجمالي المستحق بعد التحديث.
+                @endif
             </p>
         </section>
     @endif
@@ -530,7 +544,7 @@
             <div class="party-head">مقدَّم إلى</div>
             <div class="party-body">
                 <div class="party-name">{{ $contact['name'] }}</div>
-                <div class="party-row"><span>اسم المتجر</span><b>{{ $contact['store'] ?: '—' }}</b></div>
+                <div class="party-row"><span>{{ $profile['company_label'] }}</span><b>{{ $contact['store'] ?: '—' }}</b></div>
                 <div class="party-row"><span>رقم الموبايل</span><b class="ltr">{{ $contact['phone'] ?: '—' }}</b></div>
                 <div class="party-row"><span>البريد الإلكتروني</span><b class="ltr">{{ $contact['email'] ?: '—' }}</b></div>
             </div>
@@ -539,7 +553,7 @@
             <div class="party-head">مقدَّم من</div>
             <div class="party-body">
                 <div class="party-name">منصة وريد</div>
-                <div class="party-row"><span>الخدمة</span><b>المتاجر الإلكترونية</b></div>
+                <div class="party-row"><span>الخدمة</span><b>{{ $profile['label'] }}</b></div>
                 <div class="party-row"><span>نوع المستند</span><b>عرض سعر</b></div>
                 @if ($quote['delivery_at'])
                     <div class="party-row"><span>موعد التسليم</span><b>{{ $fmt($quote['delivery_at']) }}</b></div>
@@ -622,6 +636,59 @@
             <tr class="grand"><td>الإجمالي المستحق</td><td>{{ $money($quote['total']) }} {{ $cur }}</td></tr>
         </table>
     </div>
+
+    @if (count($quote['versions']) > 1)
+        @php $sameBase = collect($quote['versions'])->pluck('subtotal')->unique()->count() === 1; @endphp
+        <div class="pg-unit" data-pg-unit="versions">
+        <div class="section-title">
+            سجلّ إصدارات العرض
+            <span class="en">REVISION HISTORY</span>
+        </div>
+        <p class="opt-note">
+            @if ($sameBase)
+                السعر الأساسي للبنود ثابت في جميع الإصدارات، ويتغيّر الخصم وحده حسب ما اتُّفق عليه.
+            @else
+                يوضّح الجدول السعر الأساسي وخصم كل إصدار وإجماليه.
+            @endif
+            الإصدار الحالي هو المعتمد ويحلّ محلّ ما قبله بالكامل.
+        </p>
+        <div class="tbl-wrap">
+        <table class="pay-table sched vers">
+            <thead>
+                <tr>
+                    <th style="width:18mm">الإصدار</th>
+                    <th style="width:30mm">التاريخ</th>
+                    <th>السعر الأساسي</th>
+                    <th>الخصم</th>
+                    <th>بعد الخصم</th>
+                    <th style="width:30mm">الإجمالي المستحق</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach ($quote['versions'] as $ver)
+                    <tr @class(['ver-now' => $ver['current']])>
+                        <td class="{{ $ver['current'] ? '' : 'prev' }}">
+                            <b>{{ $ver['version'] }}</b>
+                            @if ($ver['current'])<span class="tag-now">الحالي</span>@endif
+                        </td>
+                        <td class="due">{{ $ver['issued_at'] ? $fmtShort($ver['issued_at']) : '—' }}</td>
+                        <td class="{{ $ver['current'] ? '' : 'prev' }}">{{ $money($ver['subtotal']) }} {{ $ver['currency'] }}</td>
+                        <td class="{{ $ver['current'] ? '' : 'prev' }}">
+                            @if ($ver['discount'] > 0)
+                                {{ $pct($ver['discount_percent']) }}% — {{ $money($ver['discount']) }} {{ $ver['currency'] }}
+                            @else
+                                بلا خصم
+                            @endif
+                        </td>
+                        <td class="{{ $ver['current'] ? '' : 'prev' }}">{{ $money($ver['after_discount']) }} {{ $ver['currency'] }}</td>
+                        <td class="amt">{{ $money($ver['total']) }} {{ $ver['currency'] }}</td>
+                    </tr>
+                @endforeach
+            </tbody>
+        </table>
+        </div>
+        </div>
+    @endif
 
     @if ($quote['extras'])
         <div class="pg-unit" data-pg-unit="extras">
@@ -892,13 +959,33 @@
     </form>
 </section>
 
-@if (($decision['choice'] ?? null) === 'approved')
-    {{-- متطلبات المشروع: ملفات الهوية البصرية وبيانات المنتجات وغيرها — تظهر فقط بعد اعتماد العرض --}}
-    <section class="reqs" id="requirements">
-        <h2 class="reqs-title"><svg class="ic"><use href="#i-box"/></svg> متطلبات المشروع</h2>
+@if (($decision['choice'] ?? null) === 'approved' && $contract && ! $contract['is_approved'])
+    {{-- العقد بانتظار العميل: رفع المتطلبات يأتي بعد اعتماده — للشاشة فقط --}}
+    <section class="reqs" id="contract">
+        <h2 class="reqs-title"><svg class="ic"><use href="#i-document"/></svg> عقد المشروع</h2>
         <p class="reqs-lead">
-            ارفع ملفات هويتك البصرية أو شعار المتجر، وبيانات منتجاتك (أسماء وأوصاف وأسعار وصور إن توفّرت)،
-            وأي ملفات أخرى يحتاجها فريق وريد، مع وصف مختصر لكل ملف.
+            @if ($contract['status'] === 'feedback')
+                وصلت ملاحظاتك على مسوّدة العقد <b dir="ltr">{{ $contract['number'] }}</b> لفريق وريد، وستصلك النسخة المعدَّلة على بريدك الإلكتروني.
+            @elseif ($contract['is_sent'])
+                مسوّدة العقد <b dir="ltr">{{ $contract['number'] }}</b> بانتظار مراجعتك — <b>راجع بنودها واعتمدها ليُفتح رفع متطلبات المشروع.</b>
+            @else
+                يجهّز فريق وريد مسوّدة العقد <b dir="ltr">{{ $contract['number'] }}</b>، وستصلك على بريدك الإلكتروني لمراجعة بنودها واعتمادها قبل رفع متطلبات المشروع.
+            @endif
+        </p>
+        @if ($contract['is_sent'])
+            <a class="reqs-send" href="{{ $contractUrl }}" style="text-decoration:none">
+                <svg class="ic"><use href="#i-edit"/></svg> {{ $contract['status'] === 'feedback' ? 'استعراض العقد' : 'مراجعة العقد الآن' }}
+            </a>
+        @endif
+    </section>
+@endif
+
+@if (($decision['choice'] ?? null) === 'approved' && (! $contract || $contract['is_approved']))
+    {{-- متطلبات المشروع: ملفات الهوية البصرية وبيانات المنتجات وغيرها — تظهر بعد اعتماد العرض (والعقد إن وُجد) --}}
+    <section class="reqs" id="requirements">
+        <h2 class="reqs-title"><svg class="ic"><use href="#i-box"/></svg> {{ $profile['requirements']['title'] }}</h2>
+        <p class="reqs-lead">
+            {{ $profile['requirements']['lead'] }}
             @if ($flow['stage'] === 'awaiting_requirements')
                 <b>لم يبدأ التنفيذ الفعلي بعد — يبدأ فور رفعك لأوّل ملف.</b>
             @endif
@@ -936,7 +1023,7 @@
             <div class="reqs-rows" data-reqs-rows>
                 <div class="reqs-row" data-reqs-row>
                     <input type="file" name="files[0][file]" required>
-                    <input type="text" name="files[0][desc]" placeholder="وصف الملف (اختياري) — مثال: شعار المتجر">
+                    <input type="text" name="files[0][desc]" placeholder="{{ $profile['requirements']['placeholder'] }}">
                     <button type="button" class="reqs-rm" data-reqs-rm aria-label="إزالة الملف" hidden>
                         <svg class="ic"><use href="#i-trash"/></svg>
                     </button>
@@ -1063,7 +1150,7 @@
     var CONTACT_EMAIL = @json($contactEmail);
 
     var UNITS_BEFORE_ITEMS = ['head', 'refbar', 'revision', 'parties', 'items-title'];
-    var UNITS_AFTER_ITEMS = ['totals', 'extras', 'schedule', 'payments', 'terms', 'footer'];
+    var UNITS_AFTER_ITEMS = ['totals', 'versions', 'extras', 'schedule', 'payments', 'terms', 'footer'];
 
     function fits(body) {
         return body.scrollHeight <= body.clientHeight + 1;
