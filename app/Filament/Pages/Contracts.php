@@ -5,6 +5,7 @@ namespace App\Filament\Pages;
 use App\Http\Controllers\QuoteController;
 use App\Models\ServiceRequest;
 use App\Support\Contracts as ContractFlow;
+use App\Support\ServiceFlow;
 use BackedEnum;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
@@ -49,11 +50,11 @@ class Contracts extends Page
         return $waiting > 0 ? (string) $waiting : null;
     }
 
-    /** الطلبات التي لها عقد، أو اعتمد أصحابها عرض السعر فصار العقد خطوتها التالية. */
+    /** طلبات الخدمات الثلاث التي لها عقد، أو اعتمد أصحابها عرض السعر فصار العقد خطوتها التالية. */
     protected static function baseQuery()
     {
         return ServiceRequest::query()
-            ->where(fn ($q) => $q->where('source', 'quote_form')->orWhere('source', 'like', 'quote_link:%'))
+            ->whereIn('service_type', ServiceFlow::TYPES)
             ->where(fn ($q) => $q->where('payload', 'like', '%"_contract"%')->orWhere('payload', 'like', '%"choice":"approved"%'));
     }
 
@@ -93,6 +94,8 @@ class Contracts extends Page
                     'flow' => QuoteController::flowOf($sr),
                     'contract' => $contract,
                     'review_url' => $contract ? ContractFlow::reviewUrl($sr) : null,
+                    'service_label' => ServiceFlow::label($sr),
+                    'company_label' => ServiceFlow::profile($sr)['company_label'],
                 ];
             })
             ->filter(fn (array $row) => match ($this->filter) {

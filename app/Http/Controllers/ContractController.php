@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\ServiceRequest;
 use App\Support\Contracts;
+use App\Support\ServiceFlow;
 use chillerlan\QRCode\Common\EccLevel;
 use chillerlan\QRCode\Output\QROutputInterface;
 use chillerlan\QRCode\QRCode;
@@ -70,6 +71,7 @@ class ContractController extends Controller
         return view('contracts.review', [
             'sr' => $sr,
             'client' => $client,
+            'profile' => ServiceFlow::profile($sr),
             'contract' => $contract,
             'quote' => $quote,
             'contact' => [

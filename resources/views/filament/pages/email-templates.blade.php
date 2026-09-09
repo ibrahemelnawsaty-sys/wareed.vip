@@ -86,15 +86,26 @@
         .dark .mt-in { background: rgb(17 24 39); border-color: rgba(255,255,255,.15); color: #fff; }
         .dark .mt-var { background: rgba(37,99,235,.18); border-color: rgba(147,197,253,.35); color: rgb(191 219 254); }
 
+        .mt-types { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; margin-bottom: 1rem; }
         @media (max-width: 1100px) { .mt-wrap { grid-template-columns: 1fr; } }
     </style>
 
     @php $preview = $this->preview; @endphp
 
+    {{-- الخدمة: لكل خدمة صياغتها الخاصة للمراحل نفسها --}}
+    <div class="mt-types">
+        @foreach (\App\Support\ServiceFlow::TYPES as $t)
+            <x-filament::button wire:click="selectType('{{ $t }}')" size="sm" :color="$type === $t ? 'primary' : 'gray'">
+                {{ \App\Support\ServiceFlow::label($t) }}
+            </x-filament::button>
+        @endforeach
+        <span class="mt-note">لكل خدمة صياغتها الخاصة للمراحل نفسها — التعديل يُحفظ للخدمة المختارة فقط.</span>
+    </div>
+
     <div class="mt-wrap">
         {{-- مراحل الطلب --}}
         <div class="mt-card">
-            <div class="mt-card-head"><b>مراحل الطلب</b></div>
+            <div class="mt-card-head"><b>مراحل الطلب — {{ \App\Support\ServiceFlow::label($type) }}</b></div>
             @foreach ($this->stages as $i => $s)
                 <button type="button" wire:click="select('{{ $s['key'] }}')"
                         @class(['mt-stage', 'on' => $stage === $s['key']])>

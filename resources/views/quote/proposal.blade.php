@@ -544,7 +544,7 @@
             <div class="party-head">مقدَّم إلى</div>
             <div class="party-body">
                 <div class="party-name">{{ $contact['name'] }}</div>
-                <div class="party-row"><span>اسم المتجر</span><b>{{ $contact['store'] ?: '—' }}</b></div>
+                <div class="party-row"><span>{{ $profile['company_label'] }}</span><b>{{ $contact['store'] ?: '—' }}</b></div>
                 <div class="party-row"><span>رقم الموبايل</span><b class="ltr">{{ $contact['phone'] ?: '—' }}</b></div>
                 <div class="party-row"><span>البريد الإلكتروني</span><b class="ltr">{{ $contact['email'] ?: '—' }}</b></div>
             </div>
@@ -553,7 +553,7 @@
             <div class="party-head">مقدَّم من</div>
             <div class="party-body">
                 <div class="party-name">منصة وريد</div>
-                <div class="party-row"><span>الخدمة</span><b>المتاجر الإلكترونية</b></div>
+                <div class="party-row"><span>الخدمة</span><b>{{ $profile['label'] }}</b></div>
                 <div class="party-row"><span>نوع المستند</span><b>عرض سعر</b></div>
                 @if ($quote['delivery_at'])
                     <div class="party-row"><span>موعد التسليم</span><b>{{ $fmt($quote['delivery_at']) }}</b></div>
@@ -983,10 +983,9 @@
 @if (($decision['choice'] ?? null) === 'approved' && (! $contract || $contract['is_approved']))
     {{-- متطلبات المشروع: ملفات الهوية البصرية وبيانات المنتجات وغيرها — تظهر بعد اعتماد العرض (والعقد إن وُجد) --}}
     <section class="reqs" id="requirements">
-        <h2 class="reqs-title"><svg class="ic"><use href="#i-box"/></svg> متطلبات المشروع</h2>
+        <h2 class="reqs-title"><svg class="ic"><use href="#i-box"/></svg> {{ $profile['requirements']['title'] }}</h2>
         <p class="reqs-lead">
-            ارفع ملفات هويتك البصرية أو شعار المتجر، وبيانات منتجاتك (أسماء وأوصاف وأسعار وصور إن توفّرت)،
-            وأي ملفات أخرى يحتاجها فريق وريد، مع وصف مختصر لكل ملف.
+            {{ $profile['requirements']['lead'] }}
             @if ($flow['stage'] === 'awaiting_requirements')
                 <b>لم يبدأ التنفيذ الفعلي بعد — يبدأ فور رفعك لأوّل ملف.</b>
             @endif
@@ -1024,7 +1023,7 @@
             <div class="reqs-rows" data-reqs-rows>
                 <div class="reqs-row" data-reqs-row>
                     <input type="file" name="files[0][file]" required>
-                    <input type="text" name="files[0][desc]" placeholder="وصف الملف (اختياري) — مثال: شعار المتجر">
+                    <input type="text" name="files[0][desc]" placeholder="{{ $profile['requirements']['placeholder'] }}">
                     <button type="button" class="reqs-rm" data-reqs-rm aria-label="إزالة الملف" hidden>
                         <svg class="ic"><use href="#i-trash"/></svg>
                     </button>

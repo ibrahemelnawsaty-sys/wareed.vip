@@ -341,8 +341,8 @@
 <article class="sheet">
     <header class="head" data-pg-unit="head">
         <div class="head-title">
-            <h1>عقد تنفيذ مشروع</h1>
-            <div class="en">SERVICE AGREEMENT</div>
+            <h1>{{ $profile['contract_title'] }}</h1>
+            <div class="en">{{ $profile['contract_en'] }}</div>
             <span @class(['copy', 'ok' => $contract['is_approved']])>
                 {{ $contract['is_approved'] ? 'نسخة معتمدة من العميل' : 'مسوّدة للمراجعة — الجولة '.$contract['round'] }}
             </span>
@@ -411,7 +411,7 @@
             <div class="party-head">الطرف الثاني — العميل</div>
             <div class="party-body">
                 <div class="party-name">{{ $contact['name'] }}</div>
-                <div class="party-row"><span>اسم المتجر</span><b>{{ $contact['store'] ?: '—' }}</b></div>
+                <div class="party-row"><span>{{ $profile['company_label'] }}</span><b>{{ $contact['store'] ?: '—' }}</b></div>
                 <div class="party-row"><span>رقم الموبايل</span><b class="ltr">{{ $contact['phone'] ?: '—' }}</b></div>
                 <div class="party-row"><span>البريد الإلكتروني</span><b class="ltr">{{ $contact['email'] ?: '—' }}</b></div>
             </div>

@@ -7,6 +7,7 @@ use App\Models\Service;
 use App\Models\ServiceRequest;
 use App\Support\Contracts;
 use App\Support\MailTemplates;
+use App\Support\ServiceFlow;
 use Carbon\CarbonInterface;
 use chillerlan\QRCode\Common\EccLevel;
 use chillerlan\QRCode\Output\QROutputInterface;
@@ -346,6 +347,7 @@ class QuoteController extends Controller
         return view('quote.document', [
             'sr' => $sr,
             'client' => $client,
+            'profile' => ServiceFlow::profile($sr),
             'contact' => $this->contactOf($sr, $client),
             'rows' => $this->documentRows($sr),
             'qr' => $this->qrSvg($sr->reference),
@@ -377,6 +379,18 @@ class QuoteController extends Controller
     /** صفوف المستند: كل بيانات الطلب مرتّبة للعرض الرسمي. */
     private function documentRows(ServiceRequest $sr): array
     {
+        // طلبات الحلول التقنية والتدريب: حقول نموذج الخدمة بعناوينها، ثم الميزانية والتفاصيل
+        if (ServiceFlow::type($sr) !== 'ecommerce') {
+            $rows = [];
+            foreach (ServiceFlow::answers($sr) as $label => $value) {
+                $rows[] = [$label, is_array($value) ? implode(' • ', $value) : $value];
+            }
+            $rows[] = ['الميزانية التقديرية', $sr->budget];
+            $rows[] = ['تفاصيل الطلب', $sr->message];
+
+            return array_filter($rows, fn ($row) => filled($row[1]));
+        }
+
         // المفاتيح التي تبدأ بشرطة سفلية بيانات داخلية (مثل عرض السعر) ولا تُعرض كإجابات
         $payload = array_filter(
             (array) $sr->payload,
@@ -449,7 +463,7 @@ class QuoteController extends Controller
             'slaDays' => self::SLA_BUSINESS_DAYS,
             'quote' => self::quoteOf($sr),
             'flow' => self::flowOf($sr),
-            'stages' => self::STAGES,
+            'stages' => ServiceFlow::stages($sr),
             'requirements' => self::requirementsOf($sr),
             'proposalUrl' => self::proposalUrl($sr),
             'contract' => Contracts::of($sr),
@@ -682,6 +696,7 @@ class QuoteController extends Controller
         return view('quote.proposal', [
             'sr' => $sr,
             'client' => $client,
+            'profile' => ServiceFlow::profile($sr),
             'contact' => $this->contactOf($sr, $client),
             'quote' => $quote,
             'bank' => self::bankDetails(),
@@ -929,7 +944,7 @@ class QuoteController extends Controller
             }
 
             if ($startingExecution) {
-                $lines[] = 'نُقل الطلب تلقائياً إلى مرحلة «تنفيذ المتجر».';
+                $lines[] = 'نُقل الطلب تلقائياً إلى مرحلة «'.ServiceFlow::stages($sr)['in_progress']['label'].'».';
             }
 
             Mail::to((string) setting('contact_email', 'info@wareed.vip'))->send(new StageMessage(
@@ -960,7 +975,7 @@ class QuoteController extends Controller
                 subjectLine: 'استلمنا ملفاتك الإضافية — '.$sr->reference,
                 bodyText: "مرحباً {$sr->name}،\n\n"
                     ."استلم فريق وريد الملفات التالية بنجاح: {$names}.\n\n"
-                    .'شكراً لتعاونك، وسنراجعها ضمن سير العمل على متجر '.($sr->company ?: 'متجرك').'.',
+                    .'شكراً لتعاونك، وسنراجعها ضمن سير العمل على '.ServiceFlow::project($sr).'.',
                 link: self::statusUrl($sr),
             ));
         } catch (\Throwable $e) {

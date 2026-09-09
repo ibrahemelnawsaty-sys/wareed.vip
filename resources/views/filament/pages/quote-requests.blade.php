@@ -10,7 +10,11 @@
             'new' => 'info', 'contacted' => 'warning', 'qualified' => 'warning',
             'proposal' => 'success', 'won' => 'success', 'lost' => 'danger',
         ];
-        $filters = ['all' => 'كل الطلبات', 'new' => 'الجديدة', 'invite' => 'الروابط المخصّصة'];
+        $filters = [
+            'all' => 'كل الطلبات', 'new' => 'الجديدة',
+            'ecommerce' => 'المتاجر الإلكترونية', 'tech_solution' => 'الحلول التقنية', 'training' => 'البرامج التدريبية',
+            'invite' => 'الروابط المخصّصة',
+        ];
     @endphp
 
     {{-- أنماط الصفحة مضمّنة: لا تعتمد على بناء Tailwind الخاص بلوحة التحكم --}}
@@ -264,6 +268,8 @@
                         {{ $statusLabels[$r['status']] ?? $r['status'] }}
                     </x-filament::badge>
 
+                    <x-filament::badge color="info">{{ $r['service_label'] }}</x-filament::badge>
+
                     @if ($r['invite'])
                         <x-filament::badge color="gray">رابط مخصّص: {{ $r['invite'] }}</x-filament::badge>
                     @endif
@@ -283,7 +289,7 @@
                         ['العميل', $r['name'], false],
                         ['الموبايل', $r['phone'], true],
                         ['البريد الإلكتروني', $r['email'], true],
-                        ['المتجر', $r['company'], false],
+                        [$r['company_label'], $r['company'], false],
                     ] as [$label, $value, $ltr])
                         <div>
                             <div class="wq-k">{{ $label }}</div>
@@ -313,7 +319,7 @@
 
                 @php
                     $flow = $r['flow'];
-                    $stages = \App\Http\Controllers\QuoteController::STAGES;
+                    $stages = $r['stages'];
                     $keys = array_keys($stages);
                     $fdt = fn ($d) => $d?->format('Y/m/d — H:i');
                 @endphp
@@ -388,7 +394,7 @@
 
                             @case ('awaiting_requirements')
                                 <span class="wq-when">
-                                    اعتمد العميل العرض{{ ($r['contract']['is_approved'] ?? false) ? ' والعقد' : '' }} — بانتظار رفع متطلبات المشروع
+                                    اعتمد العميل العرض{{ ($r['contract']['is_approved'] ?? false) ? ' والعقد' : '' }} — بانتظار {{ $stages['awaiting_requirements']['label'] }}
                                     @if (count($r['requirements']))
                                         ({{ count($r['requirements']) }} ملف مرفوع)
                                     @endif
@@ -871,13 +877,13 @@
 
                     @if ($wa = App\Http\Controllers\QuoteController::waNumber($r['phone']))
                         <x-filament::button tag="a" size="sm" color="success" icon="heroicon-o-chat-bubble-left-right"
-                            :href="'https://wa.me/'.$wa.'?text='.rawurlencode('مرحباً، بخصوص طلب المتجر رقم '.$r['reference'])"
+                            :href="'https://wa.me/'.$wa.'?text='.rawurlencode('مرحباً، بخصوص الطلب رقم '.$r['reference'])"
                             target="_blank">واتساب</x-filament::button>
                     @endif
 
                     @if ($r['email'])
                         <x-filament::button tag="a" size="sm" color="gray" icon="heroicon-o-envelope"
-                            :href="'mailto:'.$r['email'].'?subject='.rawurlencode('عرض سعر متجرك الإلكتروني — '.$r['reference'])">
+                            :href="'mailto:'.$r['email'].'?subject='.rawurlencode('عرض سعر '.$r['service_yours'].' — '.$r['reference'])">
                             بريد
                         </x-filament::button>
                     @endif

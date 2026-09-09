@@ -1,11 +1,11 @@
-@extends('emails.layout', ['title' => 'عرض سعر متجرك الإلكتروني — وريد'])
+@extends('emails.layout', ['title' => 'عرض سعر '.$profile['yours'].' — وريد'])
 
 @section('content')
     @php
         $money = fn ($n) => number_format((float) $n, ((float) $n == (int) $n) ? 0 : 2).' '.$quote['currency'];
     @endphp
 
-    <h2 style="margin:0 0 14px;font-size:20px;color:#0d1830;">عرض سعر متجرك الإلكتروني</h2>
+    <h2 style="margin:0 0 14px;font-size:20px;color:#0d1830;">عرض سعر {{ $profile['yours'] }}</h2>
 
     @if ($quote['version'] > 1)
         @php $decision = \App\Http\Controllers\QuoteController::decisionOf($sr); @endphp
@@ -30,7 +30,7 @@
 
     {{-- المقدّمة قابلة للتعديل من: لوحة التحكم ← قوالب البريد الإلكتروني ← إرسال عرض السعر --}}
     {!! \App\Support\MailTemplates::html(\App\Support\MailTemplates::render(
-        \App\Support\MailTemplates::body('proposal_sent'),
+        \App\Support\MailTemplates::body('proposal_sent', $profile['type']),
         \App\Support\MailTemplates::variables($sr),
     )) !!}
 

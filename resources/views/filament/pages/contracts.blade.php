@@ -123,6 +123,7 @@
                     <span class="wc-num">{{ $c['number'] ?? 'بلا عقد بعد' }}</span>
                     <span class="wc-ref">{{ $r['reference'] }}</span>
                     <x-filament::badge :color="$tone[$status]">{{ $c['status_label'] ?? 'لم تُنشأ المسوّدة' }}</x-filament::badge>
+                    <x-filament::badge color="info">{{ $r['service_label'] }}</x-filament::badge>
                     @if ($c && $c['round'] > 0)
                         <x-filament::badge color="gray">الجولة {{ $c['round'] }}</x-filament::badge>
                     @endif
@@ -146,7 +147,7 @@
 
                 <div class="wc-grid">
                     <div><div class="wc-k">العميل</div><div class="wc-v">{{ $r['name'] }}</div></div>
-                    <div><div class="wc-k">المتجر</div><div class="wc-v">{{ $r['company'] ?: '—' }}</div></div>
+                    <div><div class="wc-k">{{ $r['company_label'] }}</div><div class="wc-v">{{ $r['company'] ?: '—' }}</div></div>
                     <div><div class="wc-k">البريد الإلكتروني</div><div class="wc-v" dir="ltr">{{ $r['email'] ?: '—' }}</div></div>
                     <div>
                         <div class="wc-k">قيمة العرض المعتمد</div>

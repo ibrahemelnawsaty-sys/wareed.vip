@@ -83,7 +83,7 @@ it('يحمّل الصفحات العامة', function () {
     $this->get('/robots.txt')->assertSuccessful();
 });
 
-it('يعرض طلبات نموذج المتاجر في لوحة المتابعة ويسمح بحذفها', function () {
+it('يعرض طلبات الخدمات الثلاث في لوحة المتابعة دون طلبات التواصل العامة ويسمح بالحذف', function () {
     $this->actingAs(adminUser());
 
     $sr = ServiceRequest::create([
@@ -92,22 +92,27 @@ it('يعرض طلبات نموذج المتاجر في لوحة المتابعة
         'payload' => ['مجال المتجر' => 'عطور ومستحضرات تجميل'],
     ]);
 
-    // طلب من خارج النموذج لا يظهر في اللوحة
+    // طلب التدريب يظهر في اللوحة نفسها بشارة خدمته، وطلب التواصل العام لا يظهر
     ServiceRequest::create([
         'service_type' => 'training', 'name' => 'طلب تدريب', 'phone' => '0100', 'status' => 'new', 'source' => 'service_training',
+    ]);
+    ServiceRequest::create([
+        'service_type' => 'general', 'name' => 'رسالة تواصل عامة', 'phone' => '0100', 'status' => 'new', 'source' => 'contact',
     ]);
 
     Livewire\Livewire::test(QuoteRequests::class)
         ->assertSee($sr->reference)
         ->assertSee('أ. هاجر سلامة')
         ->assertSee('عطور ومستحضرات تجميل')
-        ->assertDontSee('طلب تدريب')
+        ->assertSee('طلب تدريب')
+        ->assertSee('البرامج التدريبية')
+        ->assertDontSee('رسالة تواصل عامة')
         ->call('markStatus', $sr->id, 'proposal')
         ->call('deleteRequest', $sr->id);
 
     expect(ServiceRequest::find($sr->id))->toBeNull()
-        // الطلبات خارج النموذج لا تتأثر
-        ->and(ServiceRequest::count())->toBe(1);
+        // بقية الطلبات لا تتأثر
+        ->and(ServiceRequest::count())->toBe(2);
 });
 
 it('يُصدر عرض السعر من اللوحة ويرسله للعميل بالبريد', function () {
