@@ -229,7 +229,90 @@ class QuoteRequests extends Page
                     'percent' => (float) ($p['percent'] ?? 0),
                 ], array_values($saved['payments']))
                 : $this->defaultPayments($sr),
+            // سجلّ الإصدارات السابقة: يُسجَّل تلقائياً مع كل إعادة إصدار، ويبقى قابلاً للتحرير
+            // لإكمال ما صدر قبل تفعيل السجلّ أو تصحيح رقم أو تاريخ فاته الضبط
+            'history' => array_map(function (array $h) {
+                $subtotal = max(0, (float) ($h['subtotal'] ?? 0));
+
+                return [
+                    'version' => max(1, (int) ($h['version'] ?? 1)),
+                    'issued_at' => filled($h['issued_at'] ?? null)
+                        ? rescue(fn () => Carbon::parse($h['issued_at'])->toDateString(), '', false)
+                        : '',
+                    'subtotal' => $subtotal,
+                    // النسبة تُشتقّ من قيمة الخصم المحفوظة لا من نسبتها المحفوظة: اللقطات المأخوذة
+                    // من عروض قديمة تحمل نسبة مقرَّبة لمنزلتين، فلو حُسب الخصم منها عند الحفظ
+                    // لتغيّرت قيمة إصدار مضى (5,283.28 تصير 5,283.40) وتغيّر إجماليه معها
+                    'discount_percent' => isset($h['discount']) && $subtotal > 0
+                        ? $this->percentOf($h['discount'], $subtotal)
+                        : max(0, min(100, (float) ($h['discount_percent'] ?? 0))),
+                    'vat_percent' => max(0, (float) ($h['vat_percent'] ?? 0)),
+                ];
+            }, array_values(array_filter((array) ($saved['history'] ?? []), 'is_array'))),
         ];
+    }
+
+    /** صفوف سجلّ الإصدارات كما حرّرها الفريق، بمجاميع كل صفّ محسوبة من أرقامه. */
+    private function historyRows(array $draft): array
+    {
+        $currency = trim((string) ($draft['currency'] ?? 'ج.م')) ?: 'ج.م';
+
+        return array_values(array_map(function ($h) use ($currency) {
+            $subtotal = max(0, (float) ($h['subtotal'] ?? 0));
+            $percent = max(0, min(100, (float) ($h['discount_percent'] ?? 0)));
+            $discount = round($subtotal * $percent / 100, 2);
+            $vatPercent = max(0, (float) ($h['vat_percent'] ?? 0));
+            $vat = round(($subtotal - $discount) * $vatPercent / 100, 2);
+
+            return [
+                'version' => max(1, (int) ($h['version'] ?? 1)),
+                'issued_at' => trim((string) ($h['issued_at'] ?? '')),
+                'subtotal' => $subtotal,
+                'discount_percent' => $percent,
+                'discount' => $discount,
+                'vat_percent' => $vatPercent,
+                'vat' => $vat,
+                'total' => $subtotal - $discount + $vat,
+                'currency' => $currency,
+            ];
+        }, array_values((array) ($draft['history'] ?? []))));
+    }
+
+    /** إضافة إصدار سابق فات تسجيله — يبدأ بأصغر رقم إصدار غير مستخدم وبأرقام العرض الحالي. */
+    public function addHistory(): void
+    {
+        $used = array_map(fn ($h) => (int) ($h['version'] ?? 0), $this->draft['history'] ?? []);
+
+        for ($version = 1; in_array($version, $used, true); $version++);
+
+        $totals = $this->totalsOf($this->draft);
+
+        $this->draft['history'][] = [
+            'version' => $version,
+            'issued_at' => now()->toDateString(),
+            'subtotal' => $totals['subtotal'],
+            'discount_percent' => 0.0,
+            'vat_percent' => max(0, (float) ($this->draft['vat_percent'] ?? 0)),
+        ];
+    }
+
+    public function removeHistory(int $index): void
+    {
+        unset($this->draft['history'][$index]);
+        $this->draft['history'] = array_values($this->draft['history'] ?? []);
+    }
+
+    /** كتابة قيمة خصم إصدار سابق بدل نسبته — النسبة من السعر الأساسي لذلك الإصدار. */
+    public function setHistoryDiscountAmount(int $index, mixed $amount): void
+    {
+        if (! isset($this->draft['history'][$index])) {
+            return;
+        }
+
+        $this->draft['history'][$index]['discount_percent'] = $this->percentOf(
+            $amount,
+            max(0, (float) ($this->draft['history'][$index]['subtotal'] ?? 0)),
+        );
     }
 
     /** جدول الدفعات المبدئي بمفردات الخدمة (تسليم المتجر / التسليم). */
@@ -404,19 +487,25 @@ class QuoteRequests extends Page
     /** مجاميع المسوّدة لعرضها مباشرة أثناء التحرير. */
     public function getDraftTotalsProperty(): array
     {
+        return $this->totalsOf($this->draft);
+    }
+
+    /** مجاميع مسوّدة بعينها — تُحسب مباشرة بلا حفظ، فتصلح للعرض ولاشتقاق النسب من القيم. */
+    private function totalsOf(array $draft): array
+    {
         $subtotal = 0.0;
 
-        foreach ($this->draft['items'] ?? [] as $item) {
+        foreach ($draft['items'] ?? [] as $item) {
             if ($item['free'] ?? false) {
                 continue;
             }
             $subtotal += max(1, (int) ($item['qty'] ?? 1)) * max(0, (float) ($item['price'] ?? 0));
         }
 
-        $discountPercent = max(0, min(100, (float) ($this->draft['discount_percent'] ?? 0)));
+        $discountPercent = max(0, min(100, (float) ($draft['discount_percent'] ?? 0)));
         $discount = round($subtotal * $discountPercent / 100, 2);
         $afterDiscount = $subtotal - $discount;
-        $vat = round($afterDiscount * max(0, (float) ($this->draft['vat_percent'] ?? 0)) / 100, 2);
+        $vat = round($afterDiscount * max(0, (float) ($draft['vat_percent'] ?? 0)) / 100, 2);
 
         $total = $afterDiscount + $vat;
 
@@ -424,17 +513,17 @@ class QuoteRequests extends Page
             'label' => (string) ($p['label'] ?? ''),
             'percent' => (float) ($p['percent'] ?? 0),
             'amount' => round($total * max(0, (float) ($p['percent'] ?? 0)) / 100, 2),
-        ], $this->draft['payments'] ?? []);
+        ], $draft['payments'] ?? []);
 
         // إجماليات الخدمات الاختيارية تُعرض وحدها ولا تمسّ الإجمالي المستحق
         $extrasSubtotal = 0.0;
-        foreach ($this->draft['extras'] ?? [] as $extra) {
+        foreach ($draft['extras'] ?? [] as $extra) {
             $extrasSubtotal += max(1, (int) ($extra['qty'] ?? 1)) * max(0, (float) ($extra['price'] ?? 0));
         }
 
-        $extrasDiscountPercent = max(0, min(100, (float) ($this->draft['extras_discount_percent'] ?? 0)));
+        $extrasDiscountPercent = max(0, min(100, (float) ($draft['extras_discount_percent'] ?? 0)));
         $extrasDiscount = round($extrasSubtotal * $extrasDiscountPercent / 100, 2);
-        $extrasVatPercent = max(0, (float) ($this->draft['extras_vat_percent'] ?? 0));
+        $extrasVatPercent = max(0, (float) ($draft['extras_vat_percent'] ?? 0));
         $extrasVat = round(($extrasSubtotal - $extrasDiscount) * $extrasVatPercent / 100, 2);
         $extrasTotal = $extrasSubtotal - $extrasDiscount + $extrasVat;
 
@@ -448,10 +537,51 @@ class QuoteRequests extends Page
             'extras_total' => $extrasTotal,
             'vat' => $vat,
             'total' => $total,
-            'currency' => $this->draft['currency'] ?? 'ج.م',
+            'currency' => $draft['currency'] ?? 'ج.م',
             'payments' => $payments,
             'payments_percent' => array_sum(array_column($payments, 'percent')),
+            'history' => $this->historyRows($draft),
         ];
+    }
+
+    /**
+     * النسبة المقابلة لقيمة من أصل — المخزَّن دائماً نسبة، والقيمة مجرد طريقة إدخال لها.
+     *
+     * تُحفظ بستّ منازل عشرية لا منزلتين: منزلتان تعنيان أن أصغر خطوة في الخصم تساوي
+     * جزءاً من عشرة آلاف من الإجمالي (جنيهاً كاملاً في عرض بعشرين ألفاً)، فيتعذّر ضبط
+     * الإجمالي على رقم متفق عليه بالضبط. ستّ منازل تُعيد القيمة كما كُتبت حتى القرش.
+     */
+    private function percentOf(mixed $amount, float $base): float
+    {
+        $amount = max(0, (float) $amount);
+
+        if ($base <= 0) {
+            return 0.0;
+        }
+
+        return round(min($amount, $base) / $base * 100, 6);
+    }
+
+    /** كتابة قيمة الخصم بدل نسبته — تُشتقّ منها النسبة وتُحدَّث المجاميع فوراً. */
+    public function setDiscountAmount(mixed $amount): void
+    {
+        $this->draft['discount_percent'] = $this->percentOf($amount, $this->totalsOf($this->draft)['subtotal']);
+    }
+
+    /** كتابة قيمة خصم الباقات الاختيارية بدل نسبته. */
+    public function setExtrasDiscountAmount(mixed $amount): void
+    {
+        $this->draft['extras_discount_percent'] = $this->percentOf($amount, $this->totalsOf($this->draft)['extras_subtotal']);
+    }
+
+    /** كتابة قيمة الدفعة بدل نسبتها — النسبة من الإجمالي المستحق (وهو لا يتأثر بالدفعات). */
+    public function setPaymentAmount(int $index, mixed $amount): void
+    {
+        if (! isset($this->draft['payments'][$index])) {
+            return;
+        }
+
+        $this->draft['payments'][$index]['percent'] = $this->percentOf($amount, $this->totalsOf($this->draft)['total']);
     }
 
     /**
@@ -481,7 +611,12 @@ class QuoteRequests extends Page
 
         // سجلّ الإصدارات: مع كل إعادة إصدار تُحفظ لقطة أرقام الإصدار السابق (السعر الأساسي،
         // نسبة الخصم وقيمته، الإجمالي) ليقارنها العميل بالإصدار الجديد. الحفظ دون إرسال لا يضيف شيئاً.
-        $history = array_values(array_filter((array) ($prevQuote['history'] ?? []), 'is_array'));
+        $history = array_map(fn (array $h) => array_merge($h, [
+            'issued_at' => $h['issued_at'] !== ''
+                ? rescue(fn () => Carbon::parse($h['issued_at'])->toIso8601String(), null, false)
+                : null,
+        ]), $this->historyRows($this->draft));
+
         if ($isReissue && isset($prevQuote['issued_at']) && ($previous = QuoteController::quoteOf($sr))) {
             $history[] = [
                 'version' => $previous['version'],

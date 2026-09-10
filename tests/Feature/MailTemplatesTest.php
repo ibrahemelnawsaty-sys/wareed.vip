@@ -120,9 +120,10 @@ it('يرسل للعميل عند اختيار طلب، ويمتنع بلا طل�
     $this->actingAs(mailAdmin());
     $sr = quoteRequest();
 
-    // بلا طلب مختار لا يُرسل شيء
+    // بلا طلب مختار لا يُرسل شيء — الرسالة الوحيدة هي بريد استلام الطلب عند إنشائه
     Livewire\Livewire::test(EmailTemplates::class)->call('sendToClient');
-    Mail::assertNotSent(StageMessage::class);
+    Mail::assertSent(StageMessage::class, 1);
+    Mail::assertNotSent(StageMessage::class, fn ($mail) => str_contains($mail->subjectLine, 'تسليم متجرك'));
 
     Livewire\Livewire::test(EmailTemplates::class)
         ->set('requestId', $sr->id)

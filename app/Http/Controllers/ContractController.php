@@ -46,6 +46,44 @@ class ContractController extends Controller
         return $this->storeDecisions($request, $serviceRequest);
     }
 
+    /** رفع نسخة العميل الموقّعة عبر الرابط المخصّص. */
+    public function signedCopy(Request $request, string $invite)
+    {
+        [$sr] = $this->resolve($invite);
+
+        return $this->storeSignedCopy($request, $sr);
+    }
+
+    /** رفع نسخة العميل الموقّعة عبر رابط موقّع للنموذج العام. */
+    public function signedCopySigned(Request $request, ServiceRequest $serviceRequest)
+    {
+        return $this->storeSignedCopy($request, $serviceRequest);
+    }
+
+    /** حفظ نسخة العميل الموقّعة من العقد المعتمد وإشعار الفريق بها. */
+    private function storeSignedCopy(Request $request, ServiceRequest $sr)
+    {
+        $contract = Contracts::of($sr) ?? abort(404);
+        abort_unless($contract['is_approved'], 403);
+
+        $data = $request->validate([
+            'file' => ['required', 'file', 'mimes:'.Contracts::SIGNED_MIMES, 'max:'.Contracts::SIGNED_MAX_KB],
+        ], [
+            'file.mimes' => 'النسخة الموقّعة تكون ملف PDF أو صورة (JPG أو PNG).',
+            'file.max' => 'الحجم الأقصى للنسخة الموقّعة 10 ميجابايت.',
+        ], ['file' => 'النسخة الموقّعة']);
+
+        $result = Contracts::attachSigned($sr, 'client', $data['file']);
+
+        if (! $result['ok']) {
+            return back()->withErrors(['file' => $result['error']]);
+        }
+
+        Contracts::notifyClientSigned($sr->fresh());
+
+        return back()->with('signed_saved', true);
+    }
+
     /** @return array{0: ServiceRequest, 1: array} */
     private function resolve(string $invite): array
     {
@@ -84,6 +122,7 @@ class ContractController extends Controller
             'signature' => Contracts::signature(),
             'qr' => $this->qrSvg($contract['number']),
             'decisionUrl' => Contracts::decisionUrl($sr),
+            'signedCopyUrl' => Contracts::signedCopyUrl($sr),
             'proposalUrl' => QuoteController::proposalUrl($sr),
         ]);
     }

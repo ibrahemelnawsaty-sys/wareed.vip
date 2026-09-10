@@ -38,7 +38,7 @@ class ContractTemplate
             ->map(fn ($i) => '- '.$i['name'].($i['qty'] > 1 ? ' (الكمية: '.$i['qty'].($i['unit'] ? ' '.$i['unit'] : '').')' : ''))
             ->implode("\n") : '- تُحدَّد بنود المشروع وفق عرض السعر المعتمد.';
 
-        $pct = fn ($n) => rtrim(rtrim(number_format((float) $n, 2), '0'), '.');
+        $pct = fn ($n) => rtrim(rtrim(number_format((float) $n, 4), '0'), '.');
         $payments = $quote && $quote['payments'] ? collect($quote['payments'])
             ->map(fn ($p) => '- '.$p['label'].': '.$pct($p['percent']).'% ('.$money($p['amount'], $quote['currency']).')'.($p['due'] ? ' — تستحق '.$p['due']->format('Y/m/d') : ''))
             ->implode("\n") : '- تُحدَّد الدفعات وفق عرض السعر المعتمد.';

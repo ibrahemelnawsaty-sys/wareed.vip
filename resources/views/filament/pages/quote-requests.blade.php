@@ -117,7 +117,8 @@
             border: 1px solid rgb(254 202 202); background: rgb(254 242 242); color: rgb(185 28 28); font-size: 1rem; line-height: 1;
         }
         .wq-del:hover { background: rgb(254 226 226); }
-        .wq-opts { display: grid; grid-template-columns: repeat(4, 1fr); gap: .5rem; margin-top: .9rem; }
+        .wq-opts { display: grid; grid-template-columns: repeat(5, 1fr); gap: .5rem; margin-top: .9rem; }
+        @media (max-width: 1180px) { .wq-opts { grid-template-columns: repeat(3, 1fr); } }
         .wq-sum { display: flex; flex-wrap: wrap; gap: 1.25rem; align-items: center; margin-top: .9rem; padding: .7rem 1rem; border-radius: .6rem; background: #fff; border: 1px solid rgb(229 231 235); }
         .wq-sum span { font-size: .8rem; color: rgb(107 114 128); }
         .wq-sum b { color: rgb(17 24 39); font-variant-numeric: tabular-nums; }
@@ -128,7 +129,7 @@
         .wq-pay-head .fi-btn { margin-inline-start: auto; }
         .wq-good { color: rgb(21 128 61); }
         .wq-bad { color: rgb(202 138 4); }
-        .wq-pay-row { display: grid; grid-template-columns: 1fr 1fr 9.5rem 4.5rem 8.5rem 2rem; gap: .5rem; align-items: center; margin-bottom: .4rem; }
+        .wq-pay-row { display: grid; grid-template-columns: 1fr 1fr 9.5rem 6rem 10.5rem 2rem; gap: .5rem; align-items: center; margin-bottom: .4rem; }
         .wq-date { font-variant-numeric: tabular-nums; }
         .wq-extra-row { display: grid; grid-template-columns: 1fr 1fr 8rem 8.5rem 7rem 2rem; gap: .5rem; align-items: start; margin-bottom: .4rem; }
         .wq-extra-row .wq-del { margin-top: 0; }
@@ -139,7 +140,7 @@
                      border-radius: 50%; font-size: .74rem; font-weight: 700;
                      background: rgb(243 244 246); color: rgb(107 114 128); }
         .dark .wq-note-n { background: rgba(255,255,255,.08); color: rgb(209 213 219); }
-        .wq-extra-opts { display: grid; grid-template-columns: repeat(3, 1fr); gap: .5rem; margin-top: .8rem; }
+        .wq-extra-opts { display: grid; grid-template-columns: repeat(4, 1fr); gap: .5rem; margin-top: .8rem; }
         @media (max-width: 900px) { .wq-extra-opts { grid-template-columns: 1fr 1fr; } }
         .wq-extra-sum { margin-top: .55rem; font-size: .82rem; color: rgb(107 114 128); }
         .wq-extra-sum b { color: rgb(37 99 235); font-variant-numeric: tabular-nums; }
@@ -147,7 +148,16 @@
         .wq-stage-row .wq-del { margin-top: 0; }
         .wq-stage-row.has-lbl .wq-del { margin-top: 1.15rem; }
         .wq-empty-hint { font-size: .78rem; color: rgb(156 163 175); padding: .35rem 0; }
-        .wq-pay-amt { font-size: .85rem; font-weight: 700; color: rgb(37 99 235); font-variant-numeric: tabular-nums; text-align: center; }
+        .wq-ver-row { display: grid; grid-template-columns: 4.5rem 9.5rem 1fr 6rem 10.5rem 6rem 9rem 2rem; gap: .5rem; align-items: center; margin-bottom: .4rem; }
+        .wq-ver-row .wq-lbl { margin-bottom: 0; }
+        .wq-ver-row .wq-del { margin-top: 0; }
+        .wq-ver-total { font-size: .85rem; font-weight: 700; color: rgb(37 99 235); font-variant-numeric: tabular-nums; text-align: center; }
+        .wq-ver-warn { font-size: .78rem; color: rgb(180 83 9); background: rgb(254 252 232); border: 1px solid rgb(253 230 138);
+                       border-radius: .5rem; padding: .45rem .7rem; margin-bottom: .55rem; }
+        .dark .wq-ver-warn { background: rgba(245,158,11,.1); border-color: rgba(245,158,11,.3); color: rgb(253 230 138); }
+        @media (max-width: 900px) { .wq-ver-row { grid-template-columns: 1fr 1fr; } }
+        .wq-pay-amt { display: flex; align-items: center; gap: .3rem; font-size: .76rem; color: rgb(107 114 128); }
+        .wq-pay-amt .wq-in { flex: 1; min-width: 0; color: rgb(37 99 235); font-weight: 700; }
         .dark .wq-pay { background: rgb(17 24 39); border-color: rgba(255,255,255,.1); }
         @media (max-width: 900px) {
             .wq-pay-row { grid-template-columns: 1fr 1fr; }
@@ -457,14 +467,14 @@
                             صدر {{ $r['quote']['issued_at']->format('Y/m/d') }} ·
                             صالح حتى {{ $r['quote']['valid_until']->format('Y/m/d') }}
                             @if ($r['quote']['discount'] > 0)
-                                · خصم {{ rtrim(rtrim(number_format($r['quote']['discount_percent'], 2), '0'), '.') }}%
+                                · خصم {{ rtrim(rtrim(number_format($r['quote']['discount_percent'], 4), '0'), '.') }}%
                             @endif
                         </span>
                         @if (count($r['quote']['history']))
                             <span class="meta">
                                 إصدارات سابقة:
                                 @foreach ($r['quote']['history'] as $h)
-                                    الإصدار {{ $h['version'] }} = {{ number_format($h['total'], $h['total'] == (int) $h['total'] ? 0 : 2) }} {{ $h['currency'] }}{{ $h['discount'] > 0 ? ' (خصم '.rtrim(rtrim(number_format($h['discount_percent'], 2), '0'), '.').'%)' : '' }}@if (! $loop->last) · @endif
+                                    الإصدار {{ $h['version'] }} = {{ number_format($h['total'], $h['total'] == (int) $h['total'] ? 0 : 2) }} {{ $h['currency'] }}{{ $h['discount'] > 0 ? ' (خصم '.rtrim(rtrim(number_format($h['discount_percent'], 4), '0'), '.').'%)' : '' }}@if (! $loop->last) · @endif
                                 @endforeach
                             </span>
                         @endif
@@ -655,7 +665,18 @@
                             <div>
                                 <label class="wq-lbl">خصم %</label>
                                 <input class="wq-in num" type="number" min="0" max="100" step="any"
+                                       title="اكتب النسبة هنا لتُحسب قيمتها، أو اكتب القيمة في الخانة المجاورة لتُحسب نسبتها"
                                        wire:model.live.debounce.400ms="draft.discount_percent">
+                            </div>
+                            <div>
+                                <label class="wq-lbl">قيمة الخصم</label>
+                                {{-- المخزَّن نسبة دائماً؛ هذه الخانة طريقة إدخال أخرى لها، ومفتاحها يحمل القيمة
+                                     المحسوبة فيُستبدل الحقل بها كلما تغيّرت من جهة النسبة أو البنود --}}
+                                <input class="wq-in num" type="number" min="0" step="0.01" placeholder="القيمة"
+                                       title="اكتب قيمة الخصم لتُحسب نسبتها تلقائياً"
+                                       wire:key="disc-amt-{{ $r['id'] }}-{{ $t['discount'] }}"
+                                       value="{{ $t['discount'] > 0 ? number_format($t['discount'], 2, '.', '') : '' }}"
+                                       wire:change="setDiscountAmount($event.target.value)">
                             </div>
                             <div>
                                 <label class="wq-lbl">ضريبة %</label>
@@ -747,7 +768,16 @@
                                     <div>
                                         <label class="wq-lbl">خصم الباقات %</label>
                                         <input class="wq-in num" type="number" min="0" max="100" step="any"
+                                               title="اكتب النسبة هنا، أو اكتب القيمة في الخانة المجاورة لتُحسب نسبتها"
                                                wire:model.live.debounce.400ms="draft.extras_discount_percent">
+                                    </div>
+                                    <div>
+                                        <label class="wq-lbl">قيمة خصم الباقات</label>
+                                        <input class="wq-in num" type="number" min="0" step="0.01" placeholder="القيمة"
+                                               title="اكتب قيمة الخصم لتُحسب نسبتها تلقائياً"
+                                               wire:key="xdisc-amt-{{ $r['id'] }}-{{ $t['extras_discount'] }}"
+                                               value="{{ $t['extras_discount'] > 0 ? number_format($t['extras_discount'], 2, '.', '') : '' }}"
+                                               wire:change="setExtrasDiscountAmount($event.target.value)">
                                     </div>
                                     <div>
                                         <label class="wq-lbl">ضريبة الباقات %</label>
@@ -814,12 +844,12 @@
                             <div class="wq-pay-head">
                                 <b>الدفعات</b>
                                 <span class="wq-pay-note">
-                                    النسبة من الإجمالي والقيمة تُحسب تلقائياً، وتاريخ الاستحقاق اختياري
+                                    اكتب نسبة الدفعة أو قيمتها — يُحسب الآخر تلقائياً، وتاريخ الاستحقاق اختياري
                                     @php $pp = $t['payments_percent']; @endphp
                                     @if ($pp > 0)
                                         — مجموع النسب:
                                         <b @class(['wq-bad' => abs($pp - 100) > 0.01, 'wq-good' => abs($pp - 100) <= 0.01])>
-                                            {{ rtrim(rtrim(number_format($pp, 2), '0'), '.') }}%
+                                            {{ rtrim(rtrim(number_format($pp, 4), '0'), '.') }}%
                                         </b>
                                     @endif
                                 </span>
@@ -837,19 +867,109 @@
                                     <input class="wq-in wq-date" type="date" title="تاريخ الاستحقاق"
                                            wire:model.live="draft.payments.{{ $pi }}.due">
                                     <input class="wq-in num" type="number" min="0" max="100" step="any" placeholder="%"
+                                           title="اكتب النسبة هنا لتُحسب قيمتها، أو اكتب القيمة لتُحسب نسبتها"
                                            wire:model.live.debounce.400ms="draft.payments.{{ $pi }}.percent">
-                                    <span class="wq-pay-amt">
-                                        {{ number_format($t['payments'][$pi]['amount'] ?? 0, 2) }} {{ $t['currency'] }}
-                                    </span>
+                                    @php $payAmount = $t['payments'][$pi]['amount'] ?? 0; @endphp
+                                    <label class="wq-pay-amt">
+                                        <input class="wq-in num" type="number" min="0" step="0.01" placeholder="القيمة"
+                                               title="اكتب قيمة الدفعة لتُحسب نسبتها من الإجمالي تلقائياً"
+                                               wire:key="pay-amt-{{ $r['id'] }}-{{ $pi }}-{{ $payAmount }}"
+                                               value="{{ $payAmount > 0 ? number_format($payAmount, 2, '.', '') : '' }}"
+                                               wire:change="setPaymentAmount({{ $pi }}, $event.target.value)">
+                                        <span>{{ $t['currency'] }}</span>
+                                    </label>
                                     <button type="button" class="wq-del" style="margin-top:0" wire:click="removePayment({{ $pi }})" title="حذف الدفعة">×</button>
                                 </div>
                             @endforeach
                         </div>
 
+                        {{-- سجلّ الإصدارات: يُسجَّل تلقائياً مع كل إعادة إصدار، ويُحرَّر هنا لإكمال ما فات تسجيله --}}
+                        @php
+                            $currentVersion = (int) ($r['quote']['version'] ?? 1);
+                            $loggedVersions = array_column($t['history'], 'version');
+                            $missingVersions = array_values(array_diff(range(1, max(1, $currentVersion - 1)), $loggedVersions));
+                            $missingVersions = $currentVersion > 1 ? $missingVersions : [];
+                        @endphp
+                        <div class="wq-pay">
+                            <div class="wq-pay-head">
+                                <b>سجلّ إصدارات العرض</b>
+                                <span class="wq-pay-note">
+                                    يراه العميل في العرض مقارنةً بالإصدار الحالي ({{ $currentVersion }})،
+                                    ويُسجَّل الإصدار السابق تلقائياً مع كل إعادة إصدار
+                                </span>
+                                <x-filament::button wire:click="addHistory" size="xs" color="gray" icon="heroicon-o-plus">
+                                    إضافة إصدار سابق
+                                </x-filament::button>
+                            </div>
+
+                            @if ($missingVersions)
+                                <p class="wq-ver-warn">
+                                    الإصدار{{ count($missingVersions) > 1 ? 'ات' : '' }}
+                                    {{ implode('، ', $missingVersions) }}
+                                    خارج السجلّ — صدر قبل تفعيل السجلّ فلم تُحفظ أرقامه. أضفه هنا بسعره وتاريخه ليظهر للعميل.
+                                </p>
+                            @endif
+
+                            @forelse ($draft['history'] ?? [] as $hi => $h)
+                                <div class="wq-ver-row" wire:key="ver-{{ $r['id'] }}-{{ $hi }}">
+                                    <div>
+                                        @if ($hi === 0)<label class="wq-lbl">الإصدار</label>@endif
+                                        <input class="wq-in num" type="number" min="1" step="1" title="رقم الإصدار"
+                                               wire:model.live.debounce.400ms="draft.history.{{ $hi }}.version">
+                                    </div>
+                                    <div>
+                                        @if ($hi === 0)<label class="wq-lbl">التاريخ</label>@endif
+                                        <input class="wq-in wq-date" type="date" title="تاريخ إصدار هذه النسخة"
+                                               wire:model.live="draft.history.{{ $hi }}.issued_at">
+                                    </div>
+                                    <div>
+                                        @if ($hi === 0)<label class="wq-lbl">السعر الأساسي</label>@endif
+                                        <input class="wq-in num" type="number" min="0" step="0.01" title="إجمالي البنود قبل الخصم في ذلك الإصدار"
+                                               wire:model.live.debounce.400ms="draft.history.{{ $hi }}.subtotal">
+                                    </div>
+                                    <div>
+                                        @if ($hi === 0)<label class="wq-lbl">خصم %</label>@endif
+                                        <input class="wq-in num" type="number" min="0" max="100" step="any" placeholder="%"
+                                               title="نسبة خصم ذلك الإصدار — أو اكتب قيمته في الخانة المجاورة"
+                                               wire:model.live.debounce.400ms="draft.history.{{ $hi }}.discount_percent">
+                                    </div>
+                                    <div>
+                                        @if ($hi === 0)<label class="wq-lbl">قيمة الخصم</label>@endif
+                                        @php $verDiscount = $t['history'][$hi]['discount'] ?? 0; @endphp
+                                        <label class="wq-pay-amt">
+                                            <input class="wq-in num" type="number" min="0" step="0.01" placeholder="القيمة"
+                                                   title="اكتب قيمة الخصم لتُحسب نسبتها من السعر الأساسي لهذا الإصدار"
+                                                   wire:key="ver-amt-{{ $r['id'] }}-{{ $hi }}-{{ $verDiscount }}"
+                                                   value="{{ $verDiscount > 0 ? number_format($verDiscount, 2, '.', '') : '' }}"
+                                                   wire:change="setHistoryDiscountAmount({{ $hi }}, $event.target.value)">
+                                            <span>{{ $t['currency'] }}</span>
+                                        </label>
+                                    </div>
+                                    <div>
+                                        @if ($hi === 0)<label class="wq-lbl">ضريبة %</label>@endif
+                                        <input class="wq-in num" type="number" min="0" step="any" placeholder="%"
+                                               title="نسبة الضريبة في ذلك الإصدار"
+                                               wire:model.live.debounce.400ms="draft.history.{{ $hi }}.vat_percent">
+                                    </div>
+                                    <div>
+                                        @if ($hi === 0)<label class="wq-lbl">الإجمالي المستحق</label>@endif
+                                        <span class="wq-ver-total">{{ number_format($t['history'][$hi]['total'] ?? 0, 2) }} {{ $t['currency'] }}</span>
+                                    </div>
+                                    <button type="button" class="wq-del" wire:click="removeHistory({{ $hi }})" title="حذف هذا الإصدار من السجلّ"
+                                            @if ($hi === 0) style="margin-top:1.15rem" @endif
+                                            wire:confirm="سيُحذف هذا الإصدار من السجلّ الذي يراه العميل. متابعة؟">×</button>
+                                </div>
+                            @empty
+                                <p class="wq-empty-hint">
+                                    لا إصدارات سابقة مسجّلة — يُسجَّل الإصدار الحالي تلقائياً في السجلّ عند إصدار عرض جديد بعده.
+                                </p>
+                            @endforelse
+                        </div>
+
                         <div class="wq-sum">
                             <span>الإجمالي قبل الخصم: <b>{{ number_format($t['subtotal'], 2) }}</b></span>
                             <span>
-                                الخصم@if ($t['discount_percent'] > 0) ({{ rtrim(rtrim(number_format($t['discount_percent'], 2), '0'), '.') }}%)@endif:
+                                الخصم@if ($t['discount_percent'] > 0) ({{ rtrim(rtrim(number_format($t['discount_percent'], 4), '0'), '.') }}%)@endif:
                                 <b>{{ number_format($t['discount'], 2) }}</b>
                             </span>
                             <span>الضريبة: <b>{{ number_format($t['vat'], 2) }}</b></span>

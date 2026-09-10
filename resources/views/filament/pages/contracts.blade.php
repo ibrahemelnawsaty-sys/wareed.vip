@@ -79,13 +79,24 @@
         .wc-btn.del { border-color: rgb(254 202 202); background: rgb(254 242 242); color: rgb(185 28 28); }
         .wc-editor-actions { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; margin-top: .9rem; }
         .wc-editor-actions .wc-right { margin-inline-start: auto; display: flex; flex-wrap: wrap; gap: .5rem; }
+        /* النسخ الموقّعة بعد الاعتماد */
+        .wc-sign { display: grid; grid-template-columns: 1fr 1fr; gap: .8rem; padding: .8rem 1rem; border-top: 1px solid rgb(243 244 246); background: rgb(240 253 249); }
+        .wc-sign-box { border: 1px solid rgb(229 231 235); border-radius: .65rem; background: #fff; padding: .7rem .8rem; }
+        .wc-sign-t { font-size: .8rem; font-weight: 700; margin-bottom: .3rem; }
+        .wc-sign-f { font-size: .78rem; color: rgb(75 85 99); overflow-wrap: anywhere; line-height: 1.7; }
+        .wc-sign-f a { color: rgb(37 99 235); font-weight: 600; }
+        .wc-sign-row { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; margin-top: .5rem; }
+        .wc-sign-row input[type="file"] { font-size: .78rem; color: rgb(75 85 99); max-width: 100%; }
+        .wc-sign-err { font-size: .76rem; color: rgb(185 28 28); margin-top: .3rem; }
+        .dark .wc-sign { background: rgba(16,185,129,.06); }
+        .dark .wc-sign-box { background: rgb(24 24 27); border-color: rgba(255,255,255,.08); }
         .dark .wc-stat, .dark .wc-card, .dark .wc-clause { background: rgb(24 24 27); border-color: rgba(255,255,255,.08); }
         .dark .wc-head, .dark .wc-actions { background: rgba(255,255,255,.03); }
         .dark .wc-editor { background: rgba(37,99,235,.06); }
         .dark .wc-in { background: rgb(17 24 39); border-color: rgba(255,255,255,.15); color: #fff; }
         .dark .wc-fb { background: rgba(245,158,11,.08); }
         .dark .wc-note { background: rgba(245,158,11,.1); color: rgb(253 230 138); border-color: rgba(245,158,11,.3); }
-        @media (max-width: 900px) { .wc-stats { grid-template-columns: repeat(2, 1fr); } .wc-grid { grid-template-columns: 1fr 1fr; } .wc-clause-top { grid-template-columns: 2rem 1fr; } }
+        @media (max-width: 900px) { .wc-stats { grid-template-columns: repeat(2, 1fr); } .wc-grid { grid-template-columns: 1fr 1fr; } .wc-clause-top { grid-template-columns: 2rem 1fr; } .wc-sign { grid-template-columns: 1fr; } }
     </style>
 
     <div class="wc-stats">
@@ -124,6 +135,9 @@
                     <span class="wc-ref">{{ $r['reference'] }}</span>
                     <x-filament::badge :color="$tone[$status]">{{ $c['status_label'] ?? 'لم تُنشأ المسوّدة' }}</x-filament::badge>
                     <x-filament::badge color="info">{{ $r['service_label'] }}</x-filament::badge>
+                    @if ($c && $c['signing_label'])
+                        <x-filament::badge :color="$c['fully_signed'] ? 'success' : 'warning'">{{ $c['signing_label'] }}</x-filament::badge>
+                    @endif
                     @if ($c && $c['round'] > 0)
                         <x-filament::badge color="gray">الجولة {{ $c['round'] }}</x-filament::badge>
                     @endif
@@ -223,11 +237,60 @@
                                     حذف المسوّدة
                                 </x-filament::button>
                             @else
-                                <x-filament::badge color="success" size="lg">اعتمد العميل جميع البنود — تُرسل له النسخة الموقّعة من الشركة للتوقيع</x-filament::badge>
+                                <x-filament::badge color="success" size="lg">اعتمد العميل جميع البنود إلكترونياً</x-filament::badge>
                             @endunless
                         @endif
                     </div>
                 </div>
+
+                @if ($c && $c['is_approved'])
+                    @php $company = $c['signed']['company']; $clientCopy = $c['signed']['client']; @endphp
+                    <div class="wc-sign" wire:key="sign-{{ $r['id'] }}">
+                        <div class="wc-sign-box">
+                            <div class="wc-sign-t">النسخة الموقّعة من الشركة</div>
+                            @if ($company)
+                                <div class="wc-sign-f">
+                                    <b>{{ $company['name'] }}</b> · {{ $company['size_h'] }} · رُفعت {{ $fdt($company['uploaded_at']) }}
+                                    @if ($company['url']) · <a href="{{ $company['url'] }}" target="_blank" rel="noopener">تنزيل</a>@endif
+                                    @if ($c['signed']['sent_at'])<br>أُرسلت للعميل {{ $fdt($c['signed']['sent_at']) }}@endif
+                                </div>
+                            @else
+                                <div class="wc-sign-f">اطبع العقد من رابط العميل، ووقّعه واختمه، ثم ارفع النسخة هنا (PDF أو صورة) لإرسالها للعميل.</div>
+                            @endif
+                            <div class="wc-sign-row">
+                                <input type="file" accept=".pdf,.jpg,.jpeg,.png" wire:model="signedUpload.company_{{ $r['id'] }}">
+                                <x-filament::button wire:click="uploadSigned({{ $r['id'] }}, 'company')" size="sm" color="gray" icon="heroicon-o-arrow-up-tray">
+                                    {{ $company ? 'استبدال النسخة' : 'رفع النسخة الموقّعة' }}
+                                </x-filament::button>
+                                @if ($company)
+                                    <x-filament::button wire:click="sendSignedCopy({{ $r['id'] }})" size="sm" color="primary" icon="heroicon-o-paper-airplane"
+                                                        wire:confirm="ستُرسل النسخة الموقّعة مرفقةً إلى بريد العميل الإلكتروني مع طلب رفع نسخته الموقّعة. متابعة؟">
+                                        {{ $c['signed']['sent_at'] ? 'إعادة الإرسال للعميل' : 'إرسال النسخة الموقّعة للعميل' }}
+                                    </x-filament::button>
+                                @endif
+                            </div>
+                            @error('signedUpload.company_'.$r['id'])<div class="wc-sign-err">{{ $message }}</div>@enderror
+                        </div>
+                        <div class="wc-sign-box">
+                            <div class="wc-sign-t">النسخة الموقّعة من العميل</div>
+                            @if ($clientCopy)
+                                <div class="wc-sign-f">
+                                    <b>{{ $clientCopy['name'] }}</b> · {{ $clientCopy['size_h'] }} · رُفعت {{ $fdt($clientCopy['uploaded_at']) }}
+                                    @if ($clientCopy['url']) · <a href="{{ $clientCopy['url'] }}" target="_blank" rel="noopener">تنزيل</a>@endif
+                                </div>
+                            @else
+                                <div class="wc-sign-f">يرفعها العميل من صفحة العقد بعد استلام نسخة الشركة — أو ارفعها هنا إن وصلتك بقناة أخرى.</div>
+                            @endif
+                            <div class="wc-sign-row">
+                                <input type="file" accept=".pdf,.jpg,.jpeg,.png" wire:model="signedUpload.client_{{ $r['id'] }}">
+                                <x-filament::button wire:click="uploadSigned({{ $r['id'] }}, 'client')" size="sm" color="gray" icon="heroicon-o-arrow-up-tray">
+                                    {{ $clientCopy ? 'استبدال نسخة العميل' : 'رفع نسخة العميل' }}
+                                </x-filament::button>
+                            </div>
+                            @error('signedUpload.client_'.$r['id'])<div class="wc-sign-err">{{ $message }}</div>@enderror
+                        </div>
+                    </div>
+                @endif
 
                 @if ($this->open === $r['id'])
                     <div class="wc-editor" wire:key="editor-{{ $r['id'] }}">

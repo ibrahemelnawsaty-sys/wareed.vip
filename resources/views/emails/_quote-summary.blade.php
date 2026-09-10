@@ -85,7 +85,7 @@
                         @endif
                     </td>
                     <td style="{{ $cell }}text-align:center;color:#55638a;">
-                        {{ rtrim(rtrim(number_format($pay['percent'], 2), '0'), '.') }}%
+                        {{ rtrim(rtrim(number_format($pay['percent'], 4), '0'), '.') }}%
                     </td>
                     <td style="{{ $cell }}color:#0d1830;font-weight:bold;">{{ $money($pay['amount']) }}</td>
                 </tr>

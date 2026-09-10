@@ -12,7 +12,9 @@ use App\Support\MailTemplates;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\URL;
+use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
 use Livewire\Livewire;
 use Spatie\Permission\Models\Role;
 
@@ -509,4 +511,129 @@ it('التوقيع عن الشركة قالب دائم من الإعدادات �
     expect($signature['name'])->toBe('م. اسم آخر')
         ->and($signature['title'])->toBe('المدير العام')
         ->and($signature['stamp_url'])->toBeNull();
+});
+
+it('النسخ الموقّعة: ترفع الشركة نسختها وتُرسل مرفقة، ويرفع العميل نسخته فيكتمل التوقيع', function () {
+    Mail::fake();
+    Storage::fake('local');
+    $this->actingAs(contractAdmin());
+
+    $sr = contractRequest();
+    Contracts::createDraft($sr);
+    Contracts::send($sr->fresh());
+
+    // قبل الاعتماد لا تُقبل نسخ موقّعة: من اللوحة ولا من العميل
+    $early = Contracts::attachSigned($sr->fresh(), 'company', UploadedFile::fake()->create('early.pdf', 20, 'application/pdf'));
+    expect($early['ok'])->toBeFalse();
+    $this->post(route('quote.contract.copy', 'hajar-salama'), ['file' => UploadedFile::fake()->create('early.pdf', 20, 'application/pdf')])
+        ->assertForbidden();
+
+    $this->post(route('quote.contract.decision', 'hajar-salama'), ['clauses' => contractDecisions(Contracts::of($sr->fresh()))])
+        ->assertSessionHas('contract_saved', 'approved');
+
+    $contract = Contracts::of($sr->fresh());
+    expect($contract['is_approved'])->toBeTrue()
+        ->and($contract['fully_signed'])->toBeFalse()
+        ->and($contract['signed']['company'])->toBeNull()
+        ->and($contract['signing_label'])->toBe('بانتظار النسخة الموقّعة من الشركة');
+
+    $this->get(route('quote.contract', 'hajar-salama'))
+        ->assertSuccessful()
+        ->assertSee('سوف يتم إرسال نسخة من العقد موقّعة من الشركة')
+        ->assertSee('رفع نسختي الموقّعة');
+
+    // ملف غير مقبول يُرفض من اللوحة
+    Livewire::test(ContractsPage::class)
+        ->set('signedUpload.company_'.$sr->id, UploadedFile::fake()->create('virus.exe', 10, 'application/octet-stream'))
+        ->call('uploadSigned', $sr->id, 'company')
+        ->assertHasErrors(['signedUpload.company_'.$sr->id]);
+    expect(Contracts::of($sr->fresh())['signed']['company'])->toBeNull();
+
+    // الشركة ترفع نسختها الموقّعة وترسلها للعميل مرفقة
+    Livewire::test(ContractsPage::class)
+        ->set('signedUpload.company_'.$sr->id, UploadedFile::fake()->create('عقد-موقع.pdf', 200, 'application/pdf'))
+        ->call('uploadSigned', $sr->id, 'company')
+        ->assertHasNoErrors()
+        ->call('sendSignedCopy', $sr->id);
+
+    $contract = Contracts::of($sr->fresh());
+    expect($contract['signed']['company']['name'])->toBe('عقد-موقع.pdf')
+        ->and($contract['signed']['company']['path'])->toStartWith('contracts/'.$contract['number'].'/company-signed-')
+        ->and($contract['signed']['company']['path'])->toEndWith('.pdf')
+        ->and($contract['signed']['sent_at'])->not->toBeNull()
+        ->and($contract['signing_label'])->toBe('موقّع من الشركة — بانتظار توقيع العميل')
+        ->and($contract['fully_signed'])->toBeFalse();
+    Storage::disk('local')->assertExists($contract['signed']['company']['path']);
+
+    Mail::assertSent(StageMessage::class, function (StageMessage $mail) use ($contract) {
+        return $mail->hasTo('hagersalma89@gmail.com')
+            && str_contains($mail->subjectLine, 'نسخة عقدك الموقّعة من الشركة — '.$contract['number'])
+            && str_contains($mail->bodyText, 'موقّعة ومختومة')
+            && $mail->linkLabel === 'رفع نسختك الموقّعة'
+            && ($mail->attachment['path'] ?? null) === $contract['signed']['company']['path']
+            && $mail->attachment['as'] === $contract['number'].'-signed-by-wareed.pdf'
+            && count($mail->attachments()) === 1;
+    });
+
+    // صفحة العميل: رابط تحميل نسخة الشركة ونموذج رفع نسخته
+    $this->get(route('quote.contract', 'hajar-salama'))
+        ->assertSuccessful()
+        ->assertSee('حمّلها ووقّعها ثم ارفع نسختك الموقّعة')
+        ->assertSee('عقد-موقع.pdf')
+        ->assertSee('رفع نسختي الموقّعة');
+
+    // العميل يرفض بملف كبير ثم يرفع صورة صالحة
+    $this->post(route('quote.contract.copy', 'hajar-salama'), ['file' => UploadedFile::fake()->create('big.pdf', 20000, 'application/pdf')])
+        ->assertSessionHasErrors('file');
+    $this->post(route('quote.contract.copy', 'hajar-salama'), ['file' => UploadedFile::fake()->image('signed.jpg')])
+        ->assertSessionHas('signed_saved', true);
+
+    $contract = Contracts::of($sr->fresh());
+    expect($contract['fully_signed'])->toBeTrue()
+        ->and($contract['signing_label'])->toBe('موقّع من الطرفين')
+        ->and($contract['signed']['client']['name'])->toBe('signed.jpg')
+        ->and($contract['signed']['client']['size_h'])->toEndWith('ك.ب');
+    Storage::disk('local')->assertExists($contract['signed']['client']['path']);
+    Mail::assertSent(StageMessage::class, fn (StageMessage $mail) => $mail->hasTo('info@wareed.vip')
+        && str_contains($mail->subjectLine, 'رفع العميل نسخته الموقّعة من العقد '.$contract['number'])
+        && str_contains($mail->bodyText, 'اكتمل توقيع العقد من الطرفين'));
+
+    // استبدال نسخة الشركة يحذف السابقة من القرص
+    $old = $contract['signed']['company']['path'];
+    Livewire::test(ContractsPage::class)
+        ->set('signedUpload.company_'.$sr->id, UploadedFile::fake()->create('v2.pdf', 50, 'application/pdf'))
+        ->call('uploadSigned', $sr->id, 'company')
+        ->assertHasNoErrors();
+    $new = Contracts::of($sr->fresh())['signed']['company']['path'];
+    expect($new)->not->toBe($old);
+    Storage::disk('local')->assertMissing($old);
+    Storage::disk('local')->assertExists($new);
+
+    // الحالة تظهر للعميل في صفحتي العقد والمتابعة وللفريق في اللوحة
+    $this->get(route('quote.contract', 'hajar-salama'))->assertSuccessful()->assertSee('اكتمل توقيع العقد من الطرفين');
+    $this->get(route('quote.invite', 'hajar-salama'))->assertSuccessful()->assertSee('اكتمل توقيع العقد من الطرفين');
+    $this->get('/admin/contracts')->assertSuccessful()->assertSee('موقّع من الطرفين')->assertSee('signed.jpg')->assertSee('v2.pdf');
+
+    // ملف Livewire المؤقّت يُنقَل عند التخزين لا يُنسَخ (حين يكون قرص الرفع المؤقّت هو قرص الحفظ نفسه كما على
+    // الخادم): بياناته تُقرأ قبل النقل وإلا تعطّل الرفع من اللوحة. Livewire يبدّل قرص الرفع المؤقّت في الاختبارات
+    // إلى قرص خاص، فنبني الملف المؤقّت على القرص المحلي مباشرة، وملف بياناته الجانبي بلا حجم كي يُقرأ الحجم من
+    // القرص فعلاً كما في الاستخدام الحقيقي.
+    Storage::disk('local')->put('livewire-tmp/moved.pdf', str_repeat('x', 1234));
+    Storage::disk('local')->put('livewire-tmp/moved.pdf.json', json_encode(['name' => 'نسخة-العميل.pdf', 'type' => 'application/pdf']));
+    $temp = new TemporaryUploadedFile('moved.pdf', 'local');
+    expect($temp->getClientOriginalName())->toBe('نسخة-العميل.pdf')
+        ->and($temp->getSize())->toBe(1234);
+    expect(Contracts::attachSigned($sr->fresh(), 'client', $temp)['ok'])->toBeTrue();
+    $moved = Contracts::of($sr->fresh())['signed']['client'];
+    expect($moved['size'])->toBe(1234)
+        ->and($moved['name'])->toBe('نسخة-العميل.pdf')
+        ->and($moved['path'])->toEndWith('.pdf');
+    Storage::disk('local')->assertMissing('livewire-tmp/moved.pdf');
+    Storage::disk('local')->assertExists($moved['path']);
+
+    // العقود القديمة بلا نسخ موقّعة تبقى تُقرأ
+    $legacy = contractRequest(['email' => 'old@example.com', 'source' => 'quote_form']);
+    Contracts::createDraft($legacy);
+    expect(Contracts::of($legacy->fresh())['signed'])->toBe(['company' => null, 'client' => null, 'sent_at' => null])
+        ->and(Contracts::of($legacy->fresh())['signing_label'])->toBeNull();
 });
