@@ -278,6 +278,48 @@ class QuoteRequests extends Page
         }, array_values((array) ($draft['history'] ?? []))));
     }
 
+    /** صفوف السجلّ جاهزة للحفظ في payload — بتواريخ ISO كبقية التواريخ المخزّنة. */
+    private function historyForStorage(): array
+    {
+        return array_map(fn (array $h) => array_merge($h, [
+            'issued_at' => $h['issued_at'] !== ''
+                ? rescue(fn () => Carbon::parse($h['issued_at'])->toIso8601String(), null, false)
+                : null,
+        ]), $this->historyRows($this->draft));
+    }
+
+    /**
+     * حفظ سجلّ الإصدارات وحده دون المساس بالعرض الجاري.
+     *
+     * تصحيح إصدار مضى لا يصحّ أن يغيّر رقماً وصل العميل: حفظ العرض كاملاً يعيد كتابة بنوده
+     * وخصمه، والعروض القديمة المخزّنة بقيمة خصم مباشرة تتحوّل حينها إلى نسبة فيزيح إجماليها
+     * قرشاً (15,000.00 تصير 14,999.99). فهذا الزرّ يكتب مفتاح السجلّ وحده.
+     */
+    public function saveHistory(): void
+    {
+        $sr = static::baseQuery()->whereKey($this->editingId)->firstOrFail();
+        $payload = (array) $sr->payload;
+
+        if (! isset($payload['_quote'])) {
+            Notification::make()->title('لا يوجد عرض سعر محفوظ لهذا الطلب.')->danger()->send();
+
+            return;
+        }
+
+        $payload['_quote']['history'] = $this->historyForStorage();
+        $sr->update(['payload' => $payload]);
+
+        $count = count($payload['_quote']['history']);
+
+        Notification::make()
+            ->title('حُفظ سجلّ الإصدارات — '.$sr->reference)
+            ->body($count > 0
+                ? $count.' إصدار سابق يظهر للعميل في عرض السعر، وأرقام العرض الحالي لم تتغيّر.'
+                : 'أُفرغ السجلّ، فلا تظهر للعميل إصدارات سابقة.')
+            ->success()
+            ->send();
+    }
+
     /** إضافة إصدار سابق فات تسجيله — يبدأ بأصغر رقم إصدار غير مستخدم وبأرقام العرض الحالي. */
     public function addHistory(): void
     {
@@ -611,25 +653,52 @@ class QuoteRequests extends Page
 
         // سجلّ الإصدارات: مع كل إعادة إصدار تُحفظ لقطة أرقام الإصدار السابق (السعر الأساسي،
         // نسبة الخصم وقيمته، الإجمالي) ليقارنها العميل بالإصدار الجديد. الحفظ دون إرسال لا يضيف شيئاً.
-        $history = array_map(fn (array $h) => array_merge($h, [
-            'issued_at' => $h['issued_at'] !== ''
-                ? rescue(fn () => Carbon::parse($h['issued_at'])->toIso8601String(), null, false)
-                : null,
-        ]), $this->historyRows($this->draft));
+        $history = $this->historyForStorage();
 
-        if ($isReissue && isset($prevQuote['issued_at']) && ($previous = QuoteController::quoteOf($sr))) {
-            $history[] = [
-                'version' => $previous['version'],
-                'issued_at' => $previous['issued_at']->toIso8601String(),
-                'subtotal' => $previous['subtotal'],
-                'discount_percent' => $previous['discount_percent'],
-                'discount' => $previous['discount'],
-                'vat_percent' => $previous['vat_percent'],
-                'vat' => $previous['vat'],
-                'total' => $previous['total'],
-                'currency' => $previous['currency'],
-            ];
+        if ($isReissue && isset($prevQuote['issued_at'])) {
+            // لقطة الإصدار السابق تُقرأ من اللقطة المحفوظة لحظة إرساله هو (`issued`) لا مما هو
+            // مخزَّن الآن: «حفظ دون إرسال» يعدّل أرقام الإصدار الجاري في مكانها، فلو قُرئت الآن
+            // لسُجّلت أرقام جديدة باسم إصدار مضى وصل العميل بغيرها. العروض الصادرة قبل هذه
+            // اللقطة لا تحملها فتُقرأ من المخزَّن كما كان (توافق خلفي).
+            $snapshot = is_array($prevQuote['issued'] ?? null) ? $prevQuote['issued'] : null;
+
+            if (! $snapshot && $previous = QuoteController::quoteOf($sr)) {
+                $snapshot = [
+                    'version' => $previous['version'],
+                    'issued_at' => $previous['issued_at']->toIso8601String(),
+                    'subtotal' => $previous['subtotal'],
+                    'discount_percent' => $previous['discount_percent'],
+                    'discount' => $previous['discount'],
+                    'vat_percent' => $previous['vat_percent'],
+                    'vat' => $previous['vat'],
+                    'total' => $previous['total'],
+                    'currency' => $previous['currency'],
+                ];
+            }
+
+            if ($snapshot) {
+                $history[] = $snapshot;
+            }
         }
+
+        $issuedAt = $isReissue ? now()->toIso8601String() : $prevQuote['issued_at'];
+        $version = $isReissue
+            ? (int) ($prevQuote['version'] ?? 0) + 1
+            : max(1, (int) ($prevQuote['version'] ?? 1));
+
+        // لقطة هذا الإصدار لحظة إرساله — هي ما سيُسجَّل في السجلّ عند إصدار ما بعده
+        $totals = $this->totalsOf(array_merge($this->draft, ['items' => $items]));
+        $issued = $isReissue ? [
+            'version' => $version,
+            'issued_at' => $issuedAt,
+            'subtotal' => $totals['subtotal'],
+            'discount_percent' => $totals['discount_percent'],
+            'discount' => $totals['discount'],
+            'vat_percent' => max(0, (float) ($this->draft['vat_percent'] ?? 0)),
+            'vat' => $totals['vat'],
+            'total' => $totals['total'],
+            'currency' => $totals['currency'],
+        ] : ($prevQuote['issued'] ?? null);
 
         $payload['_quote'] = [
             'items' => array_map(fn ($i) => [
@@ -683,12 +752,11 @@ class QuoteRequests extends Page
                 $this->draft['payments'] ?? [],
                 fn ($p) => trim((string) ($p['label'] ?? '')) !== '' && (float) ($p['percent'] ?? 0) > 0
             ))),
-            'issued_at' => $isReissue ? now()->toIso8601String() : $prevQuote['issued_at'],
+            'issued_at' => $issuedAt,
             // رقم إصدار العرض: يظهر في المستند والبريد عند إعادة الإصدار (بعد طلب تخفيض مثلاً)
             // ليتضح للعميل أن هذا سعر مُحدَّث لا تكرار لما رآه سابقاً.
-            'version' => $isReissue
-                ? (int) ($prevQuote['version'] ?? 0) + 1
-                : max(1, (int) ($prevQuote['version'] ?? 1)),
+            'version' => $version,
+            'issued' => $issued,
             'history' => $history,
         ];
 
