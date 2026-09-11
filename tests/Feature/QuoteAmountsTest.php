@@ -258,6 +258,98 @@ it('يحرّر سجلّ الإصدارات فيُكمل الفريق إصدار�
         ->and($quote['versions'][1])->toMatchArray(['version' => 3, 'subtotal' => 20000.0, 'discount' => 5000.0, 'total' => 15000.0]);
 });
 
+it('يحفظ سجلّ الإصدارات وحده دون أن يزيح أرقام العرض الجاري', function () {
+    $this->actingAs(amountsAdmin());
+    $sr = amountsRequest();
+
+    // عرض بالبنية القديمة (قيمة خصم غير مقرَّبة) إجماليه 15,000.00 بالضبط
+    $sr->update(['payload' => ['_quote' => [
+        'items' => [['name' => 'تجهيز المتجر', 'qty' => 1, 'price' => 18441.17]],
+        'discount' => 5283.2753, 'vat_percent' => 14, 'currency' => 'ج.م',
+        'issued_at' => now()->toIso8601String(), 'version' => 3,
+        'history' => [[
+            'version' => 2, 'issued_at' => now()->subDay()->toIso8601String(),
+            'subtotal' => 18441.17, 'discount_percent' => 28.649375, 'discount' => 5283.28,
+            'vat_percent' => 14.0, 'vat' => 1842.1, 'total' => 14999.99, 'currency' => 'ج.م',
+        ]],
+    ]]]);
+
+    $totalBefore = QuoteController::quoteOf($sr->fresh())['total'];
+    expect(round($totalBefore, 2))->toBe(15000.0);
+
+    Livewire::test(QuoteRequests::class)
+        ->call('openQuote', $sr->id)
+        ->set('draft.history.0.subtotal', 20900)
+        ->call('setHistoryDiscountAmount', 0, '5987.72')
+        ->call('addHistory')
+        ->set('draft.history.1.version', 1)
+        ->set('draft.history.1.issued_at', '2026-09-03')
+        ->set('draft.history.1.subtotal', 20900)
+        ->set('draft.history.1.vat_percent', 14)
+        ->call('setHistoryDiscountAmount', 1, '3527.19')
+        ->call('saveHistory');
+
+    $quote = QuoteController::quoteOf($sr->fresh());
+
+    // السجلّ صُحّح وأُكمل
+    expect(array_column($quote['versions'], 'version'))->toBe([1, 2, 3])
+        ->and($quote['versions'][0])->toMatchArray(['subtotal' => 20900.0, 'discount' => 3527.19, 'total' => 19805.0])
+        ->and($quote['versions'][1])->toMatchArray(['subtotal' => 20900.0, 'discount' => 5987.72, 'total' => 17000.0])
+        // والعرض الجاري لم يُمسّ: بنية الخصم القديمة وإجماليه كما هما
+        ->and(($sr->fresh()->payload['_quote']['discount'] ?? null))->toBe(5283.2753)
+        ->and($sr->fresh()->payload['_quote']['discount_percent'] ?? null)->toBeNull()
+        ->and($quote['total'])->toBe($totalBefore)
+        ->and(round($quote['total'], 2))->toBe(15000.0)
+        ->and($quote['version'])->toBe(3);
+});
+
+it('يسجّل في السجلّ أرقام الإصدار كما وصلت العميل لا كما عُدّلت بعده', function () {
+    Mail::fake();
+    $this->actingAs(amountsAdmin());
+    $sr = amountsRequest();
+
+    // الإصدار 1 يصل العميل بإجمالي 22,800
+    amountsEditor($sr, 20000, 14)->call('issueQuote', true);
+    expect(QuoteController::quoteOf($sr->fresh())['total'])->toBe(22800.0);
+
+    // ثم يُعدَّل السعر ويُحفظ دون إرسال: لا يزيد رقم الإصدار ولا يُسجَّل شيء بعد،
+    // لكن المخزَّن صار يحمل أرقاماً لم يرها العميل تحت الإصدار 1 نفسه
+    Livewire::test(QuoteRequests::class)
+        ->call('openQuote', $sr->id)
+        ->set('draft.items.0.price', 16000)
+        ->call('issueQuote', false);
+
+    $afterEdit = QuoteController::quoteOf($sr->fresh());
+    expect($afterEdit['version'])->toBe(1)
+        ->and($afterEdit['total'])->toBe(18240.0)
+        ->and($afterEdit['history'])->toBeEmpty();
+
+    // إصدار ثانٍ: السجلّ يحمل أرقام الإصدار 1 كما أُرسلت (22,800) لا كما عُدّلت (18,240)
+    Livewire::test(QuoteRequests::class)
+        ->call('openQuote', $sr->id)
+        ->set('draft.discount_percent', 10)
+        ->call('issueQuote', true);
+
+    $quote = QuoteController::quoteOf($sr->fresh());
+    expect($quote['version'])->toBe(2)
+        ->and($quote['history'])->toHaveCount(1)
+        ->and($quote['history'][0])->toMatchArray(['version' => 1, 'subtotal' => 20000.0, 'total' => 22800.0])
+        ->and($quote['total'])->toBe(16416.0);
+
+    // العروض الصادرة قبل هذه اللقطة تُقرأ من المخزَّن كما كان (توافق خلفي)
+    $legacy = amountsRequest();
+    $legacy->update(['payload' => ['_quote' => [
+        'items' => [['name' => 'بند', 'qty' => 1, 'price' => 10000]],
+        'discount_percent' => 0, 'vat_percent' => 0, 'currency' => 'ج.م',
+        'issued_at' => now()->subDay()->toIso8601String(), 'version' => 1,
+    ]]]);
+
+    Livewire::test(QuoteRequests::class)->call('openQuote', $legacy->id)->call('issueQuote', true);
+
+    expect(QuoteController::quoteOf($legacy->fresh())['history'][0])
+        ->toMatchArray(['version' => 1, 'subtotal' => 10000.0, 'total' => 10000.0]);
+});
+
 it('يطبع نسبة الخصم الكسرية بدقّتها في عرض السعر فتطابق قيمتها المعروضة', function () {
     Mail::fake();
     $this->actingAs(amountsAdmin());

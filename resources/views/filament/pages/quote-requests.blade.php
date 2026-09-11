@@ -900,6 +900,10 @@
                                 <x-filament::button wire:click="addHistory" size="xs" color="gray" icon="heroicon-o-plus">
                                     إضافة إصدار سابق
                                 </x-filament::button>
+                                <x-filament::button wire:click="saveHistory" size="xs" color="primary" icon="heroicon-o-check"
+                                                    tooltip="يحفظ السجلّ وحده — بنود العرض الحالي وخصمه وإجماليه لا تتغيّر">
+                                    حفظ السجلّ وحده
+                                </x-filament::button>
                             </div>
 
                             @if ($missingVersions)
