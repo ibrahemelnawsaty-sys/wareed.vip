@@ -36,4 +36,22 @@ class SetLocale
 
         return $response;
     }
+
+    /**
+     * رابط الصفحة بلغة معيّنة كما يقرؤه هذا الوسيط: العربية — لغة الزائر
+     * الجديد — بلا معامل، وغيرها بـ?hl=. وهو الرابط القانوني (canonical) لنسخة
+     * تلك اللغة، فلا تحيل النسخة الإنجليزية إلى العربية أصلاً لها فيُسقطها
+     * Google من الفهرسة كنسخة مكرّرة.
+     */
+    public static function localizedUrl(string $url, string $locale): string
+    {
+        if ($locale === 'ar') {
+            return $url;
+        }
+
+        // جذر الموقع بلا مسار يُكتب /?hl= كما يكتبه مبدّل اللغة في الترويسة
+        $separator = str_contains($url, '?') ? '&' : (parse_url($url, PHP_URL_PATH) ? '?' : '/?');
+
+        return $url.$separator.'hl='.$locale;
+    }
 }

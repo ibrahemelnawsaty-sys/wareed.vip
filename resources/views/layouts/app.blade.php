@@ -8,7 +8,15 @@
         $pageTitle = ($seo['title'] ?? null) ? $seo['title'] . ' — ' . $siteName : $siteName . ' — ' . setting('site_tagline', 'شريان الحياة التقني لمصر');
         $pageDesc = $seo['description'] ?? setting('site_description', 'منصة وريد: متاجر إلكترونية من ضغطة زر، حلول تقنية للشركات والجهات الحكومية، وتدريب تقني احترافي في مصر.');
         $ogImage = $seo['image'] ?? setting('default_og_image');
-        $canonical = $seo['canonical'] ?? url()->current();
+        // لكل نسخة لغوية رابطها القانوني: الصفحة بلا استعلام، والإنجليزية بـ?hl=en.
+        // تعلن الصفحة رابط لغتها هي لا العربية، وإلا عدّ Google النسخة الإنجليزية
+        // مكرّرة وأسقطها من الفهرسة.
+        $pageUrl = $seo['canonical'] ?? url()->current();
+        $alternates = [
+            'ar' => \App\Http\Middleware\SetLocale::localizedUrl($pageUrl, 'ar'),
+            'en' => \App\Http\Middleware\SetLocale::localizedUrl($pageUrl, 'en'),
+        ];
+        $canonical = $alternates[$currentLocale ?? app()->getLocale()] ?? $alternates['ar'];
         $noindex = $seo['noindex'] ?? false;
         $keywords = $seo['keywords'] ?? setting('seo_keywords');
 
@@ -31,10 +39,10 @@
     <meta name="description" content="{{ $pageDesc }}">
     @if($keywords)<meta name="keywords" content="{{ $keywords }}">@endif
     <link rel="canonical" href="{{ $canonical }}">
-    {{-- hreflang: نسختان عربي/إنجليزي (دستور §11) --}}
-    <link rel="alternate" hreflang="ar" href="{{ url()->current() }}">
-    <link rel="alternate" hreflang="en" href="{{ request()->fullUrlWithQuery(['hl' => 'en']) }}">
-    <link rel="alternate" hreflang="x-default" href="{{ url()->current() }}">
+    {{-- hreflang: نسختان عربي/إنجليزي (دستور §11)، المجموعة نفسها في النسختين --}}
+    <link rel="alternate" hreflang="ar" href="{{ $alternates['ar'] }}">
+    <link rel="alternate" hreflang="en" href="{{ $alternates['en'] }}">
+    <link rel="alternate" hreflang="x-default" href="{{ $alternates['ar'] }}">
     @if($noindex)<meta name="robots" content="noindex, nofollow">@else<meta name="robots" content="index, follow, max-image-preview:large">@endif
     <meta name="theme-color" content="#ffffff">
     <meta name="color-scheme" content="light">
