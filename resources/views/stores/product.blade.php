@@ -54,7 +54,7 @@
                     <textarea name="shipping_address" required rows="2" placeholder="{{ __('العنوان بالتفصيل') }} *" class="rounded-xl border border-ink-600 bg-ink-850 px-4 py-3 text-cloud-100 outline-none focus:border-gold-500">{{ old('shipping_address') }}</textarea>
                     <button type="submit" class="btn w-full justify-center text-ink-950" style="background: {{ $accent }}">{{ __('تأكيد الطلب') }}</button>
                     @if($store->whatsapp)
-                        <a href="https://wa.me/{{ preg_replace('/[^0-9]/','',$store->whatsapp) }}?text={{ urlencode('أريد طلب: '.$product->name) }}" target="_blank" rel="noopener" class="btn btn-ghost w-full justify-center">{{ __('اطلب عبر واتساب') }}</a>
+                        <a href="https://wa.me/{{ preg_replace('/[^0-9]/','',$store->whatsapp) }}?text={{ urlencode(__('أريد طلب: :product', ['product' => $product->name])) }}" target="_blank" rel="noopener" class="btn btn-ghost w-full justify-center">{{ __('اطلب عبر واتساب') }}</a>
                     @endif
                 </form>
             </div>

@@ -142,17 +142,19 @@
                     <input id="f-company" name="company" value="{{ old('company') }}" class="f-input" placeholder="{{ __('اختياري') }}">
                 </div>
 
-                {{-- حقول خاصة بالخدمة، مصدرها إعدادات الخدمة نفسها --}}
+                {{-- حقول خاصة بالخدمة، مصدرها إعدادات الخدمة نفسها. تسمياتها وخياراتها
+                     مخزّنة بالعربية فتُترجم عند العرض فقط، وتبقى القيمة المُرسَلة عربية
+                     كما يقرؤها الفريق في اللوحة وفي البريد الإلكتروني --}}
                 @foreach((array) $service->form_fields as $field)
                     @php $fname = 'extra_'.($field['name'] ?? ''); $ftype = $field['type'] ?? 'text'; @endphp
                     <div style="{{ ($field['full'] ?? false) || $ftype === 'textarea' ? 'grid-column: 1 / -1;' : '' }}">
-                        <label class="f-label" for="{{ $fname }}">{{ $field['label'] ?? $field['name'] }}</label>
+                        <label class="f-label" for="{{ $fname }}">{{ __($field['label'] ?? $field['name']) }}</label>
                         @if($ftype === 'select' && !empty($field['options']))
                             <div class="f-select-wrap">
                                 <select id="{{ $fname }}" name="{{ $fname }}" class="f-select">
                                     <option value="">{{ __('اختر…') }}</option>
                                     @foreach($field['options'] as $opt)
-                                        <option value="{{ $opt }}" @selected(old($fname) === $opt)>{{ $opt }}</option>
+                                        <option value="{{ $opt }}" @selected(old($fname) === $opt)>{{ __($opt) }}</option>
                                     @endforeach
                                 </select>
                                 <x-w-icon name="chevron-down" />

@@ -23,8 +23,8 @@ class PageController extends Controller
         return view('contact', [
             'services' => $services,
             'seo' => [
-                'title' => 'تواصل معنا',
-                'description' => 'تواصل مع فريق وريد لبدء مشروعك التقني — متاجر، حلول، أو تدريب.',
+                'title' => __('تواصل معنا'),
+                'description' => __('تواصل مع فريق وريد لبدء مشروعك التقني — متاجر، حلول، أو تدريب.'),
             ],
         ]);
     }
@@ -53,7 +53,7 @@ class PageController extends Controller
             'user_agent' => substr((string) $request->userAgent(), 0, 255),
         ]);
 
-        return back()->with('success', 'تم استلام رسالتك بنجاح! سيتواصل معك فريق وريد قريباً.');
+        return back()->with('success', __('تم استلام رسالتك بنجاح! سيتواصل معك فريق وريد قريباً.'));
     }
 
     public function show(string $slug)
