@@ -60,6 +60,6 @@ class ServiceController extends Controller
             'user_agent' => substr((string) $request->userAgent(), 0, 255),
         ]);
 
-        return back()->with('success', 'تم استلام طلبك بنجاح! سيتواصل معك فريق وريد خلال ساعات.');
+        return back()->with('success', __('تم استلام طلبك بنجاح! سيتواصل معك فريق وريد خلال ساعات.'));
     }
 }

@@ -15,7 +15,7 @@
     @forelse($page->content ?? [] as $block)
         @include('partials.block', ['block' => $block])
     @empty
-        <p class="text-center text-cloud-400">هذه الصفحة قيد الإعداد.</p>
+        <p class="text-center text-cloud-400">{{ __('هذه الصفحة قيد الإعداد.') }}</p>
     @endforelse
 </div>
 @endsection

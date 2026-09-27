@@ -17,8 +17,8 @@ class StoreController extends Controller
         return view('stores.index', [
             'stores' => $stores,
             'seo' => [
-                'title' => 'متاجر وريد',
-                'description' => 'تصفّح المتاجر الإلكترونية التي أُنشئت عبر منصة وريد.',
+                'title' => __('متاجر وريد'),
+                'description' => __('تصفّح المتاجر الإلكترونية التي أُنشئت عبر منصة وريد.'),
             ],
         ]);
     }
@@ -102,7 +102,7 @@ class StoreController extends Controller
 
         return redirect()
             ->route('store.show', $store)
-            ->with('success', 'تم استلام طلبك رقم '.$order->order_number.' بنجاح! سنتواصل معك لتأكيد الطلب والدفع عند الاستلام.');
+            ->with('success', __('تم استلام طلبك رقم :number بنجاح! سنتواصل معك لتأكيد الطلب والدفع عند الاستلام.', ['number' => $order->order_number]));
     }
 
     private function storeSeo(Store $store): array

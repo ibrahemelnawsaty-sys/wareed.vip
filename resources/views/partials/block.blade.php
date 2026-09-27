@@ -1,3 +1,6 @@
+{{-- محتوى الصفحات مخزّن بلغة واحدة (العربية)، فتُترجم نصوص كتله عند العرض
+     عبر lang/en.json كنصوص القوالب: محتوى الصفحات النظامية المزروع (من نحن)
+     يظهر مترجماً للزائر الإنجليزي، وأي نص عدّله الفريق يظهر كما كُتب. --}}
 @php
     $type = $block['type'] ?? 'richtext';
     $data = $block['data'] ?? [];
@@ -6,29 +9,29 @@
 @switch($type)
     @case('hero')
         <section class="mb-12 text-center" data-reveal>
-            <h2 class="text-3xl font-black sm:text-4xl">{{ $data['title'] ?? '' }}</h2>
-            @if(!empty($data['subtitle']))<p class="mx-auto mt-4 max-w-2xl text-cloud-300">{{ $data['subtitle'] }}</p>@endif
+            <h2 class="text-3xl font-black sm:text-4xl">{{ __($data['title'] ?? '') }}</h2>
+            @if(!empty($data['subtitle']))<p class="mx-auto mt-4 max-w-2xl text-cloud-300">{{ __($data['subtitle']) }}</p>@endif
             @if(!empty($data['cta_label']))
-                <a href="{{ $data['cta_url'] ?? '#' }}" class="btn btn-gold mt-6">{{ $data['cta_label'] }}</a>
+                <a href="{{ $data['cta_url'] ?? '#' }}" class="btn btn-gold mt-6">{{ __($data['cta_label']) }}</a>
             @endif
         </section>
         @break
 
     @case('richtext')
         <div class="prose-invert mb-10 leading-8 text-cloud-200" data-reveal>
-            {!! $data['html'] ?? '' !!}
+            {!! __($data['html'] ?? '') !!}
         </div>
         @break
 
     @case('features')
         <section class="mb-14" data-reveal>
-            @if(!empty($data['title']))<h2 class="mb-8 text-center text-3xl font-black">{{ $data['title'] }}</h2>@endif
+            @if(!empty($data['title']))<h2 class="mb-8 text-center text-3xl font-black">{{ __($data['title']) }}</h2>@endif
             <div class="grid gap-6 md:grid-cols-3">
                 @foreach(($data['items'] ?? []) as $item)
                     <div class="glass card-hover rounded-3xl p-7">
                         <div class="text-3xl">{{ $item['icon'] ?? '✦' }}</div>
-                        <h3 class="mt-4 text-lg font-bold text-cloud-50">{{ $item['title'] ?? '' }}</h3>
-                        <p class="mt-2 text-sm leading-7 text-cloud-400">{{ $item['desc'] ?? '' }}</p>
+                        <h3 class="mt-4 text-lg font-bold text-cloud-50">{{ __($item['title'] ?? '') }}</h3>
+                        <p class="mt-2 text-sm leading-7 text-cloud-400">{{ __($item['desc'] ?? '') }}</p>
                     </div>
                 @endforeach
             </div>
@@ -41,7 +44,7 @@
                 @foreach(($data['items'] ?? []) as $item)
                     <div class="glass rounded-3xl p-7 text-center">
                         <div class="text-3xl font-black text-gold-400">{{ $item['value'] ?? '' }}</div>
-                        <div class="mt-2 text-sm text-cloud-400">{{ $item['label'] ?? '' }}</div>
+                        <div class="mt-2 text-sm text-cloud-400">{{ __($item['label'] ?? '') }}</div>
                     </div>
                 @endforeach
             </div>
@@ -51,10 +54,10 @@
     @case('cta')
         <section class="mb-14" data-reveal>
             <div class="glass-gold rounded-[2rem] px-8 py-12 text-center">
-                <h2 class="text-3xl font-black">{{ $data['title'] ?? '' }}</h2>
-                @if(!empty($data['subtitle']))<p class="mx-auto mt-3 max-w-xl text-cloud-300">{{ $data['subtitle'] }}</p>@endif
+                <h2 class="text-3xl font-black">{{ __($data['title'] ?? '') }}</h2>
+                @if(!empty($data['subtitle']))<p class="mx-auto mt-3 max-w-xl text-cloud-300">{{ __($data['subtitle']) }}</p>@endif
                 @if(!empty($data['button_label']))
-                    <a href="{{ $data['button_url'] ?? '#' }}" class="btn btn-gold mt-6">{{ $data['button_label'] }}</a>
+                    <a href="{{ $data['button_url'] ?? '#' }}" class="btn btn-gold mt-6">{{ __($data['button_label']) }}</a>
                 @endif
             </div>
         </section>
@@ -62,12 +65,12 @@
 
     @case('faq')
         <section class="mb-14" data-reveal>
-            @if(!empty($data['title']))<h2 class="mb-8 text-center text-3xl font-black">{{ $data['title'] }}</h2>@endif
+            @if(!empty($data['title']))<h2 class="mb-8 text-center text-3xl font-black">{{ __($data['title']) }}</h2>@endif
             <div class="space-y-4">
                 @foreach(($data['items'] ?? []) as $item)
                     <details class="glass rounded-2xl p-6">
-                        <summary class="cursor-pointer list-none text-lg font-bold text-cloud-100">{{ $item['q'] ?? '' }}</summary>
-                        <p class="mt-3 leading-7 text-cloud-400">{{ $item['a'] ?? '' }}</p>
+                        <summary class="cursor-pointer list-none text-lg font-bold text-cloud-100">{{ __($item['q'] ?? '') }}</summary>
+                        <p class="mt-3 leading-7 text-cloud-400">{{ __($item['a'] ?? '') }}</p>
                     </details>
                 @endforeach
             </div>
@@ -75,5 +78,5 @@
         @break
 
     @default
-        <div class="prose-invert mb-10 leading-8 text-cloud-200">{!! $data['html'] ?? '' !!}</div>
+        <div class="prose-invert mb-10 leading-8 text-cloud-200">{!! __($data['html'] ?? '') !!}</div>
 @endswitch
